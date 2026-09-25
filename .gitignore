@@ -1,0 +1,14 @@
+# Go
+backend/bin/
+*.exe
+*.test
+
+# env file
+.env
+*.env
+!.env.example
+
+# IDE
+.idea/
+.vscode/
+*.iml
