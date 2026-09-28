@@ -4,6 +4,7 @@ import (
 	"context"
 	"strings"
 	"sync"
+	"sync/atomic"
 
 	"github.com/skyP38/flowchart_editor/backend/internal/domains"
 )
@@ -11,7 +12,7 @@ import (
 // MemoryUserRepo - потокобезопасная реализация domains.UserRepository
 type MemoryUserRepo struct {
 	mu      sync.RWMutex
-	nextID  int64
+	nextID  atomic.Int64
 	byID    map[int64]*domains.User
 	byLogin map[string]*domains.User
 }
