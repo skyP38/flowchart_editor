@@ -34,10 +34,10 @@ func (r *MemoryUserRepo) Create(ctx context.Context, u *domains.User) error {
 		return ErrUserAlreadyExists
 	}
 
-	r.nextID++
-	u.ID = r.nextID
-
+	id := r.nextID.Add(1)
 	cp := *u
+	cp.ID = id
+
 	r.byID[u.ID] = &cp
 	r.byLogin[key] = &cp
 	return nil

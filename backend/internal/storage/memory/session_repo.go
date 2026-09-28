@@ -2,11 +2,13 @@ package memory
 
 import (
 	"context"
+	"sort"
 	"sync"
+	"sync/atomic"
+	"time"
 
 	"github.com/skyP38/flowchart_editor/backend/internal/domains"
 )
-
 
 type MemorySessionRepo struct {
 	mu     sync.RWMutex
@@ -15,9 +17,9 @@ type MemorySessionRepo struct {
 	byHash map[string]int64
 }
 
-func NewMemorySessionRepo() *MemoryRefreshSessionRepo {
+func NewMemorySessionRepo() *MemorySessionRepo {
 	return &MemorySessionRepo{
-		byID:   make(map[int64]*domains.RefreshSession),
+		byID:   make(map[int64]*domains.Session),
 		byHash: make(map[string]int64),
 	}
 }
@@ -31,7 +33,7 @@ func (r *MemorySessionRepo) Create(ctx context.Context, s *domains.Session) erro
 		return ErrSessionAlreadyExists
 	}
 
-	id := r.seq.Add(1)
+	id := r.nextID.Add(1)
 	cp := *s
 	cp.ID = id
 	if cp.CreatedAt.IsZero() {
@@ -44,11 +46,11 @@ func (r *MemorySessionRepo) Create(ctx context.Context, s *domains.Session) erro
 }
 
 // GetByHash возвращает копию сессии по хешу
-func (r *MemorySessionRepo) GetByTokenHash(ctx context.Context, tokenHash string) (*Session, error) {
+func (r *MemorySessionRepo) GetByTokenHash(ctx context.Context, tokenHash string) (*domains.Session, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
-	s, ok := r.byHash[tokenHash]
+	id, ok := r.byHash[tokenHash]
 	if !ok {
 		return nil, ErrSessionNotFound
 	}
@@ -58,7 +60,7 @@ func (r *MemorySessionRepo) GetByTokenHash(ctx context.Context, tokenHash string
 }
 
 // GetByHash возвращает копию сессии по числовому идентификатору
-func (r *MemorySessionRepo) GetByID(ctx context.Context, id int64) (*Session, error) {
+func (r *MemorySessionRepo) GetByID(ctx context.Context, id int64) (*domains.Session, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
@@ -71,11 +73,11 @@ func (r *MemorySessionRepo) GetByID(ctx context.Context, id int64) (*Session, er
 }
 
 // GetByHash возвращает список всех сессий пользователя по его числовому идентификатору
-func (r *MemorySessionRepo) ListByUserID(ctx context.Context, userID int64) ([]*Session, error)) {
+func (r *MemorySessionRepo) ListByUserID(ctx context.Context, userID int64) ([]*domains.Session, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
-out := make([]*domains.Session, 0)
+	out := make([]*domains.Session, 0)
 	for _, s := range r.byID {
 		if s.UserID == userID {
 			cp := *s
@@ -87,38 +89,33 @@ out := make([]*domains.Session, 0)
 }
 
 func (r *MemorySessionRepo) Revoke(ctx context.Context, id int64, at time.Time) error {
-r.mu.RLock()
+	r.mu.Lock()
 	defer r.mu.RUnlock()
 
 	s, ok := r.byID[id]
 	if !ok {
-		return nil, ErrSessionNotFound
+		return ErrSessionNotFound
 	}
 	if s.RevokedAt == nil {
 		t := at
-		s.RevokeAt = &t
+		s.RevokedAt = &t
 	}
 	return nil
 }
-	
-		
-	
-func (r *MemorySessionRepo)	RevokeAllExcept(ctx context.Context, userID int64, keepSessionID int64, at time.Time) error {
+
+func (r *MemorySessionRepo) RevokeAllExcept(ctx context.Context, userID int64, keepSessionID int64, at time.Time) error {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
 	for _, s := range r.byID {
-		if s.UserID != userID {
+		if s.UserID != userID || s.ID == keepSessionID {
 			continue
 		}
 
-		if s.ID == keepSessionID {
-			continue
-		}
 		if s.RevokedAt == nil {
-		t := at
-		s.RevokeAt = &t
-	}
+			t := at
+			s.RevokedAt = &t
+		}
 
 	}
 

@@ -22,6 +22,8 @@ func NewAuthHandler(svc *auth.Service) *AuthHandler {
 func (h *AuthHandler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/auth/register", h.Register)
 	mux.HandleFunc("POST /api/auth/login", h.Login)
+	mux.HandleFunc("POST /api/auth/refresh", h.Refresh)
+	mux.HandleFunc("POST /api/auth/logout", h.Logout)
 }
 
 // registerRequest - тело запроса регистрации
@@ -37,6 +39,10 @@ type loginRequest struct {
 	Password string `json:"password"`
 }
 
+type refreshRequest struct {
+	RefreshToken string `json:"refresh_token"`
+}
+
 // userDTO - представление пользователя в ответах
 type userDTO struct {
 	ID    int64  `json:"id"`
@@ -47,9 +53,10 @@ type userDTO struct {
 
 // authResponse - ответ на успешные попытки Register/Login
 type authResponse struct {
-	User        userDTO `json:"user"`
-	AccessToken string  `json:"access_token"`
-	ExpiresIn   int     `json:"expires_in"`
+	User         userDTO `json:"user"`
+	AccessToken  string  `json:"access_token"`
+	RefreshToken string  `json:"refresh_token"`
+	ExpiresIn    int     `json:"expires_in"`
 }
 
 // Register обрабатывает POST /api/auth/register
@@ -81,7 +88,7 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 	var req loginRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		transport.WriteError(w, http.StatusBadRequest, "invalid_input", "malformed JSON body")
+		transport.WriteError(w, http.StatusBadRequest, "invalid_input", "wrong JSON body")
 		return
 	}
 
@@ -95,6 +102,38 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 	transport.WriteJSON(w, http.StatusOK, toDTO(res))
 }
 
+// Refresh обрабатывает POST /api/auth/refresh
+// Возвращает 200 OK при успехе, иначе 400 invalid_input
+func (h *AuthHandler) Refresh(w http.ResponseWriter, r *http.Request) {
+	defer r.Body.Close()
+	var req refreshRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		transport.WriteError(w, http.StatusBadRequest, "invalid_input", "wrong JSON body")
+		return
+	}
+
+	res, err := h.svc.Refresh(r.Context(), req.RefreshToken)
+	if err != nil {
+		writeAuthError(w, err)
+		return
+	}
+	transport.WriteJSON(w, http.StatusOK, toDTO(res))
+}
+
+// Logout обрабатывает POST /api/auth/refresh
+// Возвращает 200 OK при успехе, иначе 400 invalid_input
+func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) {
+	defer r.Body.Close()
+	var req refreshRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		transport.WriteError(w, http.StatusBadRequest, "invalid_input", "wrong JSON body")
+		return
+	}
+
+	_ = h.svc.Logout(r.Context(), req.RefreshToken)
+	w.WriteHeader(http.StatusNoContent)
+}
+
 // toDTO преобразует AuthResult в authResponse
 func toDTO(res *auth.AuthResult) authResponse {
 	return authResponse{
@@ -102,8 +141,9 @@ func toDTO(res *auth.AuthResult) authResponse {
 			ID: res.User.ID, Login: res.User.Login,
 			Uname: res.User.Uname, Role: res.User.Role,
 		},
-		AccessToken: res.AccessToken,
-		ExpiresIn:   res.ExpiresIn,
+		AccessToken:  res.AccessToken,
+		RefreshToken: res.RefreshToken,
+		ExpiresIn:    res.ExpiresIn,
 	}
 }
 
@@ -122,6 +162,8 @@ func writeAuthError(w http.ResponseWriter, err error) {
 		transport.WriteError(w, http.StatusConflict, "login_taken", "login is already taken")
 	case errors.Is(err, auth.ErrInvalidCredentials):
 		transport.WriteError(w, http.StatusUnauthorized, "invalid_credentials", "invalid login or password")
+	case errors.Is(err, auth.ErrInvalidRefreshToken):
+		transport.WriteError(w, http.StatusUnauthorized, "invalid_refresh_token", "refresh token is invalid or expired")
 	default:
 		transport.WriteError(w, http.StatusInternalServerError, "internal", "internal server error")
 	}

@@ -18,23 +18,28 @@ var loginRe = regexp.MustCompile(`^[a-zA-Z0-9_]{3,32}$`)
 
 // Service - сервис аутентификации
 type Service struct {
-	users     domains.UserRepository
-	access    *token.AccessTokenManager
-	pepper    string
-	accessTTL time.Duration
+	users      domains.UserRepository
+	sessions   domains.SessionRepository
+	access     *token.AccessTokenManager
+	pepper     string
+	accessTTL  time.Duration
+	refreshTTL time.Duration
 }
 
 func NewService(
 	users domains.UserRepository,
+	sessions domains.SessionRepository,
 	access *token.AccessTokenManager,
 	pepper string,
-	accessTTL time.Duration,
+	accessTTL, refreshTTL time.Duration,
 ) *Service {
 	return &Service{
-		users:     users,
-		access:    access,
-		pepper:    pepper,
-		accessTTL: accessTTL,
+		users:      users,
+		sessions:   sessions,
+		access:     access,
+		pepper:     pepper,
+		accessTTL:  accessTTL,
+		refreshTTL: refreshTTL,
 	}
 }
 
@@ -53,9 +58,10 @@ type LoginInput struct {
 
 // AuthResult - результат успешной регистрации или логина
 type AuthResult struct {
-	User        *domains.User
-	AccessToken string
-	ExpiresIn   int
+	User         *domains.User
+	AccessToken  string
+	RefreshToken string
+	ExpiresIn    int
 }
 
 // Register создает нового пользователя и сразу выпускает ему access-токен
@@ -104,7 +110,7 @@ func (s *Service) Register(ctx context.Context, in RegisterInput) (*AuthResult, 
 		return nil, err
 	}
 
-	return s.issueAccess(u)
+	return s.issueTokens(ctx, u)
 }
 
 // Login проверяет учетные данные и выпускает access-токен
@@ -122,19 +128,76 @@ func (s *Service) Login(ctx context.Context, in LoginInput) (*AuthResult, error)
 		return nil, ErrInvalidCredentials
 	}
 
-	return s.issueAccess(u)
+	return s.issueTokens(ctx, u)
 }
 
-// issueAccess выпускает access-токен для пользователя и формирует AuthResult
-func (s *Service) issueAccess(u *domains.User) (*AuthResult, error) {
-	tok, err := s.access.GenerateAccessToken(u)
+// Refresh обновляет access-токен
+func (s *Service) Refresh(ctx context.Context, refreshToken string) (*AuthResult, error) {
+	if refreshToken == "" {
+		return nil, ErrInvalidRefreshToken
+	}
+	hash := token.HashRefreshToken(refreshToken)
+	sess, err := s.sessions.GetByTokenHash(ctx, hash)
+	if err != nil {
+		return nil, ErrInvalidRefreshToken
+	}
+
+	now := time.Now().UTC()
+	if !sess.IsActive(now) {
+		if sess.RevokedAt != nil {
+			_ = s.sessions.RevokeAllExcept(ctx, sess.UserID, 0, now)
+		}
+		return nil, ErrInvalidRefreshToken
+	}
+
+	u, err := s.users.GetByID(ctx, sess.UserID)
+	if err != nil || u == nil || !u.IsActive {
+		return nil, ErrInvalidRefreshToken
+	}
+
+	if err := s.sessions.Revoke(ctx, sess.ID, now); err != nil {
+		return nil, err
+	}
+	return s.issueTokens(ctx, u)
+}
+
+// Logout пользователь выходит из системы
+func (s *Service) Logout(ctx context.Context, refreshToken string) error {
+	if refreshToken == "" {
+		return nil
+	}
+	sess, err := s.sessions.GetByTokenHash(ctx, token.HashRefreshToken(refreshToken))
+	if err != nil {
+		return nil
+	}
+	return s.sessions.Revoke(ctx, sess.ID, time.Now().UTC())
+}
+
+// issueTokens выпускает access-токен для пользователя и формирует AuthResult
+func (s *Service) issueTokens(ctx context.Context, u *domains.User) (*AuthResult, error) {
+	accessTok, err := s.access.GenerateAccessToken(u)
 	if err != nil {
 		return nil, err
 	}
+	plain, hash, err := token.GenerateRefreshToken()
+	if err != nil {
+		return nil, err
+	}
+	now := time.Now().UTC()
+	sess := &domains.Session{
+		UserID:    u.ID,
+		TokenHash: hash,
+		CreatedAt: now,
+		ExpiresAt: now.Add(s.refreshTTL),
+	}
+	if err := s.sessions.Create(ctx, sess); err != nil {
+		return nil, err
+	}
 	return &AuthResult{
-		User:        u,
-		AccessToken: tok,
-		ExpiresIn:   int(s.accessTTL.Seconds()),
+		User:         u,
+		AccessToken:  accessTok,
+		RefreshToken: plain,
+		ExpiresIn:    int(s.accessTTL.Seconds()),
 	}, nil
 }
 

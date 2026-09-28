@@ -26,13 +26,14 @@ func main() {
 	}
 
 	users := memory.NewMemoryUserRepo()
+	sessions := memory.NewMemorySessionRepo()
 
 	if err := memory.SeedAdmin(context.Background(), users, cfg.AdminLogin, cfg.AdminPassword, cfg.PasswordPepper); err != nil {
 		log.Fatalf("seed admin: %v", err)
 	}
 
 	accessMgr := token.NewAccessTokenManager(cfg.JWTSecret, cfg.AccessTokenTTL)
-	authSvc := auth.NewService(users, accessMgr, cfg.PasswordPepper, cfg.AccessTokenTTL)
+	authSvc := auth.NewService(users, sessions, accessMgr, cfg.PasswordPepper, cfg.AccessTokenTTL, cfg.RefreshTokenTTL)
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) {

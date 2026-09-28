@@ -3,8 +3,9 @@ package auth
 import "errors"
 
 var (
-	ErrLoginTaken         = errors.New("login already taken")
-	ErrInvalidCredentials = errors.New("invalid login or password")
+	ErrLoginTaken          = errors.New("login already taken")
+	ErrInvalidCredentials  = errors.New("invalid login or password")
+	ErrInvalidRefreshToken = errors.New("invalid refresh token")
 )
 
 type ValidationError struct {
