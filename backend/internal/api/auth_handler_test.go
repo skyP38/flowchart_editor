@@ -1,0 +1,151 @@
+package api_test
+
+import (
+	"bytes"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"testing"
+	"time"
+
+	"github.com/skyP38/flowchart_editor/backend/internal/api"
+	"github.com/skyP38/flowchart_editor/backend/internal/domains"
+	"github.com/skyP38/flowchart_editor/backend/internal/service/auth"
+	"github.com/skyP38/flowchart_editor/backend/internal/service/auth/token"
+	"github.com/skyP38/flowchart_editor/backend/internal/storage/memory"
+)
+
+// setupHandler собирает HTTP-стек для тестов
+// Возвращает готовый http.Handler и доступ к репозиторию
+func setupHandler(t *testing.T) (http.Handler, domains.UserRepository) {
+	t.Helper()
+	users := memory.NewMemoryUserRepo()
+	accessMgr := token.NewAccessTokenManager("test-secret", 15*time.Minute)
+	authSvc := auth.NewService(users, accessMgr, "test-pepper", 15*time.Minute)
+
+	h := api.NewAuthHandler(authSvc)
+	mux := http.NewServeMux()
+	h.RegisterRoutes(mux)
+	return mux, users
+}
+
+// doJSON сериализует body в JSON, выполняет POST-запрос к h по пути path
+// и возвращает записанный ответ
+func doJSON(t *testing.T, h http.Handler, path string, body map[string]string) *httptest.ResponseRecorder {
+	t.Helper()
+	b, _ := json.Marshal(body)
+	req := httptest.NewRequest(http.MethodPost, path, bytes.NewReader(b))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	return rec
+}
+
+// decodeError разбирает тело ответа как ErrorResponse и возвращает error.code
+func decodeError(t *testing.T, rec *httptest.ResponseRecorder) string {
+	t.Helper()
+	var resp struct {
+		Error struct {
+			Code string `json:"code"`
+		} `json:"error"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("decode error body: %v (%s)", err, rec.Body.String())
+	}
+	return resp.Error.Code
+}
+
+// TestRegister_Success: успешная регистрация с 201 Created
+func TestRegister_Success(t *testing.T) {
+	h, _ := setupHandler(t)
+
+	rec := doJSON(t, h, "/api/auth/register", map[string]string{
+		"login": "alice", "uname": "Alice", "password": "secret123",
+	})
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("status: got %d, want 201, body: %s", rec.Code, rec.Body.String())
+	}
+
+	var resp struct {
+		User struct {
+			ID                 int64
+			Login, Uname, Role string
+		} `json:"user"`
+		AccessToken string `json:"access_token"`
+		ExpiresIn   int    `json:"expires_in"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if resp.User.Login != "alice" || resp.User.Role != "user" {
+		t.Fatalf("unexpected user: %+v", resp.User)
+	}
+	if resp.AccessToken == "" {
+		t.Fatalf("access token empty")
+	}
+	if resp.ExpiresIn != 900 {
+		t.Fatalf("expires_in = %d, want 900", resp.ExpiresIn)
+	}
+}
+
+// TestRegister_LoginTaken: повторная регистрация с тем же
+// логином возвращает 409 Conflict и код ошибки "login_taken"
+func TestRegister_LoginTaken(t *testing.T) {
+	h, _ := setupHandler(t)
+	_ = doJSON(t, h, "/api/auth/register", map[string]string{
+		"login": "alice", "uname": "Alice", "password": "secret123",
+	})
+	rec := doJSON(t, h, "/api/auth/register", map[string]string{
+		"login": "alice", "uname": "Other", "password": "secret123",
+	})
+	if rec.Code != http.StatusConflict {
+		t.Fatalf("status: got %d, want 409", rec.Code)
+	}
+	if code := decodeError(t, rec); code != "login_taken" {
+		t.Fatalf("code = %q, want login_taken", code)
+	}
+}
+
+// TestRegister_InvalidPassword: некорректный пароль приводит к 400 Bad Request
+func TestRegister_InvalidPassword(t *testing.T) {
+	h, _ := setupHandler(t)
+
+	for _, pwd := range []string{"short1", "onlyletters", "12345678"} {
+		rec := doJSON(t, h, "/api/auth/register", map[string]string{
+			"login": "alice", "uname": "Alice", "password": pwd,
+		})
+		if rec.Code != http.StatusBadRequest {
+			t.Fatalf("pwd=%q status %d", pwd, rec.Code)
+		}
+	}
+}
+
+// TestLogin_Success: успешный логин зарегистрированного
+// пользователя возвращает 200 OK
+func TestLogin_Success(t *testing.T) {
+	h, _ := setupHandler(t)
+	_ = doJSON(t, h, "/api/auth/register", map[string]string{
+		"login": "alice", "uname": "Alice", "password": "secret123",
+	})
+	rec := doJSON(t, h, "/api/auth/login", map[string]string{
+		"login": "alice", "password": "secret123",
+	})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status: %d body=%s", rec.Code, rec.Body.String())
+	}
+}
+
+// TestLogin_InvalidCredentials: логин с несуществующим
+// пользователем возвращает 401 Unauthorized и код "invalid_credentials"
+func TestLogin_InvalidCredentials(t *testing.T) {
+	h, _ := setupHandler(t)
+	rec := doJSON(t, h, "/api/auth/login", map[string]string{
+		"login": "nobody", "password": "secret123",
+	})
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("status: %d", rec.Code)
+	}
+	if code := decodeError(t, rec); code != "invalid_credentials" {
+		t.Fatalf("code = %q", code)
+	}
+}
