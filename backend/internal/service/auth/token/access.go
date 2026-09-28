@@ -3,6 +3,7 @@ package token
 import (
 	"errors"
 	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -36,12 +37,13 @@ func NewAccessTokenManager(secret string, ttl time.Duration) *AccessTokenManager
 }
 
 // GenerateAccessToken возвращает подписанную строку или ошибку подписи
-func (m *AccessTokenManager) GenerateAccessToken(u *domains.User) (string, error) {
+func (m *AccessTokenManager) GenerateAccessToken(u *domains.User, sessionID int64) (string, error) {
 	now := time.Now().UTC()
 	claims := Claims{
 		Role: u.Role,
 		RegisteredClaims: jwt.RegisteredClaims{
 			Subject:   fmt.Sprintf("%d", u.ID),
+			ID:        strconv.FormatInt(sessionID, 10),
 			Issuer:    Issuer,
 			IssuedAt:  jwt.NewNumericDate(now),
 			ExpiresAt: jwt.NewNumericDate(now.Add(m.ttl)),

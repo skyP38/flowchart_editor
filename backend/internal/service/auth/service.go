@@ -173,12 +173,37 @@ func (s *Service) Logout(ctx context.Context, refreshToken string) error {
 	return s.sessions.Revoke(ctx, sess.ID, time.Now().UTC())
 }
 
+// GetUser - для GET /api/auth/me
+func (s *Service) GetUser(ctx context.Context, id int64) (*domains.User, error) {
+	u, err := s.users.GetByID(ctx, id)
+	if err != nil || u == nil || !u.IsActive {
+		return nil, ErrInvalidCredentials
+	}
+	return u, nil
+}
+
+// ListSessions - для GET /api/sessions
+func (s *Service) ListSessions(ctx context.Context, userID int64) ([]*domains.Session, error) {
+	return s.sessions.ListByUserID(ctx, userID)
+}
+
+// RevokeSession - для DELETE /api/sessions/{id}
+func (s *Service) RevokeSession(ctx context.Context, userID, sessionID int64) error {
+	sess, err := s.sessions.GetByID(ctx, sessionID)
+	if err != nil || sess.UserID != userID {
+		return ErrSessionNotFound
+	}
+	return s.sessions.Revoke(ctx, sessionID, time.Now().UTC())
+}
+
+// RevokeAllSessions - для DELETE /api/sessions
+// keepID - текущая
+func (s *Service) RevokeAllSessions(ctx context.Context, userID, keepID int64) error {
+	return s.sessions.RevokeAllExcept(ctx, userID, keepID, time.Now().UTC())
+}
+
 // issueTokens выпускает access-токен для пользователя и формирует AuthResult
 func (s *Service) issueTokens(ctx context.Context, u *domains.User) (*AuthResult, error) {
-	accessTok, err := s.access.GenerateAccessToken(u)
-	if err != nil {
-		return nil, err
-	}
 	plain, hash, err := token.GenerateRefreshToken()
 	if err != nil {
 		return nil, err
@@ -193,6 +218,12 @@ func (s *Service) issueTokens(ctx context.Context, u *domains.User) (*AuthResult
 	if err := s.sessions.Create(ctx, sess); err != nil {
 		return nil, err
 	}
+
+	accessTok, err := s.access.GenerateAccessToken(u, sess.ID)
+	if err != nil {
+		return nil, err
+	}
+
 	return &AuthResult{
 		User:         u,
 		AccessToken:  accessTok,

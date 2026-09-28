@@ -104,7 +104,7 @@ func (r *MemorySessionRepo) Revoke(ctx context.Context, id int64, at time.Time) 
 }
 
 func (r *MemorySessionRepo) RevokeAllExcept(ctx context.Context, userID int64, keepSessionID int64, at time.Time) error {
-	r.mu.RLock()
+	r.mu.Lock()
 	defer r.mu.RUnlock()
 
 	for _, s := range r.byID {

@@ -35,8 +35,8 @@ func (r *MemoryUserRepo) Create(ctx context.Context, u *domains.User) error {
 	}
 
 	id := r.nextID.Add(1)
+	u.ID = id
 	cp := *u
-	cp.ID = id
 
 	r.byID[u.ID] = &cp
 	r.byLogin[key] = &cp

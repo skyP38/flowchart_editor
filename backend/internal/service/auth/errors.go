@@ -6,6 +6,7 @@ var (
 	ErrLoginTaken          = errors.New("login already taken")
 	ErrInvalidCredentials  = errors.New("invalid login or password")
 	ErrInvalidRefreshToken = errors.New("invalid refresh token")
+	ErrSessionNotFound     = errors.New("session not found")
 )
 
 type ValidationError struct {
