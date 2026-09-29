@@ -3,8 +3,10 @@ package api_test
 import (
 	"bytes"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"testing"
 	"time"
 
@@ -20,12 +22,13 @@ import (
 func setupHandler(t *testing.T) (http.Handler, domains.UserRepository) {
 	t.Helper()
 	users := memory.NewMemoryUserRepo()
+	sessions := memory.NewMemorySessionRepo()
 	accessMgr := token.NewAccessTokenManager("test-secret", 15*time.Minute)
-	authSvc := auth.NewService(users, accessMgr, "test-pepper", 15*time.Minute)
+	authSvc := auth.NewService(users, sessions, accessMgr, "test-pepper", 15*time.Minute, 7*24*time.Hour)
 
-	h := api.NewAuthHandler(authSvc)
 	mux := http.NewServeMux()
-	h.RegisterRoutes(mux)
+	api.NewAuthHandler(authSvc).RegisterRoutes(mux, api.Auth(accessMgr))
+	api.NewSessionHandler(authSvc).RegisterRoutes(mux, api.Auth(accessMgr))
 	return mux, users
 }
 
@@ -36,6 +39,23 @@ func doJSON(t *testing.T, h http.Handler, path string, body map[string]string) *
 	b, _ := json.Marshal(body)
 	req := httptest.NewRequest(http.MethodPost, path, bytes.NewReader(b))
 	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	return rec
+}
+
+func doReq(t *testing.T, h http.Handler, method, path, token string, body any) *httptest.ResponseRecorder {
+	t.Helper()
+	var rdr io.Reader
+	if body != nil {
+		b, _ := json.Marshal(body)
+		rdr = bytes.NewReader(b)
+	}
+	req := httptest.NewRequest(method, path, rdr)
+	req.Header.Set("Content-Type", "application/json")
+	if token != "" {
+		req.Header.Set("Authorization", "Bearer "+token)
+	}
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, req)
 	return rec
@@ -147,5 +167,71 @@ func TestLogin_InvalidCredentials(t *testing.T) {
 	}
 	if code := decodeError(t, rec); code != "invalid_credentials" {
 		t.Fatalf("code = %q", code)
+	}
+}
+
+func TestMe_Success(t *testing.T) {
+	h, _ := setupHandler(t)
+	rec := doJSON(t, h, "/api/auth/register", map[string]string{
+		"login": "alice", "uname": "Alice", "password": "secret123",
+	})
+	var reg struct {
+		AccessToken string `json:"access_token"`
+	}
+	_ = json.Unmarshal(rec.Body.Bytes(), &reg)
+
+	me := doReq(t, h, http.MethodGet, "/api/auth/me", reg.AccessToken, nil)
+	if me.Code != http.StatusOK {
+		t.Fatalf("status %d body=%s", me.Code, me.Body.String())
+	}
+}
+
+func TestMe_Unauthorized(t *testing.T) {
+	h, _ := setupHandler(t)
+	rec := doReq(t, h, http.MethodGet, "/api/auth/me", "", nil)
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("status %d", rec.Code)
+	}
+}
+
+func TestSessions_ListAndRevoke(t *testing.T) {
+	h, _ := setupHandler(t)
+	// 2 сессии
+	rec1 := doJSON(t, h, "/api/auth/register", map[string]string{
+		"login": "alice", "uname": "Alice", "password": "secret123",
+	})
+	rec2 := doJSON(t, h, "/api/auth/login", map[string]string{
+		"login": "alice", "password": "secret123",
+	})
+	var r1, r2 struct {
+		AccessToken string `json:"access_token"`
+	}
+	_ = json.Unmarshal(rec1.Body.Bytes(), &r1)
+	_ = json.Unmarshal(rec2.Body.Bytes(), &r2)
+
+	list := doReq(t, h, http.MethodGet, "/api/sessions", r2.AccessToken, nil)
+	if list.Code != http.StatusOK {
+		t.Fatalf("list status %d", list.Code)
+	}
+	var resp struct {
+		Sessions []struct {
+			ID      int64 `json:"id"`
+			Current bool  `json:"current"`
+		} `json:"sessions"`
+	}
+	_ = json.Unmarshal(list.Body.Bytes(), &resp)
+	if len(resp.Sessions) != 2 {
+		t.Fatalf("sessions = %d, want 2", len(resp.Sessions))
+	}
+
+	var firstID int64
+	for _, s := range resp.Sessions {
+		if !s.Current {
+			firstID = s.ID
+		}
+	}
+	del := doReq(t, h, http.MethodDelete, "/api/sessions/"+strconv.FormatInt(firstID, 10), r2.AccessToken, nil)
+	if del.Code != http.StatusNoContent {
+		t.Fatalf("delete status %d body=%s", del.Code, del.Body.String())
 	}
 }

@@ -45,7 +45,7 @@ func (r *MemorySessionRepo) Create(ctx context.Context, s *domains.Session) erro
 	return nil
 }
 
-// GetByHash возвращает копию сессии по хешу
+// GetByTokenHash возвращает копию сессии по хешу
 func (r *MemorySessionRepo) GetByTokenHash(ctx context.Context, tokenHash string) (*domains.Session, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
@@ -59,7 +59,7 @@ func (r *MemorySessionRepo) GetByTokenHash(ctx context.Context, tokenHash string
 	return &cp, nil
 }
 
-// GetByHash возвращает копию сессии по числовому идентификатору
+// GetByID возвращает копию сессии по числовому идентификатору
 func (r *MemorySessionRepo) GetByID(ctx context.Context, id int64) (*domains.Session, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
@@ -72,7 +72,7 @@ func (r *MemorySessionRepo) GetByID(ctx context.Context, id int64) (*domains.Ses
 	return &cp, nil
 }
 
-// GetByHash возвращает список всех сессий пользователя по его числовому идентификатору
+// ListByUserID возвращает список всех сессий пользователя по его числовому идентификатору
 func (r *MemorySessionRepo) ListByUserID(ctx context.Context, userID int64) ([]*domains.Session, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
@@ -90,7 +90,7 @@ func (r *MemorySessionRepo) ListByUserID(ctx context.Context, userID int64) ([]*
 
 func (r *MemorySessionRepo) Revoke(ctx context.Context, id int64, at time.Time) error {
 	r.mu.Lock()
-	defer r.mu.RUnlock()
+	defer r.mu.Unlock()
 
 	s, ok := r.byID[id]
 	if !ok {
@@ -105,7 +105,7 @@ func (r *MemorySessionRepo) Revoke(ctx context.Context, id int64, at time.Time) 
 
 func (r *MemorySessionRepo) RevokeAllExcept(ctx context.Context, userID int64, keepSessionID int64, at time.Time) error {
 	r.mu.Lock()
-	defer r.mu.RUnlock()
+	defer r.mu.Unlock()
 
 	for _, s := range r.byID {
 		if s.UserID != userID || s.ID == keepSessionID {

@@ -34,14 +34,15 @@ func main() {
 
 	accessMgr := token.NewAccessTokenManager(cfg.JWTSecret, cfg.AccessTokenTTL)
 	authSvc := auth.NewService(users, sessions, accessMgr, cfg.PasswordPepper, cfg.AccessTokenTTL, cfg.RefreshTokenTTL)
+	authMW := api.Auth(accessMgr)
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) {
 		transport.WriteJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 	})
 
-	authHandler := api.NewAuthHandler(authSvc)
-	authHandler.RegisterRoutes(mux)
+	api.NewAuthHandler(authSvc).RegisterRoutes(mux, authMW)
+	api.NewSessionHandler(authSvc).RegisterRoutes(mux, authMW)
 
 	handler := transport.Chain(mux,
 		transport.Recover,

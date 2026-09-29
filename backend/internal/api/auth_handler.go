@@ -19,11 +19,13 @@ func NewAuthHandler(svc *auth.Service) *AuthHandler {
 }
 
 // RegisterRoutes регистрирует маршруты обработчика в mux
-func (h *AuthHandler) RegisterRoutes(mux *http.ServeMux) {
+func (h *AuthHandler) RegisterRoutes(mux *http.ServeMux, authMW AuthMW) {
 	mux.HandleFunc("POST /api/auth/register", h.Register)
 	mux.HandleFunc("POST /api/auth/login", h.Login)
 	mux.HandleFunc("POST /api/auth/refresh", h.Refresh)
 	mux.HandleFunc("POST /api/auth/logout", h.Logout)
+
+	mux.Handle("GET /api/auth/me", authMW(http.HandlerFunc(h.Me)))
 }
 
 // registerRequest - тело запроса регистрации
@@ -132,6 +134,18 @@ func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) {
 
 	_ = h.svc.Logout(r.Context(), req.RefreshToken)
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// Me обрабатывает GET /api/auth/me - возвращает профиль текущего пользователя
+func (h *AuthHandler) Me(w http.ResponseWriter, r *http.Request) {
+	u, err := h.svc.GetUser(r.Context(), UserIDFrom(r.Context()))
+	if err != nil {
+		writeAuthError(w, err)
+		return
+	}
+	transport.WriteJSON(w, http.StatusOK, userDTO{
+		ID: u.ID, Login: u.Login, Uname: u.Uname, Role: u.Role,
+	})
 }
 
 // toDTO преобразует AuthResult в authResponse
