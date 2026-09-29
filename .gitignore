@@ -15,3 +15,5 @@ backend/bin/
 
 package.json
 package-lock.json
+
+frontend/web
