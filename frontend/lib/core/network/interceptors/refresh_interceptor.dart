@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+
 import '../token_storage.dart';
 
 class RefreshInterceptor extends Interceptor {
@@ -9,11 +10,9 @@ class RefreshInterceptor extends Interceptor {
   Future<String?>? _refreshFuture;
 
   static const _publicPaths = <String>[
-    '/auth/login',
-    '/auth/register',
-    '/auth/refresh',
-    '/auth/password/request',
-    '/auth/password/confirm',
+    '/api/auth/login',
+    '/api/auth/register',
+    '/api/auth/refresh',
   ];
 
   RefreshInterceptor({
@@ -28,6 +27,10 @@ class RefreshInterceptor extends Interceptor {
     DioException err,
     ErrorInterceptorHandler handler,
   ) async {
+    if (err.requestOptions.extra['__skipInterceptors'] == true) {
+      return handler.next(err);
+    }
+
     final response = err.response;
     final path = err.requestOptions.path;
     final isPublic = _publicPaths.any((p) => path.startsWith(p));
@@ -44,7 +47,6 @@ class RefreshInterceptor extends Interceptor {
       return handler.next(err);
     }
 
-    // Повторяем исходный запрос с новым access-токеном.
     final options = err.requestOptions;
     options.headers['Authorization'] = 'Bearer $newAccess';
     options.extra['__retried'] = true;
@@ -57,7 +59,6 @@ class RefreshInterceptor extends Interceptor {
     }
   }
 
-  // Возвращает новый access-токен или null при неудаче.
   Future<String?> _refreshTokens() {
     final existing = _refreshFuture;
     if (existing != null) return existing;
@@ -73,28 +74,17 @@ class RefreshInterceptor extends Interceptor {
     if (refreshToken == null || refreshToken.isEmpty) return null;
 
     try {
-      final bare = Dio(
-        BaseOptions(
-          baseUrl: _dio.options.baseUrl,
-          connectTimeout: _dio.options.connectTimeout,
-          receiveTimeout: _dio.options.receiveTimeout,
-        ),
-      );
-
-      final res = await bare.post<Map<String, dynamic>>(
-        '/auth/refresh',
-        data: {'refreshToken': refreshToken},
-        options: Options(
-          headers: {'Content-Type': 'application/json'},
-          extra: {'__skipInterceptors': true},
-        ),
+      final res = await _dio.post<Map<String, dynamic>>(
+        '/api/auth/refresh',
+        data: {'refresh_token': refreshToken},
+        options: Options(extra: {'__skipInterceptors': true}),
       );
 
       final data = res.data;
       if (data == null) return null;
 
-      final access = data['accessToken'] as String?;
-      final refresh = data['refreshToken'] as String?;
+      final access = data['access_token'] as String?;
+      final refresh = data['refresh_token'] as String?;
       if (access == null || refresh == null) return null;
 
       await _storage.saveTokens(accessToken: access, refreshToken: refresh);

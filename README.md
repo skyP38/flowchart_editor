@@ -1,14 +1,23 @@
 # Flowchart Editor
 
 
+### TODO:
+- защита от перебора пароля
+- ролевая модель user/admin (middleware)
+- редактор бс
+- управления активными сессиями (UI)
+- панель администратора (пользователи, проекты)
+- документированный REST API
+
 Ожидаемые endpoint:
 |Метод|Endpoint|Назначение|Тело запроса|Ответ|
-|POST|/auth/register|Регистрация|login, name, password|AuthResponse|
-|POST|/auth/login|Вход|login, password|AuthResponse|
-|POST|/auth/refresh|Обновление access-токена|refreshToken|AuthTokens|
-|POST|/auth/logout|Выход|refreshToken|204 / пустой ответ|
-|GET|/auth/me|Текущий пользователь|—|User|
-|GET|/auth/sessions|Активные сессии|—|список Session|
-|DELETE|/auth/sessions/{id}|Завершить сессию|—|204|
-|POST|/auth/password/request|Запрос сброса пароля|???|204|
-|POST|/auth/password/confirm|Подтверждение сброса|token, newPassword|204|
+|POST|/api/auth/register|Регистрация|login, name, password|AuthResponse|
+|POST|/api/auth/login|Вход|login, password|AuthResponse|
+|POST|/api/auth/refresh|Обновление access-токена|refreshToken|AuthTokens|
+|POST|/api/auth/logout|Выход|refreshToken|204 / пустой ответ|
+|GET|/api/auth/me|Текущий пользователь|-|User|
+|GET|/api/sessions|Активные сессии|-|список Session|
+|DELETE|/api/sessions/{id}|Завершить сессию|-|204|
+|DELETE|/api/sessions/|Завершить все сессии кроме текущей|-|???|
+
+

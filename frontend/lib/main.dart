@@ -5,7 +5,7 @@ import 'core/network/api_client.dart';
 import 'features/auth/data/api/auth_api.dart';
 import 'features/auth/data/storage/secure_token_storage.dart';
 import 'features/auth/domain/auth_repository.dart';
-import 'features/auth/presentation/registration_screen.dart';
+import 'features/auth/presentation/auth_gate.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -53,7 +53,7 @@ class MyApp extends StatelessWidget {
         fontFamily: 'Inter',
         colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF6750A5)),
       ),
-      home: const RegistrationScreen(),
+      home: const AuthGate(),
     );
   }
 }

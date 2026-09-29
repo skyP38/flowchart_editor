@@ -1,4 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+
+import '../../../core/network/api_error.dart';
+import '../domain/auth_repository.dart';
+import '../domain/auth_state.dart';
+import 'registration_screen.dart';
+import 'widgets/auth_widgets.dart';
 
 class LoginScreen extends StatefulWidget {
   final VoidCallback onLoggedIn;
@@ -13,17 +20,94 @@ class _LoginScreenState extends State<LoginScreen> {
   final _passwordController = TextEditingController();
 
   bool _isPasswordVisible = false;
+  bool _isSubmitting = false;
 
-  final Color _primaryColor = const Color(0xFF6750A5);
-  final Color _borderColor = const Color(0xFF9CA3AF);
-  final Color _textColor = const Color(0xFF374151);
-  final Color _hintColor = const Color(0xFF9CA3AF);
+  final Map<String, String> _fieldErrors = {};
+  String? _generalError;
 
   @override
   void dispose() {
     _loginController.dispose();
     _passwordController.dispose();
     super.dispose();
+  }
+
+  void _clearErrorFor(String field) {
+    if (_fieldErrors.containsKey(field) || _generalError != null) {
+      setState(() {
+        _fieldErrors.remove(field);
+        _generalError = null;
+      });
+    }
+  }
+
+  Future<void> _submit() async {
+    if (_isSubmitting) return;
+
+    final login = _loginController.text.trim();
+    final password = _passwordController.text;
+
+    // клиентская валидация
+    final localErrors = <String, String>{};
+    if (login.isEmpty) localErrors['login'] = 'Enter login';
+    if (password.isEmpty) localErrors['password'] = 'Enter password';
+
+    if (localErrors.isNotEmpty) {
+      setState(() {
+        _fieldErrors
+          ..clear()
+          ..addAll(localErrors);
+        _generalError = null;
+      });
+      return;
+    }
+
+    FocusScope.of(context).unfocus();
+    setState(() {
+      _isSubmitting = true;
+      _fieldErrors.clear();
+      _generalError = null;
+    });
+
+    final repo = context.read<AuthRepository>();
+    await repo.login(login: login, password: password);
+
+    if (!mounted) return;
+
+    // анализ результата
+    final state = repo.state;
+    ApiError? err;
+    if (state is AuthUnauthenticated) err = state.error;
+    if (state is AuthError) err = state.error;
+
+    if (err == null) {
+      widget.onLoggedIn.call();
+      return;
+    }
+
+    _applyServerError(err);
+  }
+
+  void _applyServerError(ApiError err) {
+    final newFieldErrors = <String, String>{};
+    for (final field in const ['login', 'password']) {
+      final msg = err.fieldError(field);
+      if (msg != null) newFieldErrors[field] = msg;
+    }
+
+    setState(() {
+      _isSubmitting = false;
+      _fieldErrors
+        ..clear()
+        ..addAll(newFieldErrors);
+      _generalError = newFieldErrors.isEmpty ? err.message : null;
+    });
+  }
+
+  void _goToRegister() {
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => const RegistrationScreen()));
   }
 
   @override
@@ -36,49 +120,12 @@ class _LoginScreenState extends State<LoginScreen> {
             constraints: const BoxConstraints(
               maxWidth: 420,
             ), // Ограничение ширины для Web
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 40),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(16),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.05),
-                    blurRadius: 20,
-                    offset: const Offset(0, 10),
-                  ),
-                ],
-              ),
+            child: AuthCard(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  // Логотип и название
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(6),
-                        decoration: BoxDecoration(
-                          color: _primaryColor,
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: const Icon(
-                          Icons.close_rounded, // добавить иконку
-                          size: 20,
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      const Text(
-                        'Flowchart Editor',
-                        style: TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.black87,
-                        ),
-                      ),
-                    ],
-                  ),
+                  const AuthLogoHeader(),
                   const SizedBox(height: 24),
 
                   // Заголовок
@@ -93,17 +140,23 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                   const SizedBox(height: 32),
 
-                  // Поле Login
-                  _buildLabel('Login'),
-                  _buildTextField(
+                  if (_generalError != null) ...[
+                    AuthErrorBanner(_generalError!),
+                    const SizedBox(height: 16),
+                  ],
+
+                  const AuthLabel('Login'),
+                  AuthTextField(
                     controller: _loginController,
                     hintText: 'username',
+                    enabled: !_isSubmitting,
+                    errorText: _fieldErrors['login'],
+                    onChanged: (_) => _clearErrorFor('login'),
                   ),
                   const SizedBox(height: 20),
 
-                  // Поле Password
-                  _buildLabel('Password'),
-                  _buildTextField(
+                  const AuthLabel('Password'),
+                  AuthTextField(
                     controller: _passwordController,
                     hintText: '••••••••',
                     obscureText: !_isPasswordVisible,
@@ -112,134 +165,46 @@ class _LoginScreenState extends State<LoginScreen> {
                         _isPasswordVisible
                             ? Icons.visibility_outlined
                             : Icons.visibility_off_outlined,
-                        color: _hintColor,
+                        color: AuthColors.hint,
                         size: 20,
                       ),
-                      onPressed: () {
-                        setState(() {
-                          _isPasswordVisible = !_isPasswordVisible;
-                        });
-                      },
+                      onPressed: () => setState(
+                        () => _isPasswordVisible = !_isPasswordVisible,
+                      ),
                     ),
                   ),
                   const SizedBox(height: 20),
 
-                  // Кнопка Login
-                  ElevatedButton(
-                    onPressed: () {
-                      // Логика регистрации
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: _primaryColor,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      elevation: 0,
-                    ),
-                    child: const Text(
-                      'Login',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
+                  AuthPrimaryButton(
+                    label: 'Login',
+                    isLoading: _isSubmitting,
+                    onPressed: _submit,
                   ),
                   const SizedBox(height: 24),
 
-                  // Нижние ссылки
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       GestureDetector(
-                        onTap: () {
-                          // Переход на страницу входа
-                        },
-                        child: Text(
-                          'No account? Register',
-                          style: TextStyle(
-                            color: _primaryColor,
-                            fontSize: 14,
-                            fontWeight: FontWeight.w500,
+                        onTap: _isSubmitting ? null : _goToRegister,
+                        child: MouseRegion(
+                          cursor: SystemMouseCursors.click,
+                          child: const Text(
+                            'No account? Register',
+                            style: TextStyle(
+                              color: AuthColors.primary,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w500,
+                            ),
                           ),
                         ),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 12),
-                  Center(
-                    child: GestureDetector(
-                      onTap: () {
-                        // Логика восстановления пароля
-                      },
-                      child: const Text(
-                        'Forgot your password?',
-                        style: TextStyle(
-                          color: Color(0xFF6B7280),
-                          fontSize: 14,
-                        ),
-                      ),
-                    ),
-                  ),
                 ],
               ),
             ),
           ),
-        ),
-      ),
-    );
-  }
-
-  // Вспомогательный виджет для подписи поля
-  Widget _buildLabel(String label) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8.0),
-      child: Text(
-        label,
-        style: TextStyle(
-          color: _textColor,
-          fontSize: 14,
-          fontWeight: FontWeight.w500,
-        ),
-      ),
-    );
-  }
-
-  // Вспомогательный виджет для текстового поля
-  Widget _buildTextField({
-    required TextEditingController controller,
-    required String hintText,
-    bool obscureText = false,
-    TextInputType keyboardType = TextInputType.text,
-    Widget? suffixIcon,
-  }) {
-    return TextFormField(
-      controller: controller,
-      obscureText: obscureText,
-      keyboardType: keyboardType,
-      style: const TextStyle(fontSize: 15),
-      decoration: InputDecoration(
-        hintText: hintText,
-        hintStyle: TextStyle(color: _hintColor, fontSize: 15),
-        contentPadding: const EdgeInsets.symmetric(
-          horizontal: 16,
-          vertical: 16,
-        ),
-        filled: true,
-        fillColor: Colors.white,
-        suffixIcon: suffixIcon,
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
-          borderSide: BorderSide(color: _borderColor, width: 1),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
-          borderSide: BorderSide(color: _primaryColor, width: 1.5),
-        ),
-        errorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
-          borderSide: const BorderSide(color: Colors.red, width: 1),
         ),
       ),
     );

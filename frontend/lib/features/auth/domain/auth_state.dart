@@ -1,7 +1,7 @@
 import '../../../core/network/api_error.dart';
 import '../data/models/user.dart';
 
-// Состояние авторизации.
+// Состояние авторизации
 sealed class AuthState {
   const AuthState();
 }
@@ -23,8 +23,9 @@ final class AuthLoading extends AuthState {
 // Пользователь не авторизован
 final class AuthUnauthenticated extends AuthState {
   final String? message;
+  final ApiError? error;
 
-  const AuthUnauthenticated({this.message});
+  const AuthUnauthenticated({this.message, this.error});
 }
 
 // Пользователь авторизован

@@ -10,14 +10,14 @@ class AuthTokens {
   });
 
   factory AuthTokens.fromJson(Map<String, dynamic> json) => AuthTokens(
-    accessToken: json['accessToken'] as String,
-    refreshToken: json['refreshToken'] as String,
-    expiresIn: (json['expiresIn'] as num).toInt(),
+    accessToken: json['access_token'] as String,
+    refreshToken: json['refresh_token'] as String,
+    expiresIn: (json['expires_in'] as num).toInt(),
   );
 
   Map<String, dynamic> toJson() => {
-    'accessToken': accessToken,
-    'refreshToken': refreshToken,
-    'expiresIn': expiresIn,
+    'access_token': accessToken,
+    'refresh_token': refreshToken,
+    'expires_in': expiresIn,
   };
 }

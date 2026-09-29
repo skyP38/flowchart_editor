@@ -9,7 +9,7 @@ class AuthResponse {
 
   factory AuthResponse.fromJson(Map<String, dynamic> json) => AuthResponse(
     user: User.fromJson(json['user'] as Map<String, dynamic>),
-    tokens: AuthTokens.fromJson(json['tokens'] as Map<String, dynamic>),
+    tokens: AuthTokens.fromJson(json),
   );
 
   Map<String, dynamic> toJson() => {

@@ -47,8 +47,6 @@ class AuthRepository extends ChangeNotifier {
   Future<void> login({required String login, required String password}) async {
     if (_state is AuthLoading) return;
 
-    _setState(const AuthLoading());
-
     try {
       final response = await _api.login(login: login, password: password);
       await _storage.saveTokens(
@@ -65,17 +63,15 @@ class AuthRepository extends ChangeNotifier {
 
   Future<void> register({
     required String login,
-    required String name,
+    required String uname,
     required String password,
   }) async {
     if (_state is AuthLoading) return;
 
-    _setState(const AuthLoading());
-
     try {
       final response = await _api.register(
         login: login,
-        name: name,
+        uname: uname,
         password: password,
       );
       await _storage.saveTokens(
@@ -106,7 +102,7 @@ class AuthRepository extends ChangeNotifier {
 
   void onSessionExpired() {
     unawaited(_storage.clear());
-    _setState(const AuthUnauthenticated(message: 'Сессия истекла'));
+    _setState(const AuthUnauthenticated(message: 'Session expired'));
   }
 
   // Внутренняя логика
@@ -118,10 +114,10 @@ class AuthRepository extends ChangeNotifier {
     }
 
     try {
-      final tokens = await _api.refresh(refreshToken);
+      final response = await _api.refresh(refreshToken);
       await _storage.saveTokens(
-        accessToken: tokens.accessToken,
-        refreshToken: tokens.refreshToken,
+        accessToken: response.tokens.accessToken,
+        refreshToken: response.tokens.refreshToken,
       );
 
       final user = await _api.me();
@@ -133,16 +129,12 @@ class AuthRepository extends ChangeNotifier {
   }
 
   void _handleAuthOperationError(ApiError error) {
-    if (error.isNetwork || error.isTimeout || error.isServer) {
-      _setState(AuthError(error));
-      return;
-    }
-    _setState(AuthUnauthenticated(message: error.message));
+    _setState(AuthUnauthenticated(message: error.message, error: error));
   }
 
   ApiError _wrapUnknown(Object e) => ApiError(
     type: ApiErrorType.unknown,
-    message: 'Неизвестная ошибка: $e',
+    message: 'Unknown error: $e',
     originalError: e,
   );
 

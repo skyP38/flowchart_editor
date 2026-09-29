@@ -1,6 +1,5 @@
 import '../../../../core/network/api_client.dart';
 import '../models/auth_response.dart';
-import '../models/auth_tokens.dart';
 import '../models/user.dart';
 import '../models/session.dart';
 
@@ -10,12 +9,12 @@ class AuthApi {
 
   Future<AuthResponse> register({
     required String login,
-    required String name,
+    required String uname,
     required String password,
   }) async {
     final json = await _client.post<Map<String, dynamic>>(
-      '/auth/register',
-      data: {'login': login, 'name': name, 'password': password},
+      '/api/auth/register',
+      data: {'login': login, 'uname': uname, 'password': password},
     );
     return AuthResponse.fromJson(json);
   }
@@ -25,40 +24,45 @@ class AuthApi {
     required String password,
   }) async {
     final json = await _client.post<Map<String, dynamic>>(
-      '/auth/login',
+      '/api/auth/login',
       data: {'login': login, 'password': password},
     );
     return AuthResponse.fromJson(json);
   }
 
-  Future<AuthTokens> refresh(String refreshToken) async {
+  Future<AuthResponse> refresh(String refreshToken) async {
     final json = await _client.post<Map<String, dynamic>>(
-      '/auth/refresh',
-      data: {'refreshToken': refreshToken},
+      '/api/auth/refresh',
+      data: {'refresh_token': refreshToken},
     );
-    return AuthTokens.fromJson(json);
+    return AuthResponse.fromJson(json);
   }
 
   Future<void> logout(String refreshToken) async {
     await _client.post<void>(
-      '/auth/logout',
-      data: {'refreshToken': refreshToken},
+      '/api/auth/logout',
+      data: {'refresh_token': refreshToken},
     );
   }
 
   Future<User> me() async {
-    final json = await _client.get<Map<String, dynamic>>('/auth/me');
+    final json = await _client.get<Map<String, dynamic>>('/api/auth/me');
     return User.fromJson(json);
   }
 
   Future<List<Session>> sessions() async {
-    final json = await _client.get<List<dynamic>>('/auth/sessions');
-    return json
+    final json = await _client.get<Map<String, dynamic>>('/api/sessions');
+    final list = (json['sessions'] as List<dynamic>? ?? const <dynamic>[]);
+    return list
         .map((e) => Session.fromJson(e as Map<String, dynamic>))
         .toList();
   }
 
   Future<void> revokeSession(int sessionId) async {
-    await _client.delete<void>('/auth/sessions/$sessionId');
+    await _client.delete<void>('/api/sessions/$sessionId');
+  }
+
+  Future<void> revokeAllSessions() async {
+    await _client.delete<void>('/api/sessions');
   }
 }

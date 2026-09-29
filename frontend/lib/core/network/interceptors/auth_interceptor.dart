@@ -4,11 +4,11 @@ import '../token_storage.dart';
 class AuthInterceptor extends Interceptor {
   final TokenStorage _storage;
 
-  /// Пути, к которым access-токен не добавляется
+  // Пути, к которым access-токен не добавляется
   static const _publicPaths = <String>[
-    '/auth/login',
-    '/auth/register',
-    '/auth/refresh',
+    '/api/auth/login',
+    '/api/auth/register',
+    '/api/auth/refresh',
   ];
 
   AuthInterceptor(this._storage);
@@ -18,6 +18,9 @@ class AuthInterceptor extends Interceptor {
     RequestOptions options,
     RequestInterceptorHandler handler,
   ) async {
+    if (options.extra['__skipInterceptors'] == true) {
+      return handler.next(options);
+    }
     final isPublic = _publicPaths.any((p) => options.path.startsWith(p));
     if (isPublic) {
       return handler.next(options);

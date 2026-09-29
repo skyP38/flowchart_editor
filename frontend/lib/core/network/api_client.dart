@@ -136,7 +136,7 @@ class ApiClient {
     } catch (e) {
       throw ApiError(
         type: ApiErrorType.unknown,
-        message: 'Неизвестная ошибка: $e',
+        message: 'Unknown error: $e',
         originalError: e,
       );
     }
@@ -157,7 +157,7 @@ class ApiClient {
     }
     throw ApiError(
       type: ApiErrorType.unknown,
-      message: 'Неожиданный формат ответа: ${data.runtimeType} → $T',
+      message: 'Unexpected response format: ${data.runtimeType} → $T',
       statusCode: response.statusCode,
     );
   }

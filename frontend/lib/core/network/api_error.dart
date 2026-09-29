@@ -52,28 +52,28 @@ class ApiError implements Exception {
       case DioExceptionType.receiveTimeout:
         return ApiError(
           type: ApiErrorType.timeout,
-          message: 'Превышено время ожидания. Проверьте соединение.',
+          message: 'The waiting time has been exceeded. Check the connection.',
           originalError: e,
         );
 
       case DioExceptionType.connectionError:
         return ApiError(
           type: ApiErrorType.network,
-          message: 'Нет соединения с сервером.',
+          message: 'There is no connection to the server.',
           originalError: e,
         );
 
       case DioExceptionType.cancel:
         return ApiError(
           type: ApiErrorType.cancelled,
-          message: 'Запрос отменён.',
+          message: 'The request has been canceled.',
           originalError: e,
         );
 
       case DioExceptionType.badCertificate:
         return ApiError(
           type: ApiErrorType.network,
-          message: 'Проблема с сертификатом безопасности.',
+          message: 'There is a problem with the security certificate.',
           originalError: e,
         );
 
@@ -82,7 +82,7 @@ class ApiError implements Exception {
         if (response == null) {
           return ApiError(
             type: ApiErrorType.unknown,
-            message: 'Пустой ответ сервера.',
+            message: 'An empty server response.',
             originalError: e,
           );
         }
@@ -91,14 +91,15 @@ class ApiError implements Exception {
       case DioExceptionType.transformTimeout:
         return ApiError(
           type: ApiErrorType.timeout,
-          message: 'Превышено время ожидания обработки ответа.',
+          message:
+              'The waiting time for processing the response has been exceeded.',
           originalError: e,
         );
 
       case DioExceptionType.unknown:
         return ApiError(
           type: ApiErrorType.unknown,
-          message: 'Неизвестная ошибка. Попробуйте позже.',
+          message: 'Unknown error. Try again later.',
           originalError: e,
         );
     }
@@ -147,23 +148,23 @@ class ApiError implements Exception {
   static String _defaultMessageFor(ApiErrorType type) {
     switch (type) {
       case ApiErrorType.unauthorized:
-        return 'Требуется авторизация.';
+        return 'Authorization is required.';
       case ApiErrorType.forbidden:
-        return 'Нет доступа.';
+        return 'There is no access.';
       case ApiErrorType.notFound:
-        return 'Не найдено.';
+        return 'Not found.';
       case ApiErrorType.validation:
-        return 'Проверьте введённые данные.';
+        return 'Check the entered data.';
       case ApiErrorType.server:
-        return 'Ошибка сервера. Попробуйте позже.';
+        return 'Server error. Try again later.';
       case ApiErrorType.network:
-        return 'Нет соединения с сервером.';
+        return 'There is no connection to the server.';
       case ApiErrorType.timeout:
-        return 'Превышено время ожидания.';
+        return 'The waiting time has been exceeded.';
       case ApiErrorType.cancelled:
-        return 'Запрос отменён.';
+        return 'The request has been canceled.';
       case ApiErrorType.unknown:
-        return 'Неизвестная ошибка.';
+        return 'Unknown error.';
     }
   }
 
