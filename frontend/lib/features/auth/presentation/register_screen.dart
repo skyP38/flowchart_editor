@@ -1,18 +1,20 @@
 import 'package:flutter/material.dart';
 
-class LoginScreen extends StatefulWidget {
-  final VoidCallback onLoggedIn;
-  const LoginScreen({super.key, required this.onLoggedIn});
+class RegistrationScreen extends StatefulWidget {
+  const RegistrationScreen({super.key});
 
   @override
-  State<LoginScreen> createState() => _LoginScreenState();
+  State<RegistrationScreen> createState() => _RegistrationScreenState();
 }
 
-class _LoginScreenState extends State<LoginScreen> {
-  final _emailController = TextEditingController();
+class _RegistrationScreenState extends State<RegistrationScreen> {
+  final _loginController = TextEditingController();
+  final _nameController = TextEditingController();
   final _passwordController = TextEditingController();
-  
+  final _confirmPasswordController = TextEditingController();
+
   bool _isPasswordVisible = false;
+  bool _isConfirmPasswordVisible = false;
 
   final Color _primaryColor = const Color(0xFF6750A5);
   final Color _borderColor = const Color(0xFF9CA3AF);
@@ -21,19 +23,23 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   void dispose() {
-    _emailController.dispose();
+    _loginController.dispose();
+    _nameController.dispose();
     _passwordController.dispose();
+    _confirmPasswordController.dispose();
     super.dispose();
   }
 
-    @override
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
       body: Center(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(24.0),
           child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 420), // Ограничение ширины для Web
+            constraints: const BoxConstraints(
+              maxWidth: 420,
+            ), // Ограничение ширины для Web
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 40),
               decoration: BoxDecoration(
@@ -41,7 +47,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 borderRadius: BorderRadius.circular(16),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.05),
+                    color: Colors.black.withValues(alpha: 0.05),
                     blurRadius: 20,
                     offset: const Offset(0, 10),
                   ),
@@ -79,36 +85,82 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                   const SizedBox(height: 24),
 
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      GestureDetector(
-                        onTap: () {
-                          // Переход на страницу входа
-                        },
-                        child: Text(
-                          'Enter your email address to receive a password reset link.',
-                          style: TextStyle(
-                            color: _hintColor,
-                            fontSize: 14,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ),
-                    ],
+                  // Заголовок
+                  const Text(
+                    'Create account',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.black87,
+                    ),
                   ),
-                  
-                  // Поле Email
-                  _buildLabel('Email'),
+                  const SizedBox(height: 32),
+
+                  // Поле Login
+                  _buildLabel('Login'),
                   _buildTextField(
-                    controller: _emailController,
-                    hintText: 'alex@example.ru',
-                    keyboardType: TextInputType.emailAddress,
+                    controller: _loginController,
+                    hintText: 'username',
                   ),
                   const SizedBox(height: 20),
 
-                                    
-                  // Кнопка 
+                  // Поле Name
+                  _buildLabel('Name'),
+                  _buildTextField(
+                    controller: _nameController,
+                    hintText: 'Иванов Иван Иванович',
+                  ),
+                  const SizedBox(height: 20),
+
+                  // Поле Password
+                  _buildLabel('Password'),
+                  _buildTextField(
+                    controller: _passwordController,
+                    hintText: '••••••••',
+                    obscureText: !_isPasswordVisible,
+                    suffixIcon: IconButton(
+                      icon: Icon(
+                        _isPasswordVisible
+                            ? Icons.visibility_outlined
+                            : Icons.visibility_off_outlined,
+                        color: _hintColor,
+                        size: 20,
+                      ),
+                      onPressed: () {
+                        setState(() {
+                          _isPasswordVisible = !_isPasswordVisible;
+                        });
+                      },
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+
+                  // Поле Confirm the password
+                  _buildLabel('Confirm the password'),
+                  _buildTextField(
+                    controller: _confirmPasswordController,
+                    hintText: '••••••••',
+                    obscureText: !_isConfirmPasswordVisible,
+                    suffixIcon: IconButton(
+                      icon: Icon(
+                        _isConfirmPasswordVisible
+                            ? Icons.visibility_outlined
+                            : Icons.visibility_off_outlined,
+                        color: _hintColor,
+                        size: 20,
+                      ),
+                      onPressed: () {
+                        setState(() {
+                          _isConfirmPasswordVisible =
+                              !_isConfirmPasswordVisible;
+                        });
+                      },
+                    ),
+                  ),
+                  const SizedBox(height: 32),
+
+                  // Кнопка Register
                   ElevatedButton(
                     onPressed: () {
                       // Логика регистрации
@@ -123,7 +175,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       elevation: 0,
                     ),
                     child: const Text(
-                      'Send the link',
+                      'Register',
                       style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.w600,
@@ -141,7 +193,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           // Переход на страницу входа
                         },
                         child: Text(
-                          'Return to the entrance',
+                          'Do you already have an account? Enter',
                           style: TextStyle(
                             color: _primaryColor,
                             fontSize: 14,
@@ -150,6 +202,21 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                       ),
                     ],
+                  ),
+                  const SizedBox(height: 12),
+                  Center(
+                    child: GestureDetector(
+                      onTap: () {
+                        // Логика восстановления пароля
+                      },
+                      child: const Text(
+                        'Forgot your password?',
+                        style: TextStyle(
+                          color: Color(0xFF6B7280),
+                          fontSize: 14,
+                        ),
+                      ),
+                    ),
                   ),
                 ],
               ),
@@ -160,7 +227,7 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
-    // Вспомогательный виджет для подписи поля
+  // Вспомогательный виджет для подписи поля
   Widget _buildLabel(String label) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 8.0),
@@ -191,7 +258,10 @@ class _LoginScreenState extends State<LoginScreen> {
       decoration: InputDecoration(
         hintText: hintText,
         hintStyle: TextStyle(color: _hintColor, fontSize: 15),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 16,
+        ),
         filled: true,
         fillColor: Colors.white,
         suffixIcon: suffixIcon,

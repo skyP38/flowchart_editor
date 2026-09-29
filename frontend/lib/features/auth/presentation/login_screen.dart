@@ -11,7 +11,7 @@ class LoginScreen extends StatefulWidget {
 class _LoginScreenState extends State<LoginScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
-  
+
   bool _isPasswordVisible = false;
 
   final Color _primaryColor = const Color(0xFF6750A5);
@@ -26,14 +26,16 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
-    @override
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
       body: Center(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(24.0),
           child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 420), // Ограничение ширины для Web
+            constraints: const BoxConstraints(
+              maxWidth: 420,
+            ), // Ограничение ширины для Web
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 40),
               decoration: BoxDecoration(
@@ -41,7 +43,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 borderRadius: BorderRadius.circular(16),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.05),
+                    color: Colors.black.withValues(alpha: 0.05),
                     blurRadius: 20,
                     offset: const Offset(0, 10),
                   ),
@@ -78,10 +80,10 @@ class _LoginScreenState extends State<LoginScreen> {
                     ],
                   ),
                   const SizedBox(height: 24),
-                  
+
                   // Заголовок
                   const Text(
-                    'Create account',
+                    'Sign in',
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       fontSize: 24,
@@ -108,7 +110,9 @@ class _LoginScreenState extends State<LoginScreen> {
                     obscureText: !_isPasswordVisible,
                     suffixIcon: IconButton(
                       icon: Icon(
-                        _isPasswordVisible ? Icons.visibility_outlined : Icons.visibility_off_outlined,
+                        _isPasswordVisible
+                            ? Icons.visibility_outlined
+                            : Icons.visibility_off_outlined,
                         color: _hintColor,
                         size: 20,
                       ),
@@ -121,7 +125,6 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                   const SizedBox(height: 20),
 
-                  
                   // Кнопка Login
                   ElevatedButton(
                     onPressed: () {
@@ -189,7 +192,7 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
-    // Вспомогательный виджет для подписи поля
+  // Вспомогательный виджет для подписи поля
   Widget _buildLabel(String label) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 8.0),
@@ -220,7 +223,10 @@ class _LoginScreenState extends State<LoginScreen> {
       decoration: InputDecoration(
         hintText: hintText,
         hintStyle: TextStyle(color: _hintColor, fontSize: 15),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 16,
+        ),
         filled: true,
         fillColor: Colors.white,
         suffixIcon: suffixIcon,

@@ -1,20 +1,16 @@
 import 'package:flutter/material.dart';
 
-class RegistrationScreen extends StatefulWidget {
-  const RegistrationScreen({super.key});
+class PasswordRecoveryScreen extends StatefulWidget {
+  final VoidCallback onLoggedIn;
+  const PasswordRecoveryScreen({super.key, required this.onLoggedIn});
 
   @override
-  State<RegistrationScreen> createState() => _RegistrationScreenState();
+  State<PasswordRecoveryScreen> createState() => _PasswordRecoveryScreen();
 }
 
-class _RegistrationScreenState extends State<RegistrationScreen> {
-  final _nameController = TextEditingController();
+class _PasswordRecoveryScreen extends State<PasswordRecoveryScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
-  final _confirmPasswordController = TextEditingController();
-
-  bool _isPasswordVisible = false;
-  bool _isConfirmPasswordVisible = false;
 
   final Color _primaryColor = const Color(0xFF6750A5);
   final Color _borderColor = const Color(0xFF9CA3AF);
@@ -23,21 +19,21 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
 
   @override
   void dispose() {
-    _nameController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
-    _confirmPasswordController.dispose();
     super.dispose();
   }
 
-    @override
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
       body: Center(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(24.0),
           child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 420), // Ограничение ширины для Web
+            constraints: const BoxConstraints(
+              maxWidth: 420,
+            ), // Ограничение ширины для Web
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 40),
               decoration: BoxDecoration(
@@ -45,7 +41,7 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
                 borderRadius: BorderRadius.circular(16),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.05),
+                    color: Colors.black.withValues(alpha: 0.05),
                     blurRadius: 20,
                     offset: const Offset(0, 10),
                   ),
@@ -82,26 +78,25 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
                     ],
                   ),
                   const SizedBox(height: 24),
-                  
-                  // Заголовок
-                  const Text(
-                    'Create account',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.black87,
-                    ),
-                  ),
-                  const SizedBox(height: 32),
 
-                  // Поле Name
-                  _buildLabel('Name'),
-                  _buildTextField(
-                    controller: _nameController,
-                    hintText: 'Александр',
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      GestureDetector(
+                        onTap: () {
+                          // Переход на страницу входа
+                        },
+                        child: Text(
+                          'Enter your email address to receive a password reset link.',
+                          style: TextStyle(
+                            color: _hintColor,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 20),
 
                   // Поле Email
                   _buildLabel('Email'),
@@ -112,49 +107,7 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
                   ),
                   const SizedBox(height: 20),
 
-                  // Поле Password
-                  _buildLabel('Password'),
-                  _buildTextField(
-                    controller: _passwordController,
-                    hintText: '••••••••',
-                    obscureText: !_isPasswordVisible,
-                    suffixIcon: IconButton(
-                      icon: Icon(
-                        _isPasswordVisible ? Icons.visibility_outlined : Icons.visibility_off_outlined,
-                        color: _hintColor,
-                        size: 20,
-                      ),
-                      onPressed: () {
-                        setState(() {
-                          _isPasswordVisible = !_isPasswordVisible;
-                        });
-                      },
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-
-                  // Поле Confirm the password
-                  _buildLabel('Confirm the password'),
-                  _buildTextField(
-                    controller: _confirmPasswordController,
-                    hintText: '••••••••',
-                    obscureText: !_isConfirmPasswordVisible,
-                    suffixIcon: IconButton(
-                      icon: Icon(
-                        _isConfirmPasswordVisible ? Icons.visibility_outlined : Icons.visibility_off_outlined,
-                        color: _hintColor,
-                        size: 20,
-                      ),
-                      onPressed: () {
-                        setState(() {
-                          _isConfirmPasswordVisible = !_isConfirmPasswordVisible;
-                        });
-                      },
-                    ),
-                  ),
-                  const SizedBox(height: 32),
-
-                  // Кнопка Register
+                  // Кнопка
                   ElevatedButton(
                     onPressed: () {
                       // Логика регистрации
@@ -169,7 +122,7 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
                       elevation: 0,
                     ),
                     child: const Text(
-                      'Register',
+                      'Send the link',
                       style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.w600,
@@ -187,7 +140,7 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
                           // Переход на страницу входа
                         },
                         child: Text(
-                          'Do you already have an account? Enter',
+                          'Return to the entrance',
                           style: TextStyle(
                             color: _primaryColor,
                             fontSize: 14,
@@ -196,21 +149,6 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
                         ),
                       ),
                     ],
-                  ),
-                  const SizedBox(height: 12),
-                  Center(
-                    child: GestureDetector(
-                      onTap: () {
-                        // Логика восстановления пароля
-                      },
-                      child: const Text(
-                        'Forgot your password?',
-                        style: TextStyle(
-                          color: Color(0xFF6B7280),
-                          fontSize: 14,
-                        ),
-                      ),
-                    ),
                   ),
                 ],
               ),
@@ -221,7 +159,7 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
     );
   }
 
-    // Вспомогательный виджет для подписи поля
+  // Вспомогательный виджет для подписи поля
   Widget _buildLabel(String label) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 8.0),
@@ -252,7 +190,10 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
       decoration: InputDecoration(
         hintText: hintText,
         hintStyle: TextStyle(color: _hintColor, fontSize: 15),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 16,
+        ),
         filled: true,
         fillColor: Colors.white,
         suffixIcon: suffixIcon,
