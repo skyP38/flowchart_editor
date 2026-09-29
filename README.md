@@ -1,7 +1,9 @@
 # Flowchart Editor
 
 
+
 ### TODO:
+- cleanup истекших сессий;
 - защита от перебора пароля
 - ролевая модель user/admin (middleware)
 - редактор бс
@@ -11,6 +13,7 @@
 
 Ожидаемые endpoint:
 |Метод|Endpoint|Назначение|Тело запроса|Ответ|
+|---|---|---|---|---|
 |POST|/api/auth/register|Регистрация|login, name, password|AuthResponse|
 |POST|/api/auth/login|Вход|login, password|AuthResponse|
 |POST|/api/auth/refresh|Обновление access-токена|refreshToken|AuthTokens|
