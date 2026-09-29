@@ -1,8 +1,44 @@
 import 'package:flutter/material.dart';
-import 'features/auth/presentation/register_screen.dart';
+import 'package:provider/provider.dart';
 
-void main() {
-  runApp(const MyApp());
+import 'core/network/api_client.dart';
+import 'features/auth/data/api/auth_api.dart';
+import 'features/auth/data/storage/secure_token_storage.dart';
+import 'features/auth/domain/auth_repository.dart';
+import 'features/auth/presentation/registration_screen.dart';
+
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  const baseUrl = String.fromEnvironment(
+    'API_BASE_URL',
+    defaultValue: "http://localhost:8080",
+  );
+
+  final tokenStorage = SecureTokenStorage();
+
+  late AuthRepository authRepository;
+
+  final apiClient = ApiClient(
+    baseUrl: baseUrl,
+    storage: tokenStorage,
+    onUnauthorized: () {
+      authRepository.onSessionExpired();
+    },
+  );
+
+  final authApi = AuthApi(apiClient);
+
+  authRepository = AuthRepository(api: authApi, storage: tokenStorage);
+
+  await authRepository.init();
+
+  runApp(
+    ChangeNotifierProvider<AuthRepository>.value(
+      value: authRepository,
+      child: const MyApp(),
+    ),
+  );
 }
 
 class MyApp extends StatelessWidget {
