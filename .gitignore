@@ -12,3 +12,8 @@ backend/bin/
 .idea/
 .vscode/
 *.iml
+
+package.json
+package-lock.json
+
+frontend/web
