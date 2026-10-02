@@ -2,6 +2,7 @@ package api_test
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -24,11 +25,13 @@ func setupHandler(t *testing.T) (http.Handler, domains.UserRepository) {
 	users := memory.NewMemoryUserRepo()
 	sessions := memory.NewMemorySessionRepo()
 	accessMgr := token.NewAccessTokenManager("test-secret", 15*time.Minute)
-	authSvc := auth.NewService(users, sessions, accessMgr, "test-pepper", 15*time.Minute, 7*24*time.Hour)
+	authSvc := auth.NewService(users, sessions, accessMgr, "test-pepper", 15*time.Minute, 7*24*time.Hour, []string{})
+	limiter := newPermissiveLimiter(t)
 
 	mux := http.NewServeMux()
-	api.NewAuthHandler(authSvc).RegisterRoutes(mux, api.Auth(accessMgr))
-	api.NewSessionHandler(authSvc).RegisterRoutes(mux, api.Auth(accessMgr))
+	authMW := api.Auth(accessMgr, sessions)
+	api.NewAuthHandler(authSvc, limiter).RegisterRoutes(mux, authMW)
+	api.NewSessionHandler(authSvc).RegisterRoutes(mux, authMW)
 	return mux, users
 }
 
@@ -234,4 +237,81 @@ func TestSessions_ListAndRevoke(t *testing.T) {
 	if del.Code != http.StatusNoContent {
 		t.Fatalf("delete status %d body=%s", del.Code, del.Body.String())
 	}
+}
+func TestRegister_InvalidInput_Details(t *testing.T) {
+	h, _ := setupHandler(t)
+	rec := doJSON(t, h, "/api/auth/register", map[string]string{
+		"login": "a", "uname": "", "password": "123",
+	})
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status %d", rec.Code)
+	}
+	var resp struct {
+		Error struct {
+			Code    string            `json:"code"`
+			Details map[string]string `json:"details"`
+		} `json:"error"`
+	}
+	_ = json.Unmarshal(rec.Body.Bytes(), &resp)
+	if resp.Error.Code != "invalid_input" {
+		t.Fatalf("code = %q", resp.Error.Code)
+	}
+	if resp.Error.Details["login"] == "" || resp.Error.Details["password"] == "" {
+		t.Fatalf("details = %+v", resp.Error.Details)
+	}
+}
+
+func TestMe_RevokedSession_Unauthorized(t *testing.T) {
+	h, _ := setupHandler(t)
+
+	rec := doJSON(t, h, "/api/auth/register", map[string]string{
+		"login": "alice", "uname": "Alice", "password": "secret123",
+	})
+	var r struct {
+		AccessToken  string `json:"access_token"`
+		RefreshToken string `json:"refresh_token"`
+	}
+	_ = json.Unmarshal(rec.Body.Bytes(), &r)
+
+	// logout отзывает сессию на сервере
+	logout := doReq(t, h, http.MethodPost, "/api/auth/logout", "", map[string]string{
+		"refresh_token": r.RefreshToken,
+	})
+	if logout.Code != http.StatusNoContent {
+		t.Fatalf("logout status %d", logout.Code)
+	}
+
+	me := doReq(t, h, http.MethodGet, "/api/auth/me", r.AccessToken, nil)
+	if me.Code != http.StatusUnauthorized {
+		t.Fatalf("me status %d, want 401", me.Code)
+	}
+}
+
+func TestSeedAdmin_LoginTakenByUser_Errors(t *testing.T) {
+	users := memory.NewMemoryUserRepo()
+	ctx := context.Background()
+
+	// обычный пользователь занял admin
+	_ = users.Create(ctx, &domains.User{
+		Login: "admin", PwdHash: "x", Uname: "not-admin",
+		Role: domains.RoleUser, IsActive: true,
+	})
+
+	err := memory.SeedAdmin(ctx, users, "admin", "secret", "pepper")
+	if err == nil {
+		t.Fatalf("want error, got nil")
+	}
+}
+
+func TestSeedAdmin_Idempotent(t *testing.T) {
+	users := memory.NewMemoryUserRepo()
+	ctx := context.Background()
+
+	if err := memory.SeedAdmin(ctx, users, "admin", "secret", "pepper"); err != nil {
+		t.Fatalf("first seed: %v", err)
+	}
+	if err := memory.SeedAdmin(ctx, users, "admin", "secret", "pepper"); err != nil {
+		t.Fatalf("second seed: %v", err)
+	}
+
 }

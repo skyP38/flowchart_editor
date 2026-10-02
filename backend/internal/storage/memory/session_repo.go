@@ -2,6 +2,7 @@ package memory
 
 import (
 	"context"
+	"errors"
 	"sort"
 	"sync"
 	"sync/atomic"
@@ -121,4 +122,46 @@ func (r *MemorySessionRepo) RevokeAllExcept(ctx context.Context, userID int64, k
 
 	return nil
 
+}
+
+func (r *MemorySessionRepo) RemoveExpired(ctx context.Context, retention time.Duration) (int, error) {
+	if retention <= 0 {
+		return 0, errors.New("retention must be positive")
+	}
+
+	select {
+	case <-ctx.Done():
+		return 0, ctx.Err()
+	default:
+	}
+
+	now := time.Now().UTC()
+
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	type pair struct {
+		id   int64
+		hash string
+	}
+
+	toDelete := make([]pair, 0)
+	for id, s := range r.byID {
+		if s == nil {
+			continue
+		}
+		deadline := s.ExpiresAt
+		if s.RevokedAt != nil && s.RevokedAt.After(deadline) {
+			deadline = *s.RevokedAt
+		}
+		if now.After(deadline.Add(retention)) {
+			toDelete = append(toDelete, pair{id, s.TokenHash})
+		}
+	}
+
+	for _, p := range toDelete {
+		delete(r.byHash, p.hash)
+		delete(r.byID, p.id)
+	}
+	return len(toDelete), nil
 }

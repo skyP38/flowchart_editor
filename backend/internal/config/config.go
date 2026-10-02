@@ -51,6 +51,9 @@ type Config struct {
 	// Интервал запуска очистки просроченных записей лимитера
 	// По умолчанию: 5 минут
 	RatelimitCleanupInterval time.Duration
+
+	SessionCleanupInterval time.Duration
+	SessionRetention       time.Duration
 }
 
 // Load читает информацию из переменных окружения и возвращает заполненный Config
@@ -94,6 +97,15 @@ func Load() (*Config, error) {
 		return nil, err
 	}
 
+	sessionCleanupInterval, err := getDuration("SESSION_CLEANUP_INTERVAL", 5*time.Minute)
+	if err != nil {
+		return nil, err
+	}
+	sessionRetention, err := getDuration("SESSION_RETENTION", 24*time.Hour)
+	if err != nil {
+		return nil, err
+	}
+
 	return &Config{
 		AppPort:                     getEnv("APP_PORT", "8080"),
 		JWTSecret:                   getEnv("JWT_SECRET", "change-me"),
@@ -109,6 +121,8 @@ func Load() (*Config, error) {
 		RatelimitLoginMaxBlockCount: loginMaxBlockCount,
 		RatelimitLoginDecayWindow:   loginDecayWindow,
 		RatelimitCleanupInterval:    cleanupInterval,
+		SessionCleanupInterval:      sessionCleanupInterval,
+		SessionRetention:            sessionRetention,
 	}, nil
 }
 

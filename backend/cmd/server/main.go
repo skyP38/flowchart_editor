@@ -15,6 +15,7 @@ import (
 	"github.com/skyP38/flowchart_editor/backend/internal/service/auth"
 	"github.com/skyP38/flowchart_editor/backend/internal/service/auth/token"
 	"github.com/skyP38/flowchart_editor/backend/internal/service/ratelimit"
+	"github.com/skyP38/flowchart_editor/backend/internal/service/sessioncleanup"
 	"github.com/skyP38/flowchart_editor/backend/internal/storage/memory"
 	"github.com/skyP38/flowchart_editor/backend/internal/transport"
 )
@@ -28,6 +29,10 @@ func main() {
 
 	users := memory.NewMemoryUserRepo()
 	sessions := memory.NewMemorySessionRepo()
+	janitor, err := sessioncleanup.New(sessions, cfg.SessionCleanupInterval, cfg.SessionRetention)
+	if err != nil {
+		log.Fatalf("session janitor :%v", err)
+	}
 
 	if err := memory.SeedAdmin(context.Background(), users, cfg.AdminLogin, cfg.AdminPassword, cfg.PasswordPepper); err != nil {
 		log.Fatalf("seed admin: %v", err)
@@ -95,6 +100,8 @@ func main() {
 	if err := srv.Shutdown(ctx); err != nil {
 		log.Printf("shutdown: %v", err)
 	}
+	_ = janitor.Close()
 	_ = limiter.Close()
+
 	log.Println("stopped")
 }

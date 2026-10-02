@@ -19,3 +19,7 @@ type SessionRepository interface {
 	Revoke(ctx context.Context, id int64, at time.Time) error
 	RevokeAllExcept(ctx context.Context, userID int64, keepSessionID int64, at time.Time) error
 }
+
+type SessionCleaner interface {
+	RemoveExpired(ctx context.Context, retention time.Duration) (int, error)
+}
