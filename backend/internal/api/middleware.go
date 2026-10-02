@@ -5,7 +5,9 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
+	"github.com/skyP38/flowchart_editor/backend/internal/domains"
 	"github.com/skyP38/flowchart_editor/backend/internal/service/auth/token"
 	"github.com/skyP38/flowchart_editor/backend/internal/transport"
 )
@@ -20,8 +22,8 @@ const (
 
 type AuthMW func(http.Handler) http.Handler
 
-// Auth парсит access-токен и кладёт userID/sessionID/role в контекст
-func Auth(mgr *token.AccessTokenManager) AuthMW {
+// Auth парсит access-токен, проверяет активность сессии и кладёт userID/sessionID/role в контекст
+func Auth(mgr *token.AccessTokenManager, sessions domains.SessionRepository) AuthMW {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			header := r.Header.Get("Authorization")
@@ -39,7 +41,17 @@ func Auth(mgr *token.AccessTokenManager) AuthMW {
 				transport.WriteError(w, http.StatusUnauthorized, "unauthorized", "invalid token subject")
 				return
 			}
-			sid, _ := strconv.ParseInt(claims.ID, 10, 64)
+			sid, err := strconv.ParseInt(claims.ID, 10, 64)
+			if err != nil {
+				transport.WriteError(w, http.StatusUnauthorized, "unauthorized", "invalid token session")
+				return
+			}
+
+			sess, err := sessions.GetByID(r.Context(), sid)
+			if err != nil || sess.UserID != uid || !sess.IsActive(time.Now().UTC()) {
+				transport.WriteError(w, http.StatusUnauthorized, "session_revoked", "session is no longer active")
+				return
+			}
 
 			ctx := context.WithValue(r.Context(), ctxUserID, uid)
 			ctx = context.WithValue(ctx, ctxSessionID, sid)

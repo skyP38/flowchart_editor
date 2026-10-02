@@ -11,7 +11,16 @@ import (
 	"github.com/skyP38/flowchart_editor/backend/internal/service/auth/token"
 	"github.com/skyP38/flowchart_editor/backend/internal/service/password"
 	"github.com/skyP38/flowchart_editor/backend/internal/storage/memory"
+	"golang.org/x/crypto/bcrypt"
 )
+
+var dummyHash = func() []byte {
+	h, err := bcrypt.GenerateFromPassword([]byte("dummy-password-for-timing"), bcrypt.DefaultCost)
+	if err != nil {
+		panic(err)
+	}
+	return h
+}()
 
 // loginRe - регулярное выражение для валидации логина
 var loginRe = regexp.MustCompile(`^[a-zA-Z0-9_]{3,32}$`)
@@ -24,6 +33,7 @@ type Service struct {
 	pepper     string
 	accessTTL  time.Duration
 	refreshTTL time.Duration
+	reserved   map[string]struct{}
 }
 
 func NewService(
@@ -32,7 +42,12 @@ func NewService(
 	access *token.AccessTokenManager,
 	pepper string,
 	accessTTL, refreshTTL time.Duration,
+	reservedLogins []string,
 ) *Service {
+	reserved := make(map[string]struct{}, len(reservedLogins))
+	for _, l := range reservedLogins {
+		reserved[domains.NormalizeLogin(l)] = struct{}{}
+	}
 	return &Service{
 		users:      users,
 		sessions:   sessions,
@@ -40,6 +55,7 @@ func NewService(
 		pepper:     pepper,
 		accessTTL:  accessTTL,
 		refreshTTL: refreshTTL,
+		reserved:   reserved,
 	}
 }
 
@@ -66,23 +82,31 @@ type AuthResult struct {
 
 // Register создает нового пользователя и сразу выпускает ему access-токен
 func (s *Service) Register(ctx context.Context, in RegisterInput) (*AuthResult, error) {
-	login := strings.TrimSpace(in.Login)
+	login := domains.NormalizeLogin(in.Login)
 	uname := strings.TrimSpace(in.Uname)
 
+	verrs := NewValidationErrors()
+
 	if !loginRe.MatchString(login) {
-		return nil, &ValidationError{
-			Field:   "login",
-			Message: "must be 3-32 chars of [a-zA-Z0-9_]",
-		}
+		verrs.Add("login", "must be 3-32 chars of [a-zA-Z0-9_]")
+	} else if _, isReserved := s.reserved[domains.NormalizeLogin(in.Login)]; isReserved {
+		verrs.Add("login", "this login is reserved")
 	}
+
 	if l := len([]rune(uname)); l < 1 || l > 200 {
-		return nil, &ValidationError{
-			Field:   "uname",
-			Message: "must be 1-200 characters",
-		}
+		verrs.Add("uname", "must be 1-200 characters")
 	}
 	if err := validatePassword(in.Password); err != nil {
-		return nil, err
+		var ve *ValidationError
+		if errors.As(err, &ve) {
+			verrs.Add(ve.Field, ve.Message)
+		} else {
+			verrs.Add("password", "invalid password")
+		}
+	}
+
+	if verrs.HasAny() {
+		return nil, verrs
 	}
 
 	if existing, err := s.users.GetByLogin(ctx, login); err == nil && existing != nil {
@@ -115,13 +139,14 @@ func (s *Service) Register(ctx context.Context, in RegisterInput) (*AuthResult, 
 
 // Login проверяет учетные данные и выпускает access-токен
 func (s *Service) Login(ctx context.Context, in LoginInput) (*AuthResult, error) {
-	login := strings.TrimSpace(in.Login)
+	login := domains.NormalizeLogin(in.Login)
 	if login == "" || in.Password == "" {
 		return nil, ErrInvalidCredentials
 	}
 
 	u, err := s.users.GetByLogin(ctx, login)
 	if err != nil || u == nil || !u.IsActive {
+		_ = bcrypt.CompareHashAndPassword(dummyHash, []byte(in.Password+s.pepper))
 		return nil, ErrInvalidCredentials
 	}
 	if !password.VerifyPassword(u.PwdHash, in.Password, s.pepper) {

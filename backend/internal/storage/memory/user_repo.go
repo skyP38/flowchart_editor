@@ -2,7 +2,6 @@ package memory
 
 import (
 	"context"
-	"strings"
 	"sync"
 	"sync/atomic"
 
@@ -29,7 +28,7 @@ func (r *MemoryUserRepo) Create(ctx context.Context, u *domains.User) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	key := strings.ToLower(u.Login)
+	key := domains.NormalizeLogin(u.Login)
 	if _, exists := r.byLogin[key]; exists {
 		return ErrUserAlreadyExists
 	}
@@ -61,7 +60,7 @@ func (r *MemoryUserRepo) GetByLogin(ctx context.Context, login string) (*domains
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
-	u, ok := r.byLogin[strings.ToLower(login)]
+	u, ok := r.byLogin[domains.NormalizeLogin(login)]
 	if !ok {
 		return nil, ErrNotFound
 	}

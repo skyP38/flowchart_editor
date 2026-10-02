@@ -3,11 +3,34 @@ package transport
 import (
 	"log"
 	"net/http"
+	"strings"
 	"time"
 )
 
 // Middleware - обертка над http.Handler
 type Middleware func(http.Handler) http.Handler
+
+const DefaultMaxBodyBytes = 1 << 20 // 1 MiB
+
+func BodyLimit(defaultLimit int64, overrides map[string]int64) Middleware {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.Body == nil {
+				next.ServeHTTP(w, r)
+				return
+			}
+			limit := defaultLimit
+			for prefix, l := range overrides {
+				if strings.HasPrefix(r.URL.Path, prefix) {
+					limit = l
+					break
+				}
+			}
+			r.Body = http.MaxBytesReader(w, r.Body, limit)
+			next.ServeHTTP(w, r)
+		})
+	}
+}
 
 // Chain собирает цепочку вокруг обработчика
 // Если mws пуст, h возвращается без изменений

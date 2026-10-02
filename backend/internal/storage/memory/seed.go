@@ -2,6 +2,8 @@ package memory
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"time"
 
 	"github.com/skyP38/flowchart_editor/backend/internal/domains"
@@ -18,10 +20,19 @@ func SeedAdmin(
 		return nil
 	}
 
-	if existing, err := users.GetByLogin(ctx, login); err == nil && existing != nil {
-		return nil
+	existing, err := users.GetByLogin(ctx, login)
+	if err == nil && existing != nil {
+		if existing.Role == domains.RoleAdmin {
+			return nil // всё хорошо, админ уже есть
+		}
+		return fmt.Errorf(
+			"seed admin: login %q is taken by non-admin user (id=%d, role=%q)",
+			login, existing.ID, existing.Role,
+		)
 	}
-
+	if err != nil && !errors.Is(err, ErrNotFound) {
+		return fmt.Errorf("seed admin: lookup: %w", err)
+	}
 	hash, err := password.HashPassword(plainPassword, pepper)
 	if err != nil {
 		return err

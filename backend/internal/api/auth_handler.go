@@ -3,19 +3,25 @@ package api
 import (
 	"encoding/json"
 	"errors"
+	"log"
+	"math"
 	"net/http"
+	"strconv"
 
+	"github.com/skyP38/flowchart_editor/backend/internal/domains"
 	"github.com/skyP38/flowchart_editor/backend/internal/service/auth"
+	"github.com/skyP38/flowchart_editor/backend/internal/service/ratelimit"
 	"github.com/skyP38/flowchart_editor/backend/internal/transport"
 )
 
 // AuthHandler - HTTP-обработчик аутентификации
 type AuthHandler struct {
-	svc *auth.Service
+	svc     *auth.Service
+	limiter ratelimit.Limiter
 }
 
-func NewAuthHandler(svc *auth.Service) *AuthHandler {
-	return &AuthHandler{svc: svc}
+func NewAuthHandler(svc *auth.Service, limiter ratelimit.Limiter) *AuthHandler {
+	return &AuthHandler{svc: svc, limiter: limiter}
 }
 
 // RegisterRoutes регистрирует маршруты обработчика в mux
@@ -94,12 +100,45 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	login := domains.NormalizeLogin(req.Login)
+	if login == "" || req.Password == "" {
+		writeAuthError(w, auth.ErrInvalidCredentials)
+		return
+	}
+
+	keys := []string{"login:" + login}
+
+	d, err := h.limiter.Check(r.Context(), keys)
+	if err != nil {
+		log.Printf("ratelimit: check failed: %v; keys=%v", err, keys)
+	}
+	if !d.Allowed {
+		retrySeconds := int(math.Ceil(d.RetryAfter.Seconds()))
+		if retrySeconds < 1 {
+			retrySeconds = 1
+		}
+		w.Header().Set("Retry-After", strconv.Itoa(retrySeconds))
+		log.Printf("ratelimit: blocked; keys=%v blocked_by=%s retry_after=%s", keys, d.BlockedBy, d.RetryAfter)
+		transport.WriteError(w, http.StatusTooManyRequests, "too_many_requests", "too many attempts, try again later")
+		return
+	}
+
 	res, err := h.svc.Login(r.Context(), auth.LoginInput{
 		Login: req.Login, Password: req.Password,
 	})
+
 	if err != nil {
+		if errors.Is(err, auth.ErrInvalidCredentials) {
+			if rerr := h.limiter.RecordFailure(r.Context(), keys); rerr != nil {
+				log.Printf("ratelimit: record failure: %v; keys=%v", rerr, keys)
+			}
+		}
 		writeAuthError(w, err)
 		return
+	}
+
+	if rerr := h.limiter.RecordSuccess(r.Context(), keys); rerr != nil {
+		log.Printf("ratelimit: record success: %v; keys=%v", rerr, keys)
 	}
 	transport.WriteJSON(w, http.StatusOK, toDTO(res))
 }
@@ -168,10 +207,22 @@ func toDTO(res *auth.AuthResult) authResponse {
 //   - auth.ErrInvalidCredentials  -> 401 invalid_credentials;
 //   - любая другая ошибка         -> 500 internal
 func writeAuthError(w http.ResponseWriter, err error) {
-	var ve *auth.ValidationError
+	var verrs *auth.ValidationErrors
+	var verr *auth.ValidationError
+
 	switch {
-	case errors.As(err, &ve):
-		transport.WriteError(w, http.StatusBadRequest, "invalid_input", ve.Field+": "+ve.Message)
+	case errors.As(err, &verrs):
+		transport.WriteErrorDetails(
+			w, http.StatusBadRequest,
+			"invalid_input", "Validation failed",
+			verrs.Fields,
+		)
+	case errors.As(err, &verr):
+		transport.WriteErrorDetails(
+			w, http.StatusBadRequest,
+			"invalid_input", "Validation failed",
+			map[string]string{verr.Field: verr.Message},
+		)
 	case errors.Is(err, auth.ErrLoginTaken):
 		transport.WriteError(w, http.StatusConflict, "login_taken", "login is already taken")
 	case errors.Is(err, auth.ErrInvalidCredentials):

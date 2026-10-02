@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"os"
+	"strconv"
 	"time"
 )
 
@@ -29,11 +30,34 @@ type Config struct {
 	// Пароль администратора
 	// По умолчанию: admin
 	AdminPassword string
+
+	ReservedLogins []string
+
+	// Максимальное число неудачных попыток входа до блокировки
+	// По умолчанию: 5
+	RatelimitLoginMaxAttempts int
+	// Окно, в котором считаются неудачные попытки входа
+	// По умолчанию: 15 минут
+	RatelimitLoginWindow time.Duration
+	// Базовая длительность блокировки
+	// По умолчанию: 15 минут
+	RatelimitLoginBlockDuration time.Duration
+	// Потолок множителя для эскалации длительности блокировки
+	// По умолчанию: 4
+	RatelimitLoginMaxBlockCount int
+	// Через сколько после окончания блокировки забывается счётчик блокировок
+	// По умолчанию: 24 часа
+	RatelimitLoginDecayWindow time.Duration
+	// Интервал запуска очистки просроченных записей лимитера
+	// По умолчанию: 5 минут
+	RatelimitCleanupInterval time.Duration
 }
 
 // Load читает информацию из переменных окружения и возвращает заполненный Config
-// Если в ACCESS_TOKEN_TTL или REFRESH_TOKEN_TTL содержится некорректная длительность
-// будет возвращена ошибка с указанием имени переменной
+// Если в ACCESS_TOKEN_TTL, REFRESH_TOKEN_TTL, LOGIN_WINDOW, LOGIN_BLOCK_DURATION,
+// LOGIN_DECAY_WINDOW или RATELIMIT_CLEANUP_INTERVAL содержится некорректная
+// длительность, будет возвращена ошибка с указанием имени переменной.
+// Аналогично для целочисленных переменных LOGIN_MAX_ATTEMPTS и LOGIN_MAX_BLOCK_COUNT.
 func Load() (*Config, error) {
 	accessTTL, err := getDuration("ACCESS_TOKEN_TTL", 15*time.Minute)
 	if err != nil {
@@ -44,14 +68,47 @@ func Load() (*Config, error) {
 		return nil, err
 	}
 
+	loginWindow, err := getDuration("LOGIN_WINDOW", 15*time.Minute)
+	if err != nil {
+		return nil, err
+	}
+	loginBlockDuration, err := getDuration("LOGIN_BLOCK_DURATION", 15*time.Minute)
+	if err != nil {
+		return nil, err
+	}
+	loginDecayWindow, err := getDuration("LOGIN_DECAY_WINDOW", 24*time.Hour)
+	if err != nil {
+		return nil, err
+	}
+	cleanupInterval, err := getDuration("RATELIMIT_CLEANUP_INTERVAL", 5*time.Minute)
+	if err != nil {
+		return nil, err
+	}
+
+	loginMaxAttempts, err := getInt("LOGIN_MAX_ATTEMPTS", 5)
+	if err != nil {
+		return nil, err
+	}
+	loginMaxBlockCount, err := getInt("LOGIN_MAX_BLOCK_COUNT", 4)
+	if err != nil {
+		return nil, err
+	}
+
 	return &Config{
-		AppPort:         getEnv("APP_PORT", "8080"),
-		JWTSecret:       getEnv("JWT_SECRET", "change-me"),
-		PasswordPepper:  getEnv("PASSWORD_PEPPER", "change-me"),
-		AccessTokenTTL:  accessTTL,
-		RefreshTokenTTL: refreshTTL,
-		AdminLogin:      getEnv("ADMIN_LOGIN", "admin"),
-		AdminPassword:   getEnv("ADMIN_PASSWORD", "admin"),
+		AppPort:                     getEnv("APP_PORT", "8080"),
+		JWTSecret:                   getEnv("JWT_SECRET", "change-me"),
+		PasswordPepper:              getEnv("PASSWORD_PEPPER", "change-me"),
+		AccessTokenTTL:              accessTTL,
+		RefreshTokenTTL:             refreshTTL,
+		AdminLogin:                  getEnv("ADMIN_LOGIN", "admin"),
+		AdminPassword:               getEnv("ADMIN_PASSWORD", "admin"),
+		ReservedLogins:              []string{getEnv("RESERVED_LOGINS", "admin")},
+		RatelimitLoginMaxAttempts:   loginMaxAttempts,
+		RatelimitLoginWindow:        loginWindow,
+		RatelimitLoginBlockDuration: loginBlockDuration,
+		RatelimitLoginMaxBlockCount: loginMaxBlockCount,
+		RatelimitLoginDecayWindow:   loginDecayWindow,
+		RatelimitCleanupInterval:    cleanupInterval,
 	}, nil
 }
 
@@ -77,4 +134,19 @@ func getDuration(key string, def time.Duration) (time.Duration, error) {
 		return 0, fmt.Errorf("invalid %s: %w", key, err)
 	}
 	return d, nil
+}
+
+// getInt читает переменную окружения key и парсит её как int
+// Если значение задано, но не может быть разобрано strconv.Atoi,
+// возвращается ошибка вида "invalid KEY: ...".
+func getInt(key string, def int) (int, error) {
+	v := os.Getenv(key)
+	if v == "" {
+		return def, nil
+	}
+	n, err := strconv.Atoi(v)
+	if err != nil {
+		return 0, fmt.Errorf("invalid %s: %w", key, err)
+	}
+	return n, nil
 }

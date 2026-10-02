@@ -14,6 +14,7 @@ import (
 	"github.com/skyP38/flowchart_editor/backend/internal/config"
 	"github.com/skyP38/flowchart_editor/backend/internal/service/auth"
 	"github.com/skyP38/flowchart_editor/backend/internal/service/auth/token"
+	"github.com/skyP38/flowchart_editor/backend/internal/service/ratelimit"
 	"github.com/skyP38/flowchart_editor/backend/internal/storage/memory"
 	"github.com/skyP38/flowchart_editor/backend/internal/transport"
 )
@@ -33,21 +34,41 @@ func main() {
 	}
 
 	accessMgr := token.NewAccessTokenManager(cfg.JWTSecret, cfg.AccessTokenTTL)
-	authSvc := auth.NewService(users, sessions, accessMgr, cfg.PasswordPepper, cfg.AccessTokenTTL, cfg.RefreshTokenTTL)
-	authMW := api.Auth(accessMgr)
+	reservedLogins := []string{cfg.AdminLogin}
+
+	loginPolicy := ratelimit.Policy{
+		MaxAttempts:   cfg.RatelimitLoginMaxAttempts,
+		Window:        cfg.RatelimitLoginWindow,
+		BlockDuration: cfg.RatelimitLoginBlockDuration,
+		MaxBlockCount: cfg.RatelimitLoginMaxBlockCount,
+		DecayWindow:   cfg.RatelimitLoginDecayWindow,
+	}
+	limiter, err := ratelimit.NewMemoryLimiter(
+		map[string]ratelimit.Policy{"login": loginPolicy},
+		cfg.RatelimitCleanupInterval,
+	)
+	if err != nil {
+		log.Fatalf("ratelimit: %v", err)
+	}
+
+	authSvc := auth.NewService(users, sessions, accessMgr, cfg.PasswordPepper, cfg.AccessTokenTTL, cfg.RefreshTokenTTL, reservedLogins)
+	authMW := api.Auth(accessMgr, sessions)
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) {
 		transport.WriteJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 	})
 
-	api.NewAuthHandler(authSvc).RegisterRoutes(mux, authMW)
+	api.NewAuthHandler(authSvc, limiter).RegisterRoutes(mux, authMW)
 	api.NewSessionHandler(authSvc).RegisterRoutes(mux, authMW)
 
 	handler := transport.Chain(mux,
 		transport.Recover,
 		transport.Logging,
 		transport.CORS,
+		transport.BodyLimit(transport.DefaultMaxBodyBytes, map[string]int64{
+			"/api/editor/upload": 25 << 20, // 25 MiB - только для загрузки - нужно позже
+		}),
 	)
 
 	srv := &http.Server{
@@ -74,5 +95,6 @@ func main() {
 	if err := srv.Shutdown(ctx); err != nil {
 		log.Printf("shutdown: %v", err)
 	}
+	_ = limiter.Close()
 	log.Println("stopped")
 }
