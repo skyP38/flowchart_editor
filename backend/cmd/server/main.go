@@ -9,6 +9,7 @@ import (
 	"os/signal"
 	"syscall"
 	"time"
+	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/skyP38/flowchart_editor/backend/internal/api"
 	"github.com/skyP38/flowchart_editor/backend/internal/config"
@@ -24,6 +25,16 @@ func main() {
 	if err != nil {
 		log.Fatalf("config: %v", err)
 	}
+	db_url := os.Getenv("DATABASE_URL")
+	if db_url == "" {
+		log.Fatal("DATABASE_URL is not set")
+	}
+	db, err := pgxpool.New(context.Background(), db_url,)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer db.Close()
+	log.Println("Connected to PostgreSQL")
 
 	users := memory.NewMemoryUserRepo()
 	sessions := memory.NewMemorySessionRepo()
