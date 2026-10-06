@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'item.dart';
 import '../screens/screens.dart';
+import '../screens/welcome.dart';
 
 class Sidebar extends StatelessWidget {
   final String currentRoute;
@@ -74,6 +75,7 @@ class Sidebar extends StatelessWidget {
                 icon: Icons.logout,
                 title: 'Log out',
                 active: currentRoute == 'logout',
+                onTap: () => _go(context, const WelcomeScreen()),
               ),
             ],
           ),       
