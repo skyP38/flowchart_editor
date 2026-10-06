@@ -18,3 +18,20 @@ type Flowchart struct {
 	DateCreate time.Time      `json:"dateCreate"`
 	DateUpdate *time.Time     `json:"dateUpdate,omitempty"`
 }
+
+type Session struct {
+	ID          int64      `json:"id"`
+	UserID      int64      `json:"userId"`
+	DateCreate  time.Time  `json:"dateCreate"`
+	IsActive    bool       `json:"isActive"`
+	ClosingDate *time.Time `json:"closingDate,omitempty"`
+}
+
+type User struct {
+	ID        int64     `json:"id"`
+	FIO       string    `json:"fio"`
+	Login     string    `json:"login"`
+	Status    bool      `json:"status"`
+	DateCreate time.Time `json:"dateCreate"`
+}
+
