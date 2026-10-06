@@ -66,6 +66,7 @@ func main() {
 
 	api.NewAuthHandler(authSvc, limiter).RegisterRoutes(mux, authMW)
 	api.NewSessionHandler(authSvc).RegisterRoutes(mux, authMW)
+	api.NewAdminHandler(sessions).RegisterRoutes(mux, authMW)
 
 	handler := transport.Chain(mux,
 		transport.Recover,

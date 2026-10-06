@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"log"
 	"net/http"
 	"strconv"
 	"strings"
@@ -57,6 +58,29 @@ func Auth(mgr *token.AccessTokenManager, sessions domains.SessionRepository) Aut
 			ctx = context.WithValue(ctx, ctxSessionID, sid)
 			ctx = context.WithValue(ctx, ctxUserRole, claims.Role)
 			next.ServeHTTP(w, r.WithContext(ctx))
+		})
+	}
+}
+
+func RequireRole(roles ...string) AuthMW {
+	allowed := make(map[string]struct{}, len(roles))
+	for _, r := range roles {
+		if r == "" {
+			continue
+		}
+		allowed[r] = struct{}{}
+
+	}
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			role := RoleFrom(r.Context())
+			if _, ok := allowed[role]; !ok {
+				uid := UserIDFrom(r.Context())
+				log.Printf("forbidden: uid=%d role=%q path=%s", uid, role, r.URL.Path)
+				transport.WriteError(w, http.StatusForbidden, "forbidden", "insufficient permissions")
+				return
+			}
+			next.ServeHTTP(w, r)
 		})
 	}
 }

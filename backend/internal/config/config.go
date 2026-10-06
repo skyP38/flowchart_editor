@@ -1,3 +1,4 @@
+// Package config загружает конфигурацию приложения из переменных окружения
 package config
 
 import (
@@ -30,8 +31,6 @@ type Config struct {
 	// Пароль администратора
 	// По умолчанию: admin
 	AdminPassword string
-
-	ReservedLogins []string
 
 	// Максимальное число неудачных попыток входа до блокировки
 	// По умолчанию: 5
@@ -114,7 +113,6 @@ func Load() (*Config, error) {
 		RefreshTokenTTL:             refreshTTL,
 		AdminLogin:                  getEnv("ADMIN_LOGIN", "admin"),
 		AdminPassword:               getEnv("ADMIN_PASSWORD", "admin"),
-		ReservedLogins:              []string{getEnv("RESERVED_LOGINS", "admin")},
 		RatelimitLoginMaxAttempts:   loginMaxAttempts,
 		RatelimitLoginWindow:        loginWindow,
 		RatelimitLoginBlockDuration: loginBlockDuration,

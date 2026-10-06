@@ -10,7 +10,6 @@ import (
 	"github.com/skyP38/flowchart_editor/backend/internal/domains"
 	"github.com/skyP38/flowchart_editor/backend/internal/service/auth/token"
 	"github.com/skyP38/flowchart_editor/backend/internal/service/password"
-	"github.com/skyP38/flowchart_editor/backend/internal/storage/memory"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -128,7 +127,7 @@ func (s *Service) Register(ctx context.Context, in RegisterInput) (*AuthResult, 
 		IsActive:  true,
 	}
 	if err := s.users.Create(ctx, u); err != nil {
-		if errors.Is(err, memory.ErrUserAlreadyExists) {
+		if errors.Is(err, domains.ErrUserAlreadyExists) {
 			return nil, ErrLoginTaken
 		}
 		return nil, err

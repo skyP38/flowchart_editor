@@ -14,3 +14,10 @@ type Session struct {
 func (s *Session) IsActive(now time.Time) bool {
 	return s.RevokedAt == nil && now.Before(s.ExpiresAt)
 }
+
+type SessionStats struct {
+	Total   int `json:"total"`
+	Active  int `json:"active"`
+	Revoked int `json:"revoked"`
+	Expired int `json:"expired"`
+}
