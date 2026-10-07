@@ -1,3 +1,4 @@
+// Package auth реализует регистрацию, аутентификацию, выдачу токенов и управление сессиями пользователей
 package auth
 
 import (
@@ -8,17 +9,18 @@ import (
 
 var (
 	ErrLoginTaken          = errors.New("login already taken")
-	ErrLoginReserved       = errors.New("login is reserved")
 	ErrInvalidCredentials  = errors.New("invalid login or password")
 	ErrInvalidRefreshToken = errors.New("invalid refresh token")
 	ErrSessionNotFound     = errors.New("session not found")
 )
 
+// ValidationError - ошибка валидации одного поля
 type ValidationError struct {
 	Field   string
 	Message string
 }
 
+// Error реализует интерфейс error
 func (e *ValidationError) Error() string {
 	return e.Field + ": " + e.Message
 }
@@ -32,14 +34,17 @@ func NewValidationErrors() *ValidationErrors {
 	return &ValidationErrors{Fields: make(map[string]string)}
 }
 
+// Add добавляет ошибку поля
 func (e *ValidationErrors) Add(field, message string) {
 	e.Fields[field] = message
 }
 
+// HasAny сообщает, есть ли хоть одна ошибка
 func (e *ValidationErrors) HasAny() bool {
 	return len(e.Fields) > 0
 }
 
+// Error реализует интерфейс error, собирая все поля в одну строку в отсортированном порядке
 func (e *ValidationErrors) Error() string {
 	if len(e.Fields) == 0 {
 		return "validation failed"

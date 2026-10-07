@@ -1,4 +1,5 @@
-package memory
+// Package seed создаёт начальные данные приложения при запуске
+package seed
 
 import (
 	"context"
@@ -10,8 +11,8 @@ import (
 	"github.com/skyP38/flowchart_editor/backend/internal/service/password"
 )
 
-// SeedAdmin создает администратора при инициализации
-func SeedAdmin(
+// Admin создает администратора при инициализации
+func Admin(
 	ctx context.Context,
 	users domains.UserRepository,
 	login, plainPassword, pepper string,
@@ -23,21 +24,20 @@ func SeedAdmin(
 	existing, err := users.GetByLogin(ctx, login)
 	if err == nil && existing != nil {
 		if existing.Role == domains.RoleAdmin {
-			return nil // всё хорошо, админ уже есть
+			return nil // админ уже есть
 		}
 		return fmt.Errorf(
 			"seed admin: login %q is taken by non-admin user (id=%d, role=%q)",
 			login, existing.ID, existing.Role,
 		)
 	}
-	if err != nil && !errors.Is(err, ErrNotFound) {
+	if err != nil && !errors.Is(err, domains.ErrNotFound) {
 		return fmt.Errorf("seed admin: lookup: %w", err)
 	}
 	hash, err := password.HashPassword(plainPassword, pepper)
 	if err != nil {
-		return err
+		return fmt.Errorf("seed admin: hash password: %w", err)
 	}
-
 	u := &domains.User{
 		Login:     login,
 		PwdHash:   hash,
@@ -47,10 +47,10 @@ func SeedAdmin(
 		IsActive:  true,
 	}
 	if err := users.Create(ctx, u); err != nil {
-		if err == ErrUserAlreadyExists {
+		if errors.Is(err, domains.ErrUserAlreadyExists) {
 			return nil
 		}
-		return err
+		return fmt.Errorf("seed admin: create: %w", err)
 	}
 	return nil
 }

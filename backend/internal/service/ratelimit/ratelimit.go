@@ -1,3 +1,4 @@
+// Package ratelimit реализует ограничение частоты действий по ключам
 package ratelimit
 
 import (
@@ -5,6 +6,7 @@ import (
 	"time"
 )
 
+// Decision - результат проверки лимита
 type Decision struct {
 	Allowed bool
 	// сколько ждать при Allow = false
@@ -12,17 +14,19 @@ type Decision struct {
 	BlockedBy  string
 }
 
+// Limiter - интерфейс ограничителя частоты действий
 type Limiter interface {
-	// проверяет разрешено ли действие по ключам
+	// Check проверяет разрешено ли действие по ключам
 	Check(ctx context.Context, keys []string) (Decision, error)
-	// фиксирует неудачу по ключам
+	// RecordFailure фиксирует неудачу по ключам
 	RecordFailure(ctx context.Context, keys []string) error
-	// сбрасывает счетчики по переданным ключам
+	// RecordSuccess сбрасывает счетчики по переданным ключам
 	RecordSuccess(ctx context.Context, keys []string) error
-	// удаляет просроченные записи, вызывается периодически
+	// Cleanup удаляет просроченные записи, вызывается периодически
 	Cleanup(ctx context.Context) error
 }
 
+// Closer — интерфейс для остановки фоновых задач Limiter
 type Closer interface {
 	Close() error
 }

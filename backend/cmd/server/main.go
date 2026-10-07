@@ -15,32 +15,38 @@ import (
 	"github.com/skyP38/flowchart_editor/backend/internal/service/auth"
 	"github.com/skyP38/flowchart_editor/backend/internal/service/auth/token"
 	"github.com/skyP38/flowchart_editor/backend/internal/service/ratelimit"
+	"github.com/skyP38/flowchart_editor/backend/internal/service/seed"
 	"github.com/skyP38/flowchart_editor/backend/internal/service/sessioncleanup"
 	"github.com/skyP38/flowchart_editor/backend/internal/storage/memory"
 	"github.com/skyP38/flowchart_editor/backend/internal/transport"
 )
 
 func main() {
-
+	// загрузка конфига из переменных окружения
 	cfg, err := config.Load()
 	if err != nil {
 		log.Fatalf("config: %v", err)
 	}
 
+	// in-memory реализация хранилищ
 	users := memory.NewMemoryUserRepo()
 	sessions := memory.NewMemorySessionRepo()
+
+	// фоновый чистильщик сессий
 	janitor, err := sessioncleanup.New(sessions, cfg.SessionCleanupInterval, cfg.SessionRetention)
 	if err != nil {
 		log.Fatalf("session janitor :%v", err)
 	}
 
-	if err := memory.SeedAdmin(context.Background(), users, cfg.AdminLogin, cfg.AdminPassword, cfg.PasswordPepper); err != nil {
+	// создание админа при первом запуске
+	if err := seed.Admin(context.Background(), users, cfg.AdminLogin, cfg.AdminPassword, cfg.PasswordPepper); err != nil {
 		log.Fatalf("seed admin: %v", err)
 	}
 
+	// менеджер access-токенов
 	accessMgr := token.NewAccessTokenManager(cfg.JWTSecret, cfg.AccessTokenTTL)
-	reservedLogins := []string{cfg.AdminLogin}
 
+	// политика rate limit
 	loginPolicy := ratelimit.Policy{
 		MaxAttempts:   cfg.RatelimitLoginMaxAttempts,
 		Window:        cfg.RatelimitLoginWindow,
@@ -56,30 +62,38 @@ func main() {
 		log.Fatalf("ratelimit: %v", err)
 	}
 
-	authSvc := auth.NewService(users, sessions, accessMgr, cfg.PasswordPepper, cfg.AccessTokenTTL, cfg.RefreshTokenTTL, reservedLogins)
+	// сервис аутентификации
+	authSvc := auth.NewService(users, sessions, accessMgr, cfg.PasswordPepper, cfg.AccessTokenTTL, cfg.RefreshTokenTTL)
 	authMW := api.Auth(accessMgr, sessions)
 
+	// middlewera аутентификации
 	mux := http.NewServeMux()
-	mux.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) {
+
+	// health-check
+	mux.HandleFunc("GET /health", func(w http.ResponseWriter, _ *http.Request) {
 		transport.WriteJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 	})
 
+	// регистрация маршрутов обработчиков
 	api.NewAuthHandler(authSvc, limiter).RegisterRoutes(mux, authMW)
 	api.NewSessionHandler(authSvc).RegisterRoutes(mux, authMW)
 	api.NewAdminHandler(sessions).RegisterRoutes(mux, authMW)
 
+	// сборка middleware
 	handler := transport.Chain(mux,
 		transport.Recover,
 		transport.Logging,
 		transport.CORS,
 		transport.BodyLimit(transport.DefaultMaxBodyBytes, map[string]int64{
-			"/api/editor/upload": 25 << 20, // 25 MiB - только для загрузки - нужно позже
+			"/api/editor/upload": 25 << 20, // 25 MiB - только для загрузки - TODO: нужно позже
 		}),
 	)
 
+	// http-сервер
 	srv := &http.Server{
-		Addr:              ":" + cfg.AppPort,
-		Handler:           handler,
+		Addr:    ":" + cfg.AppPort,
+		Handler: handler,
+		// ограничение времени чтения заголовка запроса
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       10 * time.Second,
 		WriteTimeout:      15 * time.Second,
@@ -91,6 +105,7 @@ func main() {
 		}
 	}()
 
+	// SIGINT || SIGTERM
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM)
 	<-stop

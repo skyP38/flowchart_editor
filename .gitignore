@@ -17,3 +17,7 @@ package.json
 package-lock.json
 
 frontend/web
+*coverage.out
+*cover.out
+graph.svg
+*golangci*

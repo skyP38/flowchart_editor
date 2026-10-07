@@ -1,3 +1,26 @@
+// Package ratelimit реализует ограничение частоты действий по ключам
+//
+// Модель использования:
+//
+//  1. Перед действием клиент вызывает Check(ctx, keys).
+//     Если Allowed == false, действие нужно отклонить и подождать
+//     RetryAfter.
+//
+//  2. На неудаче клиент вызывает RecordFailure(ctx, keys).
+//     При превышении MaxAttempts в окне Window ключ блокируется
+//     на BlockDuration, с эскалацией при повторных нарушениях.
+//
+//  3. На успехе клиент вызывает RecordSuccess(ctx, keys),
+//     сбрасывая счётчики по ключам.
+//
+//  4. Cleanup периодически удаляет просроченные записи; в MemoryLimiter
+//     он запускается автоматически в фоновой горутине и останавливается
+//     через Close.
+//
+// Ключи имеют вид "<prefix>:<value>", где prefix соответствует
+// зарегистрированному профилю (Policy). Один вызов может принимать
+// несколько ключей одновременно - блокировка срабатывает, если
+// заблокирован хотя бы один
 package ratelimit
 
 import (
@@ -9,22 +32,37 @@ import (
 	"time"
 )
 
+// entry - состояние одного ключа
 type entry struct {
-	failures     []time.Time
+	// список неудачных попыток в окне
+	failures []time.Time
+	// до какого мемента ключ заблокирован
 	blockedUntil time.Time
-	blockCount   int
+	// сколько раз ключ блокировался
+	blockCount int
 }
 
+// MemoryLimiter - потокобезопасный in-memory ограничитель частоты
+// Хранит состояния в мапе entries
+// Регулярно запускает Cleanup в фоновой горутине
 type MemoryLimiter struct {
-	mu              sync.RWMutex
+	mu sync.RWMutex
+	// ключ - <prefix>
 	entries         map[string]*entry
 	policies        map[string]Policy
 	cleanupInterval time.Duration
-	done            chan struct{}
-	closeOnce       sync.Once
-	wg              sync.WaitGroup
+	// сигнал для остановки фоновой горутины cleanupLoop
+	done chan struct{}
+	// гарантия что close(done) выполнится 1 раз
+	closeOnce sync.Once
+	// ждем завершения фоновой горутины
+	wg sync.WaitGroup
 }
 
+// NewMemoryLimiter создаёт ограничитель и запускает фоновую очистку
+// Возвращает ошибку, если policies пусты, cleanupInterval <= 0
+// или хотя бы один Policy содержит некорректные значения
+// (неположительные MaxAttempts, Window, BlockDuration, MaxBlockCount, DecayWindow)
 func NewMemoryLimiter(policies map[string]Policy, cleanupInterval time.Duration) (*MemoryLimiter, error) {
 	var err error
 	if len(policies) == 0 {
@@ -65,6 +103,7 @@ func NewMemoryLimiter(policies map[string]Policy, cleanupInterval time.Duration)
 	return m, nil
 }
 
+// dedupeKeys удаляет дубликаты из слайса ключей, сохраняя порядок первого вхождения
 func dedupeKeys(keys []string) []string {
 	if len(keys) <= 1 {
 		return keys
@@ -82,8 +121,12 @@ func dedupeKeys(keys []string) []string {
 	return ans
 }
 
-// проверяет разрешено ли действие по ключам
-func (m *MemoryLimiter) Check(ctx context.Context, keys []string) (Decision, error) {
+// Check проверяет разрешено ли действие по ключам
+// Возвращает Decision:
+//   - Allowed=false, если хотя бы один ключ заблокирован;
+//   - RetryAfter - максимальное время до разблокировки среди ключей;
+//   - BlockedBy - ключ с наибольшим RetryAfter (для логирования).
+func (m *MemoryLimiter) Check(_ context.Context, keys []string) (Decision, error) {
 	var firstErr error
 
 	now := time.Now()
@@ -96,8 +139,10 @@ func (m *MemoryLimiter) Check(ctx context.Context, keys []string) (Decision, err
 	var blockedBy string
 
 	for _, key := range keys {
+		// разделяет ключ на key:value(login:alice) на 2 поля
 		prefix, _, found := strings.Cut(key, ":")
 		if !found {
+			// сохраняет первую ошибку
 			firstErr = &UnknownProfileError{Key: key}
 			continue
 		}
@@ -113,6 +158,7 @@ func (m *MemoryLimiter) Check(ctx context.Context, keys []string) (Decision, err
 			allowed = false
 			retry := e.blockedUntil.Sub(now)
 			if retry > maxRetry {
+				// берется максимальное время блокировки среди ключей
 				maxRetry = retry
 				blockedBy = key
 			}
@@ -122,8 +168,13 @@ func (m *MemoryLimiter) Check(ctx context.Context, keys []string) (Decision, err
 	return Decision{Allowed: allowed, RetryAfter: maxRetry, BlockedBy: blockedBy}, firstErr
 }
 
-// фиксирует неудачу по ключам
-func (m *MemoryLimiter) RecordFailure(ctx context.Context, keys []string) error {
+// RecordFailure фиксирует неудачу по ключам
+// Для каждого ключа:
+//   - удаляет из истории неудачи старше Window (скользящее окно);
+//   - добавляет текущую неудачу;
+//   - если неудач в окне стало >= MaxAttempts, устанавливает блокировку
+//     длительностью BlockDuration * min(blockCount, MaxBlockCount).
+func (m *MemoryLimiter) RecordFailure(_ context.Context, keys []string) error {
 	var firstErr error
 
 	keys = dedupeKeys(keys)
@@ -146,10 +197,13 @@ func (m *MemoryLimiter) RecordFailure(ctx context.Context, keys []string) error 
 			e = &entry{}
 			m.entries[key] = e
 		}
+
+		// если ключ уже заблокирован новые неудачи не учитываются
 		if now.Before(e.blockedUntil) {
 			continue
 		}
 
+		// скользящее окно: остаются только неудачи внутри Window
 		cutoff := now.Add(-policy.Window)
 		pruned := e.failures[:0]
 		for _, t := range e.failures {
@@ -157,6 +211,7 @@ func (m *MemoryLimiter) RecordFailure(ctx context.Context, keys []string) error 
 				pruned = append(pruned, t)
 			}
 		}
+		//nolint:gocritic
 		e.failures = append(pruned, now)
 		var count int
 		if len(e.failures) >= policy.MaxAttempts {
@@ -165,15 +220,16 @@ func (m *MemoryLimiter) RecordFailure(ctx context.Context, keys []string) error 
 
 			e.blockedUntil = now.Add(policy.BlockDuration * time.Duration(count))
 
+			// после блокировки история не нужна
 			e.failures = nil
 		}
-
 	}
 	return firstErr
 }
 
-// сбрасывает счетчики по переданным ключам
-func (m *MemoryLimiter) RecordSuccess(ctx context.Context, keys []string) error {
+// RecordSuccess сбрасывает счетчики по переданным ключам
+// Удаляет записи целиком: после успеха история неудач и счетчик блокировок забываются
+func (m *MemoryLimiter) RecordSuccess(_ context.Context, keys []string) error {
 	keys = dedupeKeys(keys)
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -183,11 +239,15 @@ func (m *MemoryLimiter) RecordSuccess(ctx context.Context, keys []string) error 
 	}
 
 	return nil
-
 }
 
-// удаляет просроченные записи, вызывается периодически
-func (m *MemoryLimiter) Cleanup(ctx context.Context) error {
+// Cleanup удаляет просроченные записи, вызывается периодически
+// Запись удаляется, если одновременно:
+//
+//   - блокировка истекла (now > blockedUntil);
+//   - список неудач пуст или последняя неудача старше Window;
+//   - счетчик блокировок равен нулю или после окончания блокировки прошло больше DecayWindow.
+func (m *MemoryLimiter) Cleanup(_ context.Context) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	now := time.Now()
@@ -200,17 +260,15 @@ func (m *MemoryLimiter) Cleanup(ctx context.Context) error {
 		if !ok {
 			continue
 		}
-		if v.blockCount > 0 && v.blockedUntil.IsZero() {
-			continue
-		}
+		// удаляем запись если после блокировки прошло достаточно времени или попыток нет(или они старые) или блокировок нет(или они забыты)
 		if now.After(v.blockedUntil) && (len(v.failures) == 0 || v.failures[len(v.failures)-1].Before(now.Add(-policy.Window))) && (v.blockCount == 0 || now.After(v.blockedUntil.Add(policy.DecayWindow))) {
 			delete(m.entries, k)
 		}
-
 	}
 	return nil
 }
 
+// cleanupLoop периодически запускает Cleanup, пока не закрыт done
 func (m *MemoryLimiter) cleanupLoop() {
 	defer m.wg.Done()
 	ticker := time.NewTicker(m.cleanupInterval)
@@ -225,6 +283,7 @@ func (m *MemoryLimiter) cleanupLoop() {
 	}
 }
 
+// Close останавливает фоновую очистку и дожидается завершения горутины
 func (m *MemoryLimiter) Close() error {
 	m.closeOnce.Do(func() {
 		close(m.done)

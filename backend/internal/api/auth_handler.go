@@ -7,6 +7,7 @@ import (
 	"math"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/skyP38/flowchart_editor/backend/internal/domains"
 	"github.com/skyP38/flowchart_editor/backend/internal/service/auth"
@@ -31,6 +32,7 @@ func (h *AuthHandler) RegisterRoutes(mux *http.ServeMux, authMW AuthMW) {
 	mux.HandleFunc("POST /api/auth/refresh", h.Refresh)
 	mux.HandleFunc("POST /api/auth/logout", h.Logout)
 
+	// требуется активная сессия
 	mux.Handle("GET /api/auth/me", authMW(http.HandlerFunc(h.Me)))
 }
 
@@ -74,7 +76,7 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 
 	var req registerRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		transport.WriteError(w, http.StatusBadRequest, "invalid_input", "wrong JSON body")
+		transport.WriteError(w, http.StatusBadRequest, transport.CodeInvalidInput, "wrong JSON body")
 		return
 	}
 
@@ -96,7 +98,7 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 	var req loginRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		transport.WriteError(w, http.StatusBadRequest, "invalid_input", "wrong JSON body")
+		transport.WriteError(w, http.StatusBadRequest, transport.CodeInvalidInput, "wrong JSON body")
 		return
 	}
 
@@ -106,6 +108,7 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// rate limit по логину
 	keys := []string{"login:" + login}
 
 	d, err := h.limiter.Check(r.Context(), keys)
@@ -113,13 +116,10 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 		log.Printf("ratelimit: check failed: %v; keys=%v", err, keys)
 	}
 	if !d.Allowed {
-		retrySeconds := int(math.Ceil(d.RetryAfter.Seconds()))
-		if retrySeconds < 1 {
-			retrySeconds = 1
-		}
+		retrySeconds := max(1, int(math.Ceil(d.RetryAfter.Seconds())))
 		w.Header().Set("Retry-After", strconv.Itoa(retrySeconds))
 		log.Printf("ratelimit: blocked; keys=%v blocked_by=%s retry_after=%s", keys, d.BlockedBy, d.RetryAfter)
-		transport.WriteError(w, http.StatusTooManyRequests, "too_many_requests", "too many attempts, try again later")
+		transport.WriteError(w, http.StatusTooManyRequests, transport.CodeTooManyRequests, "too many attempts, try again later")
 		return
 	}
 
@@ -149,7 +149,7 @@ func (h *AuthHandler) Refresh(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 	var req refreshRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		transport.WriteError(w, http.StatusBadRequest, "invalid_input", "wrong JSON body")
+		transport.WriteError(w, http.StatusBadRequest, transport.CodeInvalidInput, "wrong JSON body")
 		return
 	}
 
@@ -167,7 +167,7 @@ func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 	var req refreshRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		transport.WriteError(w, http.StatusBadRequest, "invalid_input", "wrong JSON body")
+		transport.WriteError(w, http.StatusBadRequest, transport.CodeInvalidInput, "wrong JSON body")
 		return
 	}
 
@@ -196,7 +196,7 @@ func toDTO(res *auth.AuthResult) authResponse {
 		},
 		AccessToken:  res.AccessToken,
 		RefreshToken: res.RefreshToken,
-		ExpiresIn:    res.ExpiresIn,
+		ExpiresIn:    int(res.ExpiresIn / time.Second),
 	}
 }
 
@@ -214,22 +214,22 @@ func writeAuthError(w http.ResponseWriter, err error) {
 	case errors.As(err, &verrs):
 		transport.WriteErrorDetails(
 			w, http.StatusBadRequest,
-			"invalid_input", "Validation failed",
+			transport.CodeInvalidInput, "Validation failed",
 			verrs.Fields,
 		)
 	case errors.As(err, &verr):
 		transport.WriteErrorDetails(
 			w, http.StatusBadRequest,
-			"invalid_input", "Validation failed",
+			transport.CodeInvalidInput, "Validation failed",
 			map[string]string{verr.Field: verr.Message},
 		)
 	case errors.Is(err, auth.ErrLoginTaken):
-		transport.WriteError(w, http.StatusConflict, "login_taken", "login is already taken")
+		transport.WriteError(w, http.StatusConflict, transport.CodeLoginTaken, "login is already taken")
 	case errors.Is(err, auth.ErrInvalidCredentials):
-		transport.WriteError(w, http.StatusUnauthorized, "invalid_credentials", "invalid login or password")
+		transport.WriteError(w, http.StatusUnauthorized, transport.CodeInvalidCredentials, "invalid login or password")
 	case errors.Is(err, auth.ErrInvalidRefreshToken):
-		transport.WriteError(w, http.StatusUnauthorized, "invalid_refresh_token", "refresh token is invalid or expired")
+		transport.WriteError(w, http.StatusUnauthorized, transport.CodeInvalidRefreshToken, "refresh token is invalid or expired")
 	default:
-		transport.WriteError(w, http.StatusInternalServerError, "internal", "internal server error")
+		transport.WriteError(w, http.StatusInternalServerError, transport.CodeInternal, "internal server error")
 	}
 }

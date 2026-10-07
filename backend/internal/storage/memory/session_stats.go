@@ -1,3 +1,5 @@
+// Package memory in-memory реализации хранилищ домена:
+// пользователей, сессий и статистики по ним
 package memory
 
 import (
@@ -7,6 +9,8 @@ import (
 	"github.com/skyP38/flowchart_editor/backend/internal/domains"
 )
 
+// Stats возвращает сводку по всем сессиям: количество активных, отозванных и истекших
+// Используется GET /api/admin/stats
 func (r *MemorySessionRepo) Stats(ctx context.Context) (domains.SessionStats, error) {
 	select {
 	case <-ctx.Done():
@@ -18,11 +22,12 @@ func (r *MemorySessionRepo) Stats(ctx context.Context) (domains.SessionStats, er
 	defer r.mu.RUnlock()
 	revoked, active, expired := 0, 0, 0
 	for _, v := range r.byID {
-		if v.RevokedAt != nil {
+		switch {
+		case v.RevokedAt != nil:
 			revoked++
-		} else if now.Before(v.ExpiresAt) {
+		case v.ExpiresAt.After(now):
 			active++
-		} else {
+		default:
 			expired++
 		}
 	}
