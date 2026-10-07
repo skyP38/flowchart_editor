@@ -6,12 +6,10 @@ CREATE TABLE users (
     login VARCHAR(100) NOT NULL UNIQUE,
 	role VARCHAR(20) NOT NULL DEFAULT 'user' CHECK (role IN ('user', 'admin')),
     hash_password VARCHAR(250) NOT NULL,
-    status BOOLEAN NOT NULL,
     created_at TIMESTAMPTZ NOT NULL,
     last_login TIMESTAMPTZ  NULL CHECK (last_login >= created_at),
 	is_active BOOLEAN NOT NULL DEFAULT TRUE
 );
-
 
 CREATE TABLE projects (
     id_project BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
@@ -19,6 +17,7 @@ CREATE TABLE projects (
     owner_id BIGINT NOT NULL,
     created_at TIMESTAMPTZ NOT NULL,
     updated_at TIMESTAMPTZ NULL CHECK (updated_at >= created_at),
+	CONSTRAINT uq_projects_owner_name UNIQUE (owner_id, name_p),
     CONSTRAINT fk_projects_user
         FOREIGN KEY (owner_id)
 		REFERENCES users (owner_id)
@@ -33,6 +32,7 @@ CREATE TABLE flowcharts (
     data_f JSONB NOT NULL DEFAULT '{}'::jsonb,
     created_at TIMESTAMPTZ NOT NULL,
     updated_at TIMESTAMPTZ NULL CHECK (updated_at >= created_at),
+	CONSTRAINT uq_flowcharts_project_name UNIQUE (id_project, name_f),
     CONSTRAINT fk_flowcharts_project
         FOREIGN KEY (id_project)
 		REFERENCES projects (id_project)
@@ -51,5 +51,19 @@ CREATE TABLE sessions (
         FOREIGN KEY (id_user)
 		REFERENCES users (id_user)
         ON DELETE CASCADE
+        ON UPDATE CASCADE
+);
+
+CREATE TABLE logs (
+    id_log BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    id_user BIGINT,
+    action_log VARCHAR(200) NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL,
+    entity VARCHAR(100) NULL,
+    entity_id BIGINT NULL,
+    CONSTRAINT fk_logs_user
+        FOREIGN KEY (id_user)
+		REFERENCES users (id_user)
+        ON DELETE SET NULL
         ON UPDATE CASCADE
 );
