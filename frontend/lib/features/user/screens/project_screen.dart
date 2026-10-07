@@ -3,6 +3,7 @@ import '../widgets/sidebar.dart';
 import '../models/project.dart';
 import '../models/flowchart.dart';
 import '../services/api_service.dart';
+import '../widgets/card_f.dart';
 
 class ProjectScreen extends StatefulWidget {
   final int projectId;
@@ -30,11 +31,38 @@ class _ProjectScreenState extends State<ProjectScreen> {
   }
 
   Future<void> _createFlowchart() async {
-    //TODO
+    final controller = TextEditingController();
+
+    final name = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('New flowchart'),
+        content: TextField(
+          controller: controller,
+          decoration: const InputDecoration(hintText: 'Name flowchart'),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, controller.text.trim()),
+            child: const Text('Create'),
+          ),
+        ],
+      ),
+    );
+
+    if (name == null || name.isEmpty) return;
+
+    await _api.createFlowchart(widget.projectId, name);
+    _reload();
   }
 
   Future<void> _deleteFlowchart(int id) async {
-    //TODO
+    await _api.deleteFlowchart(id);
+    _reload();
   }
 
   void _openFlowchart(Flowchart f) {
@@ -182,6 +210,27 @@ class _ProjectScreenState extends State<ProjectScreen> {
                       ),
                     ),
                   ],
+                ),
+                const SizedBox(height: 24),
+                Expanded(
+                  child: project.flowcharts.isEmpty
+                    ? const Center(child: Text('There are not flowcharts yet'))
+                    : GridView.builder(
+                      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: 2,
+                        crossAxisSpacing: 24,
+                        mainAxisSpacing: 24,
+                        childAspectRatio: 418 / 217,
+                      ),
+                      itemCount: project.flowcharts.length,
+                      itemBuilder: (context, index) {
+                        final f = project.flowcharts[index];
+                        return FlowchartCard(
+                          flowchart: f,
+                          onDelete: () => _deleteFlowchart(f.id),
+                        );
+                      },
+                    ),
                 ),
               ],
             ),

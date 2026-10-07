@@ -34,6 +34,7 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
       builder: (context) => AlertDialog(
         title: const Text('New project'),
         content: TextField(
+          controller: controller,
           decoration: const InputDecoration(hintText: 'Name project'),
         ),
         actions: [
