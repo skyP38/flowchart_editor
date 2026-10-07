@@ -32,6 +32,7 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
+  // Сбрасывает ошибку конкретного поля при начале редактирования
   void _clearErrorFor(String field) {
     if (_fieldErrors.containsKey(field) || _generalError != null) {
       setState(() {
@@ -88,6 +89,7 @@ class _LoginScreenState extends State<LoginScreen> {
     _applyServerError(err);
   }
 
+  // Раскладывает ошибку сервера
   void _applyServerError(ApiError err) {
     final newFieldErrors = <String, String>{};
     for (final field in const ['login', 'password']) {

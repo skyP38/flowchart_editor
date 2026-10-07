@@ -5,6 +5,7 @@ import 'interceptors/auth_interceptor.dart';
 import 'interceptors/refresh_interceptor.dart';
 import 'interceptors/error_interceptor.dart';
 
+// Обертка над Dio
 class ApiClient {
   final Dio _dio;
   // final TokenStorage _storage;
@@ -142,6 +143,7 @@ class ApiClient {
     }
   }
 
+  // распаковка тела ответа
   T _unwrap<T>(Response<T> response) {
     if (T == Null || response.statusCode == 204) {
       //204 No Content

@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 import '../token_storage.dart';
 
+// Подставляет Authorization: Bearer <access> во все защищенные запросы
 class AuthInterceptor extends Interceptor {
   final TokenStorage _storage;
 
@@ -18,6 +19,7 @@ class AuthInterceptor extends Interceptor {
     RequestOptions options,
     RequestInterceptorHandler handler,
   ) async {
+    // защита от рекурсии - тег в RefreshInterceptor
     if (options.extra['__skipInterceptors'] == true) {
       return handler.next(options);
     }

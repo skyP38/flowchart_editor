@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'auth_colors.dart';
 
+// Подпись над полем ввода
 class AuthLabel extends StatelessWidget {
   final String text;
 

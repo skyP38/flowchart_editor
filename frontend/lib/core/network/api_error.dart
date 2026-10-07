@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 
+// Тип ошибки на уровне домена
 enum ApiErrorType {
   network, // нет соединения
   timeout, // таймаут
@@ -9,9 +10,10 @@ enum ApiErrorType {
   notFound, // 404
   validation, // 400 / 422
   server, // 5xx
-  unknown, // всё остальное
+  unknown, // все остальное
 }
 
+// Единый тип ошибки для всего приложения
 class ApiError implements Exception {
   final ApiErrorType type;
   final int? statusCode;
@@ -35,6 +37,7 @@ class ApiError implements Exception {
   bool get isValidation => type == ApiErrorType.validation;
   bool get isServer => type == ApiErrorType.server;
 
+  // Достает тип ошибки по конкретному полю формы
   String? fieldError(String field) {
     final d = details;
     if (d == null) return null;
@@ -115,11 +118,25 @@ class ApiError implements Exception {
     Map<String, dynamic>? details;
 
     if (data is Map<String, dynamic>) {
-      code = data['code']?.toString();
-      message = data['message']?.toString() ?? data['error']?.toString();
-      final rawDetails = data['details'];
-      if (rawDetails is Map) {
-        details = rawDetails.map((k, v) => MapEntry(k.toString(), v));
+      final error = data['error'];
+      if (error is Map) {
+        // Вложенный формат: { error: {...} }
+        code = error['code']?.toString();
+        message = error['message']?.toString();
+
+        final rawDetails = error['details'];
+        if (rawDetails is Map) {
+          details = rawDetails.map((k, v) => MapEntry(k.toString(), v));
+        }
+      } else {
+        // Формат: { code, message, details }
+        code = data['code']?.toString();
+        message = data['message']?.toString() ?? error?.toString();
+
+        final rawDetails = data['details'];
+        if (rawDetails is Map) {
+          details = rawDetails.map((k, v) => MapEntry(k.toString(), v));
+        }
       }
     } else if (data is String && data.isNotEmpty) {
       message = data;
@@ -136,6 +153,7 @@ class ApiError implements Exception {
     );
   }
 
+  // HTTP-статус в доменный тип
   static ApiErrorType _typeFromStatus(int status) {
     if (status == 401) return ApiErrorType.unauthorized;
     if (status == 403) return ApiErrorType.forbidden;
@@ -145,6 +163,7 @@ class ApiError implements Exception {
     return ApiErrorType.unknown;
   }
 
+  // Дефолтные сообщения, если сервер не прислал ответ
   static String _defaultMessageFor(ApiErrorType type) {
     switch (type) {
       case ApiErrorType.unauthorized:

@@ -17,6 +17,7 @@ class AuthGate extends StatelessWidget {
     final authRepository = context.watch<AuthRepository>();
     final state = authRepository.state;
 
+    // Фоновое обновление
     if (state is AuthLoading && state.isBackground) {
       return HomeScreen(user: state.user!);
     }
@@ -38,6 +39,7 @@ class AuthGate extends StatelessWidget {
   }
 }
 
+// экран-заглушка на время восстановления сессии/загрузки
 class _SplashScreen extends StatelessWidget {
   const _SplashScreen();
 
@@ -47,6 +49,7 @@ class _SplashScreen extends StatelessWidget {
   }
 }
 
+// Экран ошибки восстановления сессии: сообщение + кнопка Повторить
 class _AuthErrorScreen extends StatelessWidget {
   final ApiError error;
   final VoidCallback onRetry;
