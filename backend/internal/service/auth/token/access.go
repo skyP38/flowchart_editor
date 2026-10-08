@@ -13,7 +13,7 @@ import (
 
 // Issuer - значение поля iss в access-токенах
 // Используется для проверки, что токен выпущен именно этим сервисом
-const Issuer = "backend"
+const Issuer = "flowchart_editor"
 
 var (
 	ErrInvalidToken = errors.New("invalid access token")
