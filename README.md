@@ -321,13 +321,13 @@ frontend
 ├── lib
 │   ├── core
 │   │   └── network
-│   │       ├── api_client.dart
-│   │       ├── api_error.dart
+│   │       ├── api_client.dart # обертка над Dio, подключение interceptors
+│   │       ├── api_error.dart  # единый ApiError
 │   │       ├── interceptors
-│   │       │   ├── auth_interceptor.dart
-│   │       │   ├── error_interceptor.dart
-│   │       │   └── refresh_interceptor.dart
-│   │       └── token_storage.dart
+│   │       │   ├── auth_interceptor.dart # подставляет Authorization: Bearer <access>
+│   │       │   ├── error_interceptor.dart # превращает DioException в доменную ApiError
+│   │       │   └── refresh_interceptor.dart # при 401 обновляет токены и повторяет запрос
+│   │       └── token_storage.dart # абстракция хранилища токенов
 │   ├── features
 │   │   ├── auth
 │   │   │   ├── data
@@ -339,11 +339,11 @@ frontend
 │   │   │   │   │   ├── session.dart
 │   │   │   │   │   └── user.dart
 │   │   │   │   └── storage
-│   │   │   │       └── secure_token_storage.dart
+│   │   │   │       └── secure_token_storage.dart # xранение access/refresh в 
 │   │   │   ├── domain
-│   │   │   │   ├── auth_repository.dart
+│   │   │   │   ├── auth_repository.dart # логика авторизации, состояние AuthState
 │   │   │   │   └── auth_state.dart
-│   │   │   └── presentation
+│   │   │   └── presentation # экраны 
 │   │   │       ├── auth_gate.dart
 │   │   │       ├── login_screen.dart
 │   │   │       ├── registration_screen.dart
@@ -359,7 +359,7 @@ frontend
 │   │   └── home
 │   │       └── presentation
 │   │           └── home_screen.dart
-│   └── main.dart
+│   └── main.dart # точка входа
 ├── pubspec.lock
-└──  pubspec.yaml
+└── pubspec.yaml
 ```
