@@ -4,6 +4,7 @@ import 'token_storage.dart';
 import 'interceptors/auth_interceptor.dart';
 import 'interceptors/refresh_interceptor.dart';
 import 'interceptors/error_interceptor.dart';
+import 'interceptors/logging_interceptor.dart';
 
 // Обертка над Dio
 class ApiClient {
@@ -40,6 +41,7 @@ class ApiClient {
         storage: storage,
         onUnauthorized: onUnauthorized,
       ),
+      LoggingInterceptor(),
 
       // if (const bool.fromEnvironment('dart.vm.product') == false)
       //   LoggingInterceptor(),

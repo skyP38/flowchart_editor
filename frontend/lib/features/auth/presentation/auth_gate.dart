@@ -2,10 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../../core/network/api_error.dart';
-import '../../home/presentation/home_screen.dart';
+import '../../user/screens/screens.dart';
+import '../../user/screens/welcome.dart';
+// import '../../home/presentation/home_screen.dart';
 import '../domain/auth_repository.dart';
 import '../domain/auth_state.dart';
-import 'login_screen.dart';
+//import 'login_screen.dart';
 
 /// Корневой виджет, который выбирает экран по состоянию AuthRepository
 class AuthGate extends StatelessWidget {
@@ -17,9 +19,11 @@ class AuthGate extends StatelessWidget {
     final authRepository = context.watch<AuthRepository>();
     final state = authRepository.state;
 
+    debugPrint('AuthGate build: ${state.runtimeType}');
+
     // Фоновое обновление
     if (state is AuthLoading && state.isBackground) {
-      return HomeScreen(user: state.user!);
+      return const ProjectsScreen(); //HomeScreen(user: state.user!);
     }
 
     return switch (state) {
@@ -27,10 +31,14 @@ class AuthGate extends StatelessWidget {
 
       AuthLoading() => const _SplashScreen(),
 
-      AuthUnauthenticated() => LoginScreen(onLoggedIn: () {}),
+      AuthUnauthenticated() => const WelcomeScreen(),
 
-      AuthAuthenticated(:final user) => HomeScreen(user: user),
+      AuthAuthenticated() => const ProjectsScreen(),
 
+      //AuthUnauthenticated() => LoginScreen(onLoggedIn: () {}),
+
+      // AuthAuthenticated(:final user) =>
+      //  const ProjectsScreen(), // HomeScreen(user: user),
       AuthError(:final error) => _AuthErrorScreen(
         error: error,
         onRetry: () => context.read<AuthRepository>().init(),

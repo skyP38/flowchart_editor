@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+
 import '../widgets/sidebar.dart';
 import '../models/project.dart';
 import '../models/flowchart.dart';
@@ -15,12 +17,13 @@ class ProjectScreen extends StatefulWidget {
 }
 
 class _ProjectScreenState extends State<ProjectScreen> {
-  final ApiService _api = ApiService();
+  late final ApiService _api;
   late Future<Project> _projectFuture;
 
   @override
   void initState() {
     super.initState();
+    _api = context.read<ApiService>();
     _reload();
   }
 
@@ -112,7 +115,8 @@ class _ProjectScreenState extends State<ProjectScreen> {
 
   Widget _buildContent(Project project) {
     return Column(
-      children: [        Container(
+      children: [
+        Container(
           height: 73,
           padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 18),
           color: Colors.white,
@@ -214,23 +218,26 @@ class _ProjectScreenState extends State<ProjectScreen> {
                 const SizedBox(height: 24),
                 Expanded(
                   child: project.flowcharts.isEmpty
-                    ? const Center(child: Text('There are not flowcharts yet'))
-                    : GridView.builder(
-                      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                        crossAxisCount: 2,
-                        crossAxisSpacing: 24,
-                        mainAxisSpacing: 24,
-                        childAspectRatio: 418 / 217,
-                      ),
-                      itemCount: project.flowcharts.length,
-                      itemBuilder: (context, index) {
-                        final f = project.flowcharts[index];
-                        return FlowchartCard(
-                          flowchart: f,
-                          onDelete: () => _deleteFlowchart(f.id),
-                        );
-                      },
-                    ),
+                      ? const Center(
+                          child: Text('There are not flowcharts yet'),
+                        )
+                      : GridView.builder(
+                          gridDelegate:
+                              const SliverGridDelegateWithFixedCrossAxisCount(
+                                crossAxisCount: 2,
+                                crossAxisSpacing: 24,
+                                mainAxisSpacing: 24,
+                                childAspectRatio: 418 / 217,
+                              ),
+                          itemCount: project.flowcharts.length,
+                          itemBuilder: (context, index) {
+                            final f = project.flowcharts[index];
+                            return FlowchartCard(
+                              flowchart: f,
+                              onDelete: () => _deleteFlowchart(f.id),
+                            );
+                          },
+                        ),
                 ),
               ],
             ),
@@ -240,4 +247,3 @@ class _ProjectScreenState extends State<ProjectScreen> {
     );
   }
 }
- 

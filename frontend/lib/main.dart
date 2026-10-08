@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import 'core/network/api_client.dart';
+import 'core/network/api_service.dart';
 import 'features/auth/data/api/auth_api.dart';
 import 'features/auth/data/storage/secure_token_storage.dart';
 import 'features/auth/domain/auth_repository.dart';
@@ -28,14 +29,18 @@ Future<void> main() async {
   );
 
   final authApi = AuthApi(apiClient);
+  final apiService = ApiService(apiClient);
 
   authRepository = AuthRepository(api: authApi, storage: tokenStorage);
 
   await authRepository.init();
 
   runApp(
-    ChangeNotifierProvider<AuthRepository>.value(
-      value: authRepository,
+    MultiProvider(
+      providers: [
+        ChangeNotifierProvider<AuthRepository>.value(value: authRepository),
+        Provider<ApiService>.value(value: apiService),
+      ],
       child: const MyApp(),
     ),
   );

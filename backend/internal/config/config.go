@@ -61,7 +61,7 @@ type Config struct {
 // длительность, будет возвращена ошибка с указанием имени переменной.
 // Аналогично для целочисленных переменных LOGIN_MAX_ATTEMPTS и LOGIN_MAX_BLOCK_COUNT.
 func Load() (*Config, error) {
-	accessTTL, err := getDuration("ACCESS_TOKEN_TTL", 15*time.Minute)
+	accessTTL, err := getDuration("ACCESS_TOKEN_TTL", time.Minute)
 	if err != nil {
 		return nil, err
 	}

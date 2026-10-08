@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import '../widgets/header_button.dart';
+import '../../auth/presentation/login_screen.dart';
+import '../../auth/presentation/registration_screen.dart';
 
 class WelcomeScreen extends StatelessWidget {
   const WelcomeScreen({super.key});
@@ -15,9 +17,7 @@ class WelcomeScreen extends StatelessWidget {
             padding: const EdgeInsets.all(32),
             decoration: const BoxDecoration(
               color: Colors.white,
-              border: Border(
-                bottom: BorderSide(color: Color(0xFFD9D9D9)),
-              ),
+              border: Border(bottom: BorderSide(color: Color(0xFFD9D9D9))),
             ),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.end,
@@ -28,7 +28,9 @@ class WelcomeScreen extends StatelessWidget {
                   borderColor: const Color(0xFF767676),
                   textColor: const Color(0xFF1E1E1E),
                   onTap: () {
-                    //TODO
+                    Navigator.of(context).push(
+                      MaterialPageRoute(builder: (_) => const LoginScreen()),
+                    );
                   },
                 ),
 
@@ -39,7 +41,11 @@ class WelcomeScreen extends StatelessWidget {
                   borderColor: const Color(0xFF2C2C2C),
                   textColor: const Color(0xFFF5F5F5),
                   onTap: () {
-                    //TODO
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => const RegistrationScreen(),
+                      ),
+                    );
                   },
                 ),
               ],
@@ -89,5 +95,3 @@ class WelcomeScreen extends StatelessWidget {
     );
   }
 }
-
-

@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+
 import '../widgets/sidebar.dart';
 import '../widgets/card_p.dart';
 import '../models/project.dart';
@@ -12,12 +14,13 @@ class ProjectsScreen extends StatefulWidget {
 }
 
 class _ProjectsScreenState extends State<ProjectsScreen> {
-  final ApiService _api = ApiService();
+  late final ApiService _api;
   late Future<List<Project>> _projects;
 
   @override
   void initState() {
     super.initState();
+    _api = context.read<ApiService>();
     _projects = _api.listProjects();
   }
 
@@ -55,11 +58,11 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
     await _api.createProject(name);
     _reload();
   }
-  
+
   Future<void> _deleteProject(Project project) async {
     await _api.deleteProject(project.id);
     _reload();
-  } 
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -71,31 +74,41 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
           Expanded(
             child: Column(
               children: [
-		Padding(
+                Padding(
                   padding: const EdgeInsets.fromLTRB(40, 24, 40, 0),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Container(
-                        width: 380,
-                        height: 37,
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFF3F4F6),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: const Row(
-                          children: [
-                            Icon(Icons.search, size: 18, color: Color(0xFF9CA3AF)),
-                            SizedBox(width: 8),
-                            Text(
-                              'Search for project...',
-                              style: TextStyle(
-                                fontSize: 14,
-                                color: Color(0xFF6B7280),
-                              ),
+                      Expanded(
+                        child: ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 380),
+                          child: Container(
+                            height: 37,
+                            padding: const EdgeInsets.symmetric(horizontal: 16),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFF3F4F6),
+                              borderRadius: BorderRadius.circular(8),
                             ),
-                          ],
+                            child: const Row(
+                              children: [
+                                Icon(
+                                  Icons.search,
+                                  size: 18,
+                                  color: Color(0xFF9CA3AF),
+                                ),
+                                SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    'Search for project...',
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      color: Color(0xFF6B7280),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
                         ),
                       ),
                       const SizedBox(width: 16),
@@ -178,11 +191,11 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
                               return GridView.builder(
                                 gridDelegate:
                                     const SliverGridDelegateWithFixedCrossAxisCount(
-                                  crossAxisCount: 2,
-                                  crossAxisSpacing: 24,
-                                  mainAxisSpacing: 24,
-                                  childAspectRatio: 418 / 217,
-                                ),
+                                      crossAxisCount: 2,
+                                      crossAxisSpacing: 24,
+                                      mainAxisSpacing: 24,
+                                      childAspectRatio: 418 / 217,
+                                    ),
                                 itemCount: projects.length,
                                 itemBuilder: (context, index) {
                                   final project = projects[index];
@@ -207,4 +220,3 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
     );
   }
 }
-

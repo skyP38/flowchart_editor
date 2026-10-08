@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'package:flutter/material.dart';
 
 import '../token_storage.dart';
 
@@ -101,7 +102,8 @@ class RefreshInterceptor extends Interceptor {
 
       await _storage.saveTokens(accessToken: access, refreshToken: refresh);
       return access;
-    } catch (_) {
+    } catch (e) {
+      debugPrint('RefreshInterceptor: refresh failed: $e');
       return null;
     }
   }
