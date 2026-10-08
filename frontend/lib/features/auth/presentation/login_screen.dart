@@ -8,8 +8,8 @@ import 'registration_screen.dart';
 import 'widgets/auth_widgets.dart';
 
 class LoginScreen extends StatefulWidget {
-  final VoidCallback onLoggedIn;
-  const LoginScreen({super.key, required this.onLoggedIn});
+  //final VoidCallback? onLoggedIn;
+  const LoginScreen({super.key});
 
   @override
   State<LoginScreen> createState() => _LoginScreenState();
@@ -32,6 +32,7 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
+  // Сбрасывает ошибку конкретного поля при начале редактирования
   void _clearErrorFor(String field) {
     if (_fieldErrors.containsKey(field) || _generalError != null) {
       setState(() {
@@ -81,13 +82,16 @@ class _LoginScreenState extends State<LoginScreen> {
     if (state is AuthError) err = state.error;
 
     if (err == null) {
-      widget.onLoggedIn.call();
+      debugPrint('login success, popping to root');
+      //widget.onLoggedIn?.call();
+      Navigator.of(context).popUntil((r) => r.isFirst);
       return;
     }
 
     _applyServerError(err);
   }
 
+  // Раскладывает ошибку сервера
   void _applyServerError(ApiError err) {
     final newFieldErrors = <String, String>{};
     for (final field in const ['login', 'password']) {

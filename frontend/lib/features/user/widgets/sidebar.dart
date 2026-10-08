@@ -1,22 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+
 import 'item.dart';
 import '../screens/screens.dart';
-import '../screens/welcome.dart';
+import '../../auth/domain/auth_repository.dart';
 
 class Sidebar extends StatelessWidget {
   final String currentRoute;
 
-  const Sidebar({
-    super.key,
-    this.currentRoute = 'projects',
-  });
-
-  void _go(BuildContext context, Widget screen) {
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(builder: (_) => screen),
-    );
-  }
+  const Sidebar({super.key, this.currentRoute = 'projects'});
 
   @override
   Widget build(BuildContext context) {
@@ -48,10 +40,7 @@ class Sidebar extends StatelessWidget {
                   const SizedBox(width: 8),
                   const Text(
                     'FlowChart Editor',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                   ),
                 ],
               ),
@@ -62,7 +51,7 @@ class Sidebar extends StatelessWidget {
                 icon: Icons.folder_outlined,
                 title: 'My projects',
                 active: currentRoute == 'projects',
-                onTap: () => _go(context, const ProjectsScreen()),
+                onTap: () => Navigator.of(context).popUntil((r) => r.isFirst),
               ),
 
               NavItem(
@@ -75,10 +64,23 @@ class Sidebar extends StatelessWidget {
                 icon: Icons.logout,
                 title: 'Log out',
                 active: currentRoute == 'logout',
-                onTap: () => _go(context, const WelcomeScreen()),
+                onTap: () async {
+                  debugPrint('Logout tapped');
+                  try {
+                    await context.read<AuthRepository>().logout();
+                    debugPrint(
+                      'Logout done, stack=${Navigator.of(context).canPop()}',
+                    );
+                    if (context.mounted) {
+                      Navigator.of(context).popUntil((r) => r.isFirst);
+                    }
+                  } catch (e, st) {
+                    debugPrint('Logout error: $e\n$st');
+                  }
+                },
               ),
             ],
-          ),       
+          ),
         ],
       ),
     );

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'auth_colors.dart';
 
+// Основная кнопка форм авторизации с режимом загрузки
 class AuthPrimaryButton extends StatelessWidget {
   final String label;
   final bool isLoading;

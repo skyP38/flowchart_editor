@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'auth_colors.dart';
 
+// Универсальное текстовое поле для форм авторизации
 class AuthTextField extends StatelessWidget {
   final TextEditingController controller;
   final String hintText;

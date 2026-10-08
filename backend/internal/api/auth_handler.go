@@ -3,19 +3,26 @@ package api
 import (
 	"encoding/json"
 	"errors"
+	"log"
+	"math"
 	"net/http"
+	"strconv"
+	"time"
 
+	"github.com/skyP38/flowchart_editor/backend/internal/domains"
 	"github.com/skyP38/flowchart_editor/backend/internal/service/auth"
+	"github.com/skyP38/flowchart_editor/backend/internal/service/ratelimit"
 	"github.com/skyP38/flowchart_editor/backend/internal/transport"
 )
 
 // AuthHandler - HTTP-обработчик аутентификации
 type AuthHandler struct {
-	svc *auth.Service
+	svc     *auth.Service
+	limiter ratelimit.Limiter
 }
 
-func NewAuthHandler(svc *auth.Service) *AuthHandler {
-	return &AuthHandler{svc: svc}
+func NewAuthHandler(svc *auth.Service, limiter ratelimit.Limiter) *AuthHandler {
+	return &AuthHandler{svc: svc, limiter: limiter}
 }
 
 // RegisterRoutes регистрирует маршруты обработчика в mux
@@ -25,6 +32,7 @@ func (h *AuthHandler) RegisterRoutes(mux *http.ServeMux, authMW AuthMW) {
 	mux.HandleFunc("POST /api/auth/refresh", h.Refresh)
 	mux.HandleFunc("POST /api/auth/logout", h.Logout)
 
+	// требуется активная сессия
 	mux.Handle("GET /api/auth/me", authMW(http.HandlerFunc(h.Me)))
 }
 
@@ -68,7 +76,7 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 
 	var req registerRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		transport.WriteError(w, http.StatusBadRequest, "invalid_input", "wrong JSON body")
+		transport.WriteError(w, http.StatusBadRequest, transport.CodeInvalidInput, "wrong JSON body")
 		return
 	}
 
@@ -90,16 +98,47 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 	var req loginRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		transport.WriteError(w, http.StatusBadRequest, "invalid_input", "wrong JSON body")
+		transport.WriteError(w, http.StatusBadRequest, transport.CodeInvalidInput, "wrong JSON body")
+		return
+	}
+
+	login := domains.NormalizeLogin(req.Login)
+	if login == "" || req.Password == "" {
+		writeAuthError(w, auth.ErrInvalidCredentials)
+		return
+	}
+
+	// rate limit по логину
+	keys := []string{"login:" + login}
+
+	d, err := h.limiter.Check(r.Context(), keys)
+	if err != nil {
+		log.Printf("ratelimit: check failed: %v; keys=%v", err, keys)
+	}
+	if !d.Allowed {
+		retrySeconds := max(1, int(math.Ceil(d.RetryAfter.Seconds())))
+		w.Header().Set("Retry-After", strconv.Itoa(retrySeconds))
+		log.Printf("ratelimit: blocked; keys=%v blocked_by=%s retry_after=%s", keys, d.BlockedBy, d.RetryAfter)
+		transport.WriteError(w, http.StatusTooManyRequests, transport.CodeTooManyRequests, "too many attempts, try again later")
 		return
 	}
 
 	res, err := h.svc.Login(r.Context(), auth.LoginInput{
 		Login: req.Login, Password: req.Password,
 	})
+
 	if err != nil {
+		if errors.Is(err, auth.ErrInvalidCredentials) {
+			if rerr := h.limiter.RecordFailure(r.Context(), keys); rerr != nil {
+				log.Printf("ratelimit: record failure: %v; keys=%v", rerr, keys)
+			}
+		}
 		writeAuthError(w, err)
 		return
+	}
+
+	if rerr := h.limiter.RecordSuccess(r.Context(), keys); rerr != nil {
+		log.Printf("ratelimit: record success: %v; keys=%v", rerr, keys)
 	}
 	transport.WriteJSON(w, http.StatusOK, toDTO(res))
 }
@@ -110,7 +149,7 @@ func (h *AuthHandler) Refresh(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 	var req refreshRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		transport.WriteError(w, http.StatusBadRequest, "invalid_input", "wrong JSON body")
+		transport.WriteError(w, http.StatusBadRequest, transport.CodeInvalidInput, "wrong JSON body")
 		return
 	}
 
@@ -128,7 +167,7 @@ func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 	var req refreshRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		transport.WriteError(w, http.StatusBadRequest, "invalid_input", "wrong JSON body")
+		transport.WriteError(w, http.StatusBadRequest, transport.CodeInvalidInput, "wrong JSON body")
 		return
 	}
 
@@ -157,7 +196,7 @@ func toDTO(res *auth.AuthResult) authResponse {
 		},
 		AccessToken:  res.AccessToken,
 		RefreshToken: res.RefreshToken,
-		ExpiresIn:    res.ExpiresIn,
+		ExpiresIn:    int(res.ExpiresIn / time.Second),
 	}
 }
 
@@ -168,17 +207,29 @@ func toDTO(res *auth.AuthResult) authResponse {
 //   - auth.ErrInvalidCredentials  -> 401 invalid_credentials;
 //   - любая другая ошибка         -> 500 internal
 func writeAuthError(w http.ResponseWriter, err error) {
-	var ve *auth.ValidationError
+	var verrs *auth.ValidationErrors
+	var verr *auth.ValidationError
+
 	switch {
-	case errors.As(err, &ve):
-		transport.WriteError(w, http.StatusBadRequest, "invalid_input", ve.Field+": "+ve.Message)
+	case errors.As(err, &verrs):
+		transport.WriteErrorDetails(
+			w, http.StatusBadRequest,
+			transport.CodeInvalidInput, "Validation failed",
+			verrs.Fields,
+		)
+	case errors.As(err, &verr):
+		transport.WriteErrorDetails(
+			w, http.StatusBadRequest,
+			transport.CodeInvalidInput, "Validation failed",
+			map[string]string{verr.Field: verr.Message},
+		)
 	case errors.Is(err, auth.ErrLoginTaken):
-		transport.WriteError(w, http.StatusConflict, "login_taken", "login is already taken")
+		transport.WriteError(w, http.StatusConflict, transport.CodeLoginTaken, "login is already taken")
 	case errors.Is(err, auth.ErrInvalidCredentials):
-		transport.WriteError(w, http.StatusUnauthorized, "invalid_credentials", "invalid login or password")
+		transport.WriteError(w, http.StatusUnauthorized, transport.CodeInvalidCredentials, "invalid login or password")
 	case errors.Is(err, auth.ErrInvalidRefreshToken):
-		transport.WriteError(w, http.StatusUnauthorized, "invalid_refresh_token", "refresh token is invalid or expired")
+		transport.WriteError(w, http.StatusUnauthorized, transport.CodeInvalidRefreshToken, "refresh token is invalid or expired")
 	default:
-		transport.WriteError(w, http.StatusInternalServerError, "internal", "internal server error")
+		transport.WriteError(w, http.StatusInternalServerError, transport.CodeInternal, "internal server error")
 	}
 }

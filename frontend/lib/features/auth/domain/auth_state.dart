@@ -11,7 +11,7 @@ final class AuthUnknown extends AuthState {
   const AuthUnknown();
 }
 
-// Идёт асинхронная операция
+// Идет асинхронная операция
 final class AuthLoading extends AuthState {
   final User? user;
 

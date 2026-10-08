@@ -4,7 +4,9 @@ import 'token_storage.dart';
 import 'interceptors/auth_interceptor.dart';
 import 'interceptors/refresh_interceptor.dart';
 import 'interceptors/error_interceptor.dart';
+import 'interceptors/logging_interceptor.dart';
 
+// Обертка над Dio
 class ApiClient {
   final Dio _dio;
   // final TokenStorage _storage;
@@ -39,6 +41,7 @@ class ApiClient {
         storage: storage,
         onUnauthorized: onUnauthorized,
       ),
+      LoggingInterceptor(),
 
       // if (const bool.fromEnvironment('dart.vm.product') == false)
       //   LoggingInterceptor(),
@@ -142,6 +145,7 @@ class ApiClient {
     }
   }
 
+  // распаковка тела ответа
   T _unwrap<T>(Response<T> response) {
     if (T == Null || response.statusCode == 204) {
       //204 No Content

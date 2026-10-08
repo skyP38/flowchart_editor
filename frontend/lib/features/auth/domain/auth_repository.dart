@@ -101,6 +101,7 @@ class AuthRepository extends ChangeNotifier {
   }
 
   void onSessionExpired() {
+    debugPrint('AuthRepository: onSessionExpired() called');
     unawaited(_storage.clear());
     _setState(const AuthUnauthenticated(message: 'Session expired'));
   }
@@ -141,6 +142,7 @@ class AuthRepository extends ChangeNotifier {
   // Обновляет состояние и уведомляет слушателей
   void _setState(AuthState next) {
     if (_disposed) return;
+    debugPrint('AuthRepository: ${_state.runtimeType} -> ${next.runtimeType}');
     _state = next;
     notifyListeners();
   }

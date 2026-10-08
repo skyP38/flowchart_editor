@@ -1,7 +1,14 @@
 import 'package:dio/dio.dart';
+import 'package:flutter/material.dart';
 
 import '../token_storage.dart';
 
+// Ловит 401, пытается обновить access-токен через refresh-токен и повторить исходный запрос
+// Если обновить не удалось - зовет onUnauthorized
+// Ключевые моменты:
+//  - защита от рекурсии: refresh-запрос помечается `__skipInterceptors`;
+//  - защита от повторного повтора: `__retried` в extra;
+//  - дедупликация: одновременные 401 ждут один общий future.
 class RefreshInterceptor extends Interceptor {
   final Dio _dio;
   final TokenStorage _storage;
@@ -36,17 +43,20 @@ class RefreshInterceptor extends Interceptor {
     final isPublic = _publicPaths.any((p) => path.startsWith(p));
     final alreadyRetried = err.requestOptions.extra['__retried'] == true;
 
+    // Реакция на 401 в защищенных запросах 1 раз
     if (response?.statusCode != 401 || isPublic || alreadyRetried) {
       return handler.next(err);
     }
 
     final newAccess = await _refreshTokens();
     if (newAccess == null) {
+      // Refresh не удался - токены невалидны
       await _storage.clear();
       onUnauthorized?.call();
       return handler.next(err);
     }
 
+    // Повторяем исходный запрос с новым access-токеном
     final options = err.requestOptions;
     options.headers['Authorization'] = 'Bearer $newAccess';
     options.extra['__retried'] = true;
@@ -59,6 +69,8 @@ class RefreshInterceptor extends Interceptor {
     }
   }
 
+  // Дедупликация параллельных refresh-запросов:
+  // если уже идет один - ждем его результат
   Future<String?> _refreshTokens() {
     final existing = _refreshFuture;
     if (existing != null) return existing;
@@ -69,6 +81,7 @@ class RefreshInterceptor extends Interceptor {
     return future;
   }
 
+  // Сетевой вызов /api/auth/refresh
   Future<String?> _doRefresh() async {
     final refreshToken = await _storage.getRefreshToken();
     if (refreshToken == null || refreshToken.isEmpty) return null;
@@ -89,7 +102,8 @@ class RefreshInterceptor extends Interceptor {
 
       await _storage.saveTokens(accessToken: access, refreshToken: refresh);
       return access;
-    } catch (_) {
+    } catch (e) {
+      debugPrint('RefreshInterceptor: refresh failed: $e');
       return null;
     }
   }
