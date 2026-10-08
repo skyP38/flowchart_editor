@@ -5,6 +5,7 @@ import (
 	"net/http"
 )
 
+// WriteJSON записывает JSON-ответ с указанным HTTP-статусом
 func WriteJSON(w http.ResponseWriter, status int, v any) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.WriteHeader(status)
@@ -17,6 +18,9 @@ func WriteError(w http.ResponseWriter, status int, code, message string) {
 	WriteErrorDetails(w, status, code, message, nil)
 }
 
+// WriteErrorDetails записывает JSON-ответ с ошибкой в формате
+//
+//	{"error": {"code": "...", "message": "...", "details": {...}}}
 func WriteErrorDetails(
 	w http.ResponseWriter,
 	status int,
