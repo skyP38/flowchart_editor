@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import '../widgets/sidebar.dart';
 import '../widgets/card_p.dart';
 import '../models/project.dart';
-import '../services/api_service.dart';
+import '../../../core/network/api_service.dart';
 
 class ProjectsScreen extends StatefulWidget {
   const ProjectsScreen({super.key});
