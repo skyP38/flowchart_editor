@@ -4,11 +4,14 @@ import '../factories/node_factory.dart';
 // Обертка над NodeModel с актуальной позицией на канвасе
 class NodeWidgetData {
   NodeModel node;
-  Offset position;
-  NodeWidgetData({required this.node, required this.position});
+
+  NodeWidgetData({required this.node});
+
+  Offset get position => node.position;
+  set position(Offset value) => node.position = value;
 }
 
-// Описание связи между двумя блоками.
+// Описание связи между двумя блоками
 //
 // sourcePort/targetPort - имена портов:
 //   - out - единственный выход обычного блока;

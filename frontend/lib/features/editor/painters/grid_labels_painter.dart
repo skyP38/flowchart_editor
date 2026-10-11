@@ -40,7 +40,7 @@ class GridLabelsPainter extends CustomPainter {
     int lastCol = ((size.width - startPosition.dx) / stepX!).ceil();
     for (int col = firstCol; col <= lastCol; col++) {
       final double stepXgrid = stepX! + 70;
-      final double startCenterX = startPosition.dx - 10 + stepX! / 2;
+      final double startCenterX = startPosition.dx + stepX! / 2;
       // double x = (col + 1) * stepX!;
       double x = startCenterX + col * stepXgrid;
       if (x < 0 || x > size.width) continue;
