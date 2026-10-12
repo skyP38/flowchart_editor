@@ -7,19 +7,13 @@ import (
 	"strings"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgconn"
+
 	"github.com/skyP38/flowchart_editor/backend/internal/domains"
 	"github.com/skyP38/flowchart_editor/backend/internal/service/auth/token"
 	"github.com/skyP38/flowchart_editor/backend/internal/service/password"
-	"golang.org/x/crypto/bcrypt"
+	//"github.com/skyP38/flowchart_editor/backend/internal/storage/memory"
 )
-
-var dummyHash = func() []byte {
-	h, err := bcrypt.GenerateFromPassword([]byte("dummy-password-for-timing"), bcrypt.DefaultCost)
-	if err != nil {
-		panic(err)
-	}
-	return h
-}()
 
 // loginRe - регулярное выражение для валидации логина
 var loginRe = regexp.MustCompile(`^[a-zA-Z0-9_]{3,32}$`)
@@ -64,38 +58,33 @@ type LoginInput struct {
 	Password string
 }
 
-// AuthResult результат успешной регистрации или логина
-// nolint:revive
+// AuthResult - результат успешной регистрации или логина
 type AuthResult struct {
 	User         *domains.User
 	AccessToken  string
 	RefreshToken string
-	ExpiresIn    time.Duration
+	ExpiresIn    int
 }
 
-// Register создает нового пользователя и сразу выпускает ему пару токенов
+// Register создает нового пользователя и сразу выпускает ему access-токен
 func (s *Service) Register(ctx context.Context, in RegisterInput) (*AuthResult, error) {
-	login := domains.NormalizeLogin(in.Login)
+	login := strings.TrimSpace(in.Login)
 	uname := strings.TrimSpace(in.Uname)
 
-	verrs := NewValidationErrors()
-
 	if !loginRe.MatchString(login) {
-		verrs.Add("login", "must be 3-32 chars of [a-zA-Z0-9_]")
-	}
-	if l := len([]rune(uname)); l < 1 || l > 200 {
-		verrs.Add("uname", "must be 1-200 characters")
-	}
-	if err := validatePassword(in.Password); err != nil {
-		if ve, ok := errors.AsType[*ValidationError](err); ok {
-			verrs.Add(ve.Field, ve.Message)
-		} else {
-			verrs.Add("password", "invalid password")
+		return nil, &ValidationError{
+			Field:   "login",
+			Message: "must be 3-32 chars of [a-zA-Z0-9_]",
 		}
 	}
-
-	if verrs.HasAny() {
-		return nil, verrs
+	if l := len([]rune(uname)); l < 1 || l > 200 {
+		return nil, &ValidationError{
+			Field:   "uname",
+			Message: "must be 1-200 characters",
+		}
+	}
+	if err := validatePassword(in.Password); err != nil {
+		return nil, err
 	}
 
 	if existing, err := s.users.GetByLogin(ctx, login); err == nil && existing != nil {
@@ -117,9 +106,13 @@ func (s *Service) Register(ctx context.Context, in RegisterInput) (*AuthResult, 
 		IsActive:  true,
 	}
 	if err := s.users.Create(ctx, u); err != nil {
-		if errors.Is(err, domains.ErrUserAlreadyExists) {
+		var pgErr * pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
 			return nil, ErrLoginTaken
 		}
+		/*if errors.Is(err, memory.ErrUserAlreadyExists) {
+			return nil, ErrLoginTaken
+		}*/
 		return nil, err
 	}
 
@@ -128,15 +121,13 @@ func (s *Service) Register(ctx context.Context, in RegisterInput) (*AuthResult, 
 
 // Login проверяет учетные данные и выпускает access-токен
 func (s *Service) Login(ctx context.Context, in LoginInput) (*AuthResult, error) {
-	login := domains.NormalizeLogin(in.Login)
+	login := strings.TrimSpace(in.Login)
 	if login == "" || in.Password == "" {
 		return nil, ErrInvalidCredentials
 	}
 
 	u, err := s.users.GetByLogin(ctx, login)
 	if err != nil || u == nil || !u.IsActive {
-		// защита от timing atack
-		_ = bcrypt.CompareHashAndPassword(dummyHash, []byte(in.Password+s.pepper))
 		return nil, ErrInvalidCredentials
 	}
 	if !password.VerifyPassword(u.PwdHash, in.Password, s.pepper) {
@@ -146,9 +137,7 @@ func (s *Service) Login(ctx context.Context, in LoginInput) (*AuthResult, error)
 	return s.issueTokens(ctx, u)
 }
 
-// Refresh обновляет пару токенов
-// Каждый успешный refresh отзывает старую сессию и создает новую
-// Если предъявлен отозванный токен - отзыв всех сессий
+// Refresh обновляет access-токен
 func (s *Service) Refresh(ctx context.Context, refreshToken string) (*AuthResult, error) {
 	if refreshToken == "" {
 		return nil, ErrInvalidRefreshToken
@@ -162,7 +151,7 @@ func (s *Service) Refresh(ctx context.Context, refreshToken string) (*AuthResult
 	now := time.Now().UTC()
 	if !sess.IsActive(now) {
 		if sess.RevokedAt != nil {
-			_ = s.sessions.RevokeAllExcept(ctx, sess.UserID, domains.RevokeAllSessions, now)
+			_ = s.sessions.RevokeAllExcept(ctx, sess.UserID, 0, now)
 		}
 		return nil, ErrInvalidRefreshToken
 	}
@@ -172,14 +161,13 @@ func (s *Service) Refresh(ctx context.Context, refreshToken string) (*AuthResult
 		return nil, ErrInvalidRefreshToken
 	}
 
-	// отзыв старой сессии
 	if err := s.sessions.Revoke(ctx, sess.ID, now); err != nil {
 		return nil, err
 	}
 	return s.issueTokens(ctx, u)
 }
 
-// Logout отзывает сессию, связанную с токеном
+// Logout пользователь выходит из системы
 func (s *Service) Logout(ctx context.Context, refreshToken string) error {
 	if refreshToken == "" {
 		return nil
@@ -192,7 +180,6 @@ func (s *Service) Logout(ctx context.Context, refreshToken string) error {
 }
 
 // GetUser - для GET /api/auth/me
-// Возвращает активного полььзователя или ErrInvalidCredentials
 func (s *Service) GetUser(ctx context.Context, id int64) (*domains.User, error) {
 	u, err := s.users.GetByID(ctx, id)
 	if err != nil || u == nil || !u.IsActive {
@@ -221,7 +208,7 @@ func (s *Service) RevokeAllSessions(ctx context.Context, userID, keepID int64) e
 	return s.sessions.RevokeAllExcept(ctx, userID, keepID, time.Now().UTC())
 }
 
-// issueTokens выпускает пару токенов для пользователя и формирует AuthResult
+// issueTokens выпускает access-токен для пользователя и формирует AuthResult
 func (s *Service) issueTokens(ctx context.Context, u *domains.User) (*AuthResult, error) {
 	plain, hash, err := token.GenerateRefreshToken()
 	if err != nil {
@@ -247,7 +234,7 @@ func (s *Service) issueTokens(ctx context.Context, u *domains.User) (*AuthResult
 		User:         u,
 		AccessToken:  accessTok,
 		RefreshToken: plain,
-		ExpiresIn:    s.accessTTL,
+		ExpiresIn:    int(s.accessTTL.Seconds()),
 	}, nil
 }
 
