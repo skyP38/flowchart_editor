@@ -1,7 +1,10 @@
+// Package domains содержит доменные модели и контракты хранилищ
 package domains
 
 import "time"
 
+
+// User - зарегистрированный пользователь системы
 type User struct {
 	ID int64 `json:"id"`
 	Login string `json:"login"`
@@ -12,6 +15,7 @@ type User struct {
 	IsActive bool `json:"isActive"`
 }
 
+// Роли пользователей
 const (
 	RoleUser  = "user"
 	RoleAdmin = "admin"
