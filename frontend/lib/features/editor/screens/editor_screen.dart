@@ -1,3 +1,5 @@
+import 'package:flowchart_editor_frontend/features/editor/factories/node_factory.dart';
+import 'package:flowchart_editor_frontend/features/editor/state/flow_controller.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/gestures.dart';
 import 'package:collection/collection.dart';
@@ -9,15 +11,16 @@ import 'dart:convert';
 import 'package:path_provider/path_provider.dart';
 import 'dart:io';
 
-import '../controllers/flow_controller.dart';
 import '../models/editor_models.dart';
 import '../painters/connection_painter.dart';
 import '../painters/selection_painter.dart';
 import '../painters/grid_labels_painter.dart';
+import '../domain/layout_engine.dart';
 
-import '../models/editor_state.dart';
-import '../utils/connection_path_utils.dart';
-import '../utils/graph_utils.dart';
+import '../persistence/editor_state.dart';
+import '../domain/connection_router.dart';
+import '../domain/insertion_points.dart';
+import '../constants/diagram_constants.dart';
 import '../utils/svg_exporter.dart';
 
 // Главный экран редактора блок-схем
@@ -42,20 +45,55 @@ class _EditorScreenState extends State<EditorScreen> {
   final ScrollController _verticalScrollController = ScrollController();
   final ScrollController _horizontalScrollController = ScrollController();
 
-  static const double _minScale = 0.5;
-  static const double _maxScale = 3.0;
+  static const double _minScale = ScaleConstants.minScale;
+  static const double _maxScale = ScaleConstants.maxScale;
+
+  late final ConnectionRouter _router;
+  late final InsertionPointsService _insertionPointsService;
+  Size _lastNodeSize = Size.zero;
 
   @override
   void initState() {
     super.initState();
     _controller.initDefaultDiagram();
-    _insertionPoints = _computeInsertionPoints();
+    _rebuildRouter();
+    _insertionPoints = _insertionPointsService.compute(_controller.graph);
     _controller.addListener(_onControllerChanged);
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _focusNode.requestFocus();
     });
   }
+
+  // Пересобирает роутер и сервис точек вставки под текущий размер блока
+  void _rebuildRouter() {
+    final size = _controller.nodeSize;
+    _lastNodeSize = size;
+    _router = ConnectionRouter(
+      nodeSize: size,
+      spacing: LayoutSpacing(
+        stepX: size.width + LayoutConstants.stepXExtra,
+        stepY: size.height + LayoutConstants.stepYExtra,
+      ),
+    );
+    _insertionPointsService = InsertionPointsService(router: _router);
+  }
+
+  // Реакция на изменение контроллера
+  void _onControllerChanged() {
+    if (!mounted) return;
+
+    if (_controller.nodeSize != _lastNodeSize) {
+      _rebuildRouter();
+    }
+
+    setState(() {
+      _insertionPoints = _insertionPointsService.compute(_controller.graph);
+    });
+  }
+
+  List<InsertionPoint> _computeInsertionPoints() =>
+      _insertionPointsService.compute(_controller.graph);
 
   @override
   void dispose() {
@@ -65,77 +103,6 @@ class _EditorScreenState extends State<EditorScreen> {
     _verticalScrollController.dispose();
     _horizontalScrollController.dispose();
     super.dispose();
-  }
-
-  /// Реакция на любое изменение в контроллере: пересчитываем точки
-  /// вставки и перерисовываем экран.
-  void _onControllerChanged() {
-    if (!mounted) return;
-    setState(() {
-      _insertionPoints = _computeInsertionPoints();
-    });
-  }
-
-  // Точки вставки
-  List<InsertionPoint> _computeInsertionPoints() {
-    final nodes = _controller.nodes;
-    final connections = _controller.connections;
-    final nodeSize = _controller.nodeSize;
-
-    final points = <InsertionPoint>[];
-    for (final conn in connections) {
-      if (conn.targetPort == 'loopback') continue;
-
-      // Особый случай — ветка exit блока For
-      if (conn.sourcePort == 'exit') {
-        final source = nodes[conn.sourceNodeName];
-        final target = nodes[conn.targetNodeName];
-        if (source == null || target == null) continue;
-
-        final isEnd =
-            target.node.data is TerminalBlock && target.node.data.text == 'End';
-
-        final startX = source.position.dx + nodeSize.width;
-        final startY = source.position.dy + nodeSize.height / 2;
-
-        if (isEnd) {
-          final maxBodyBottom = GraphUtils.maxBottomOfBodySubtree(
-            conn.sourceNodeName,
-            nodes,
-            connections,
-            nodeSize,
-          );
-          double turnY = source.position.dy + nodeSize.height + 30;
-          if (maxBodyBottom > source.position.dy + nodeSize.height) {
-            turnY = maxBodyBottom + 30.0;
-          }
-          final endX = target.position.dx + nodeSize.width / 2;
-          final midX = (startX + endX) / 2 + 20;
-          points.add(InsertionPoint(Offset(midX, turnY), conn));
-        } else {
-          const rightOffset = 40.0;
-          points.add(
-            InsertionPoint(Offset(startX + rightOffset / 2, startY), conn),
-          );
-        }
-        continue;
-      }
-
-      final path = buildConnectionPath(
-        conn: conn,
-        nodes: nodes,
-        connections: connections,
-        nodeSize: nodeSize,
-      );
-      for (final metric in path.computeMetrics()) {
-        if (metric.length <= 0.1) continue;
-        final tangent = metric.getTangentForOffset(metric.length / 2);
-        if (tangent != null) {
-          points.add(InsertionPoint(tangent.position, conn));
-        }
-      }
-    }
-    return points;
   }
 
   // Вычисляет размер области холста с учётом всех блоков и padding
@@ -165,8 +132,9 @@ class _EditorScreenState extends State<EditorScreen> {
 
   // Проверяет, попадает ли точка в прямоугольник какого-либо узла
   bool _isPointOverAnyNode(Offset point) {
+    final nodes = _controller.nodes;
     final nodeSize = _controller.nodeSize;
-    for (final data in _controller.nodes.values) {
+    for (final data in nodes.values) {
       final pos = data.position;
       final rect = Rect.fromLTWH(
         pos.dx,
@@ -219,7 +187,7 @@ class _EditorScreenState extends State<EditorScreen> {
     if (_selectedNodeNames.isNotEmpty) {
       final toDelete = List.of(_selectedNodeNames);
       for (final nodeName in toDelete) {
-        final node = _controller.nodes[nodeName]?.node;
+        final node = _controller.nodes[nodeName];
         final isProtected =
             node?.data is TerminalBlock &&
             (node!.data.text == 'Start' || node.data.text == 'End');
@@ -251,11 +219,9 @@ class _EditorScreenState extends State<EditorScreen> {
     for (final point in _insertionPoints) {
       if ((localPos - point.position).distance <= 12.0) {
         if (_selectedPrototype != null) {
-          // _insertNodeOnConnection(point.connection);
           _controller.insertNodeOnConnection(
-            point.connection,
+            point.connection.id!,
             _selectedPrototype!,
-            insertPosition: point.position,
           );
           setState(() => _selectedPrototype = null);
         } else {
@@ -271,17 +237,13 @@ class _EditorScreenState extends State<EditorScreen> {
     ConnectionData? tappedConnection;
     double minDistance = 15.0;
 
-    final nodes = _controller.nodes;
+    final graph = _controller.graph;
+    // final nodes = _controller.nodes;
     final connections = _controller.connections;
-    final nodeSize = _controller.nodeSize;
+    // final nodeSize = _controller.nodeSize;
 
     for (final conn in connections) {
-      final path = buildConnectionPath(
-        conn: conn,
-        nodes: nodes,
-        connections: connections,
-        nodeSize: nodeSize,
-      );
+      final path = _router.build(conn, graph);
       // Разбиение пути на сегменты и поиск минимальное расстояние
       double minDistForConn = double.infinity;
       final metrics = path.computeMetrics();
@@ -333,7 +295,7 @@ class _EditorScreenState extends State<EditorScreen> {
 
   // Контекстное меню узла
   void _showNodeContextMenu(TapDownDetails details, String nodeName) {
-    final node = _controller.nodes[nodeName]?.node;
+    final node = _controller.nodes[nodeName];
     final bool isProtected =
         node?.data is TerminalBlock &&
         (node!.data.text == 'Start' || node.data.text == 'End');
@@ -361,7 +323,7 @@ class _EditorScreenState extends State<EditorScreen> {
   Future<void> _editNodeText(String nodeName) async {
     final nodeData = _controller.nodes[nodeName];
     if (nodeData == null) return;
-    final currentText = nodeData.node.data.text;
+    final currentText = nodeData.data.text;
     final controller = TextEditingController(text: currentText);
     final newText = await showDialog<String>(
       context: context,
@@ -456,8 +418,8 @@ class _EditorScreenState extends State<EditorScreen> {
 
     // Чистый экспорт — только строка
     final svg = SvgExporter.export(
-      nodes: _controller.nodes,
-      connections: _controller.connections,
+      graph: _controller.graph,
+      router: _router,
       nodeSize: _controller.nodeSize,
       canvasSize: _getContentSize(),
       showGrid: _controller.showGrid,
@@ -481,9 +443,7 @@ class _EditorScreenState extends State<EditorScreen> {
   }
 
   // Строит виджет одного узла
-  Widget _buildNodeWidget(String nodeName, NodeWidgetData data) {
-    // final node = data.node;
-    // final position = data.position;
+  Widget _buildNodeWidget(String nodeName, NodeModel data) {
     final isSelected = _selectedNodeNames.contains(nodeName);
 
     return Positioned(
@@ -508,7 +468,7 @@ class _EditorScreenState extends State<EditorScreen> {
               _controller.updateNodePosition(name, newPosition),
 
           nodeName: nodeName,
-        ).build(data.node),
+        ).build(data),
       ),
     );
   }
@@ -516,8 +476,9 @@ class _EditorScreenState extends State<EditorScreen> {
   @override
   Widget build(BuildContext context) {
     final contentSize = _getContentSize();
-    final nodes = _controller.nodes;
-    final connections = _controller.connections;
+    final graph = _controller.graph;
+    final nodes = graph.nodes;
+    final connections = graph.connections;
     final nodeSize = _controller.nodeSize;
     final showGrid = _controller.showGrid;
     final scale = _controller.scale;
@@ -527,9 +488,7 @@ class _EditorScreenState extends State<EditorScreen> {
     Widget gridWidget = const SizedBox.shrink();
     if (showGrid) {
       final startNodeEntry = nodes.entries.firstWhereOrNull(
-        (e) =>
-            e.value.node.data is TerminalBlock &&
-            e.value.node.data.text == 'Start',
+        (e) => e.value.data is TerminalBlock && e.value.data.text == 'Start',
       );
       if (startNodeEntry != null) {
         gridWidget = GridWithLabels(
@@ -628,13 +587,7 @@ class _EditorScreenState extends State<EditorScreen> {
                                   delta = (sd.dy as num).toDouble();
                                   handled = true;
                                 }
-                              } catch (_) {
-                                // не PointerScrollEvent — пробуем другой вариант ниже
-                              }
-
-                              // Случай 2: PointerScaleEvent (web / трекпад). У него есть scale:
-                              //   scale > 1  → увеличение → нужен отрицательный delta
-                              //   scale < 1  → уменьшение → нужен положительный delta
+                              } catch (_) {}
                               if (!handled) {
                                 try {
                                   final dynamic s = (event as dynamic).scale;
@@ -642,9 +595,7 @@ class _EditorScreenState extends State<EditorScreen> {
                                     delta = (1.0 - (s as num).toDouble()) * 100;
                                     handled = true;
                                   }
-                                } catch (_) {
-                                  // не PointerScaleEvent — просто игнорируем
-                                }
+                                } catch (_) {}
                               }
 
                               if (!handled || delta == 0) return;
@@ -727,14 +678,6 @@ class _EditorScreenState extends State<EditorScreen> {
                                     return KeyEventResult.ignored;
                                   },
                                   child: CustomPaint(
-                                    painter: ConnectionPainter(
-                                      connections: connections,
-                                      nodes: nodes,
-                                      nodeSize: nodeSize,
-                                      selectedConnectionId:
-                                          _selectedConnectionId,
-                                      insertionPoints: _insertionPoints,
-                                    ),
                                     child: Stack(
                                       children: [
                                         // Сетка
@@ -742,9 +685,8 @@ class _EditorScreenState extends State<EditorScreen> {
                                         // Линии соединений
                                         CustomPaint(
                                           painter: ConnectionPainter(
-                                            connections: connections,
-                                            nodes: nodes,
-                                            nodeSize: nodeSize,
+                                            graph: graph,
+                                            router: _router,
                                             selectedConnectionId:
                                                 _selectedConnectionId,
                                             insertionPoints: _insertionPoints,

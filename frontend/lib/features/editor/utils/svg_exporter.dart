@@ -1,19 +1,18 @@
 import 'package:flutter/material.dart';
-import 'package:collection/collection.dart';
 
+import '../constants/diagram_constants.dart';
 import '../factories/node_factory.dart';
-import '../models/editor_models.dart';
-import '../models/flow_models.dart';
 import '../painters/grid_labels_painter.dart';
-import 'connection_path_utils.dart';
+import '../domain/connection_router.dart';
+import '../domain/flowchart_graph.dart';
 import 'node_shape_geometry.dart';
 
 class SvgExporter {
   SvgExporter._();
 
   static String export({
-    required Map<String, NodeWidgetData> nodes,
-    required List<ConnectionData> connections,
+    required FlowchartGraph graph,
+    required ConnectionRouter router,
     required Size nodeSize,
     required Size canvasSize,
     required bool showGrid,
@@ -31,16 +30,13 @@ class SvgExporter {
 
     // Сетка
     if (showGrid) {
-      final startEntry = nodes.entries.firstWhereOrNull(
-        (e) =>
-            e.value.node.data is TerminalBlock &&
-            e.value.node.data.text == 'Start',
-      );
-      if (startEntry != null) {
+      final start = graph.findStart();
+
+      if (start != null) {
         buffer.write(
           _buildGridSvg(
             canvasSize: canvasSize,
-            startPosition: startEntry.value.position,
+            startPosition: start.position,
             stepX: nodeSize.width,
             stepY: nodeSize.height,
           ),
@@ -49,13 +45,8 @@ class SvgExporter {
     }
 
     // Связи
-    for (final conn in connections) {
-      final path = buildConnectionPath(
-        conn: conn,
-        nodes: nodes,
-        connections: connections,
-        nodeSize: nodeSize,
-      );
+    for (final conn in graph.connections) {
+      final path = router.build(conn, graph);
       final d = _pathToSvgPath(path);
       if (d.isNotEmpty) {
         buffer.writeln(
@@ -65,10 +56,10 @@ class SvgExporter {
     }
 
     // Узлы
-    for (final entry in nodes.entries) {
+    for (final entry in graph.nodes.entries) {
       buffer.writeln(
         _buildNodeSvg(
-          node: entry.value.node,
+          node: entry.value,
           pos: entry.value.position,
           size: nodeSize,
         ),
@@ -100,11 +91,11 @@ class SvgExporter {
     required Offset pos,
     required Size size,
   }) {
-    // Берём контур и доп. линии из единого источника геометрии
+    // контур и доп. линии из единого источника геометрии
     final outline = NodeShapeGeometry.outline(
       size,
       node.data,
-    ).shift(pos); // сдвигаем из локальных (0,0) в абсолютные координаты
+    ).shift(pos); // сдвиг из локальных (0,0) в абсолютные координаты
     final extras = NodeShapeGeometry.extras(
       size,
       node.data,
@@ -112,7 +103,7 @@ class SvgExporter {
 
     final sb = StringBuffer();
 
-    // Основной контур: рисуем как SVG-path, заливаем белым
+    // Основной контур: SVG-path, белая заливка
     sb.writeln(
       '<path d="${_pathToSvgPath(outline)}" '
       'stroke="black" stroke-width="2" fill="white"/>',
@@ -162,7 +153,7 @@ class SvgExporter {
     int firstCol = ((startPosition.dx) / stepX).floor();
     int lastCol = ((canvasSize.width - startPosition.dx) / stepX).ceil();
     for (int col = firstCol; col <= lastCol; col++) {
-      final stepXgrid = stepX + 70;
+      final stepXgrid = stepX + GridConstants.stepXExtra;
       final startCenterX = startPosition.dx + stepX / 2;
       double x = startCenterX + col * stepXgrid;
       if (x < 0 || x > canvasSize.width) continue;
@@ -173,7 +164,7 @@ class SvgExporter {
     }
 
     // Подписи строк (буквы) слева
-    final stepYgrid = stepY + 40.0;
+    final stepYgrid = stepY + GridConstants.stepYExtra;
     final double startCenterY = startPosition.dy + stepY / 2;
     int firstRow = ((0 - startCenterY) / stepY).floor();
     int lastRow = ((canvasSize.height - startCenterY) / stepY).ceil();

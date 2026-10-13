@@ -1,3 +1,4 @@
+import 'package:flowchart_editor_frontend/features/editor/constants/diagram_constants.dart';
 import 'package:flutter/material.dart';
 
 // Рисует полупрозрачный прямоугольник выделения
@@ -12,12 +13,12 @@ class SelectionRectPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final rect = Rect.fromPoints(start, end);
     final paint = Paint()
-      ..color = Colors.blue.withOpacity(0.3)
+      ..color = Colors.blue.withOpacity(SelectionConstants.fillOpacity)
       ..style = PaintingStyle.fill;
     final borderPaint = Paint()
       ..color = Colors.blue
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.5;
+      ..strokeWidth = SelectionConstants.borderWidth;
     canvas.drawRect(rect, paint);
     canvas.drawRect(rect, borderPaint);
   }

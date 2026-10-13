@@ -48,91 +48,93 @@ class VerticalToolbar extends StatelessWidget {
   Widget build(BuildContext context) {
     return SizedBox(
       width: 200,
-      child: Column(
-        children: [
-          const SizedBox(height: 16),
-          // Кнопки выбора прототипов блоков
-          _buildButton(
-            label: 'Process',
-            prototype: ProcessBlock(''),
-            shape: (size) =>
-                CustomPaint(size: size, painter: _RectIconPainter()),
-          ),
-          _buildButton(
-            label: 'Logic',
-            prototype: LogicBlock(''),
-            shape: (size) =>
-                CustomPaint(size: size, painter: _DiamondIconPainter()),
-          ),
-          _buildButton(
-            label: 'IO',
-            prototype: IOBlock(''),
-            shape: (size) =>
-                CustomPaint(size: size, painter: _ParallelogramIconPainter()),
-          ),
-          _buildButton(
-            label: 'Subroutine',
-            prototype: SubroutineBlock(''),
-            shape: (size) =>
-                CustomPaint(size: size, painter: _SubroutineIconPainter()),
-          ),
-          _buildButton(
-            label: 'For',
-            prototype: ForBlock(''),
-            shape: (size) =>
-                CustomPaint(size: size, painter: _HexagonIconPainter()),
-          ),
-          const Divider(),
+      child: SingleChildScrollView(
+        child: Column(
+          children: [
+            const SizedBox(height: 16),
+            // Кнопки выбора прототипов блоков
+            _buildButton(
+              label: 'Process',
+              prototype: ProcessBlock(''),
+              shape: (size) =>
+                  CustomPaint(size: size, painter: _RectIconPainter()),
+            ),
+            _buildButton(
+              label: 'Logic',
+              prototype: LogicBlock(''),
+              shape: (size) =>
+                  CustomPaint(size: size, painter: _DiamondIconPainter()),
+            ),
+            _buildButton(
+              label: 'IO',
+              prototype: IOBlock(''),
+              shape: (size) =>
+                  CustomPaint(size: size, painter: _ParallelogramIconPainter()),
+            ),
+            _buildButton(
+              label: 'Subroutine',
+              prototype: SubroutineBlock(''),
+              shape: (size) =>
+                  CustomPaint(size: size, painter: _SubroutineIconPainter()),
+            ),
+            _buildButton(
+              label: 'For',
+              prototype: ForBlock(''),
+              shape: (size) =>
+                  CustomPaint(size: size, painter: _HexagonIconPainter()),
+            ),
+            const Divider(),
 
-          // Переключатель видимости сетки
-          GestureDetector(
-            onTap: () => onGridToggle(!isGridVisible),
-            behavior: HitTestBehavior.opaque,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(
-                horizontal: 8.0,
-                vertical: 4.0,
-              ),
-              child: Row(
-                children: [
-                  Checkbox(
-                    value: isGridVisible,
-                    onChanged: (value) => onGridToggle(value ?? false),
-                  ),
-                  const SizedBox(width: 8),
-                  const Text('Показать сетку'),
-                ],
+            // Переключатель видимости сетки
+            GestureDetector(
+              onTap: () => onGridToggle(!isGridVisible),
+              behavior: HitTestBehavior.opaque,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 8.0,
+                  vertical: 4.0,
+                ),
+                child: Row(
+                  children: [
+                    Checkbox(
+                      value: isGridVisible,
+                      onChanged: (value) => onGridToggle(value ?? false),
+                    ),
+                    const SizedBox(width: 8),
+                    const Text('Показать сетку'),
+                  ],
+                ),
               ),
             ),
-          ),
-          // Кнопка экспорта схемы в SVG
-          ElevatedButton(
-            onPressed: onExport,
-            child: const Text('Экспорт в SVG'),
-          ),
+            // Кнопка экспорта схемы в SVG
+            ElevatedButton(
+              onPressed: onExport,
+              child: const Text('Экспорт в SVG'),
+            ),
 
-          // Кнопка вызова диалога задания размера блоков
-          const SizedBox(height: 8),
-          ElevatedButton(
-            onPressed: () => _showSetSizeDialog(context),
-            child: const Text('Размер блоков'),
-          ),
+            // Кнопка вызова диалога задания размера блоков
+            const SizedBox(height: 8),
+            ElevatedButton(
+              onPressed: () => _showSetSizeDialog(context),
+              child: const Text('Размер блоков'),
+            ),
 
-          const SizedBox(height: 8),
-          ElevatedButton(
-            onPressed: onUndo,
-            child: const Text('Отменить (Ctrl+Z)'),
-          ),
-          const SizedBox(height: 8),
-          ElevatedButton(
-            onPressed: onRedo,
-            child: const Text('Вернуть (Ctrl+Y)'),
-          ),
-          const SizedBox(height: 8),
-          ElevatedButton(onPressed: onSave, child: const Text('Сохранить')),
-          const SizedBox(height: 8),
-          ElevatedButton(onPressed: onLoad, child: const Text('Загрузить')),
-        ],
+            const SizedBox(height: 8),
+            ElevatedButton(
+              onPressed: onUndo,
+              child: const Text('Отменить (Ctrl+Z)'),
+            ),
+            const SizedBox(height: 8),
+            ElevatedButton(
+              onPressed: onRedo,
+              child: const Text('Вернуть (Ctrl+Y)'),
+            ),
+            const SizedBox(height: 8),
+            ElevatedButton(onPressed: onSave, child: const Text('Сохранить')),
+            const SizedBox(height: 8),
+            ElevatedButton(onPressed: onLoad, child: const Text('Загрузить')),
+          ],
+        ),
       ),
     );
   }

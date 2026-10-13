@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:json_annotation/json_annotation.dart';
-import 'flow_models.dart';
 import '../factories/node_factory.dart';
-import 'editor_models.dart';
+import '../models/flow_models.dart';
+import '../models/editor_models.dart';
 
 part 'editor_state.g.dart';
 
@@ -37,17 +37,30 @@ class SerializableNode {
     );
   }
 
-  // Восстановление узла из JSON 
+  // Восстановление узла из JSON
   NodeModel toNode() {
     GostNodeData data;
     switch (dataType) {
-      case 'ProcessBlock': data = ProcessBlock(text); break;
-      case 'LogicBlock': data = LogicBlock(text); break;
-      case 'TerminalBlock': data = TerminalBlock(text); break;
-      case 'IOBlock': data = IOBlock(text); break;
-      case 'SubroutineBlock': data = SubroutineBlock(text); break;
-      case 'ForBlock': data = ForBlock(text); break;
-      default: data = ProcessBlock(text);
+      case 'ProcessBlock':
+        data = ProcessBlock(text);
+        break;
+      case 'LogicBlock':
+        data = LogicBlock(text);
+        break;
+      case 'TerminalBlock':
+        data = TerminalBlock(text);
+        break;
+      case 'IOBlock':
+        data = IOBlock(text);
+        break;
+      case 'SubroutineBlock':
+        data = SubroutineBlock(text);
+        break;
+      case 'ForBlock':
+        data = ForBlock(text);
+        break;
+      default:
+        data = ProcessBlock(text);
     }
     return NodeModel(
       id: id,
@@ -58,9 +71,9 @@ class SerializableNode {
   }
 
   Map<String, dynamic> toJson() => _$SerializableNodeToJson(this);
-  factory SerializableNode.fromJson(Map<String, dynamic> json) => _$SerializableNodeFromJson(json);
+  factory SerializableNode.fromJson(Map<String, dynamic> json) =>
+      _$SerializableNodeFromJson(json);
 }
-
 
 // Сериализуемое представление связи
 @JsonSerializable()
@@ -100,7 +113,8 @@ class SerializableConnection {
   }
 
   Map<String, dynamic> toJson() => _$SerializableConnectionToJson(this);
-  factory SerializableConnection.fromJson(Map<String, dynamic> json) => _$SerializableConnectionFromJson(json);
+  factory SerializableConnection.fromJson(Map<String, dynamic> json) =>
+      _$SerializableConnectionFromJson(json);
 }
 
 // Полный снимок состояния редактора: узлы, связи и настройки вида
@@ -125,5 +139,6 @@ class EditorSnapshot {
   });
 
   Map<String, dynamic> toJson() => _$EditorSnapshotToJson(this);
-  factory EditorSnapshot.fromJson(Map<String, dynamic> json) => _$EditorSnapshotFromJson(json);
+  factory EditorSnapshot.fromJson(Map<String, dynamic> json) =>
+      _$EditorSnapshotFromJson(json);
 }

@@ -2,18 +2,33 @@ import 'package:flutter/material.dart';
 import '../models/flow_models.dart';
 
 // Узел блок-схемы
+@immutable
 class NodeModel {
   final String id;
   final String name;
-  GostNodeData data;
-  Offset position;
+  final GostNodeData data;
+  final Offset position;
 
-  NodeModel({
+  const NodeModel({
     required this.id,
     required this.name,
     required this.data,
     required this.position,
   });
+
+  NodeModel copyWith({
+    String? id,
+    String? name,
+    GostNodeData? data,
+    Offset? position,
+  }) {
+    return NodeModel(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      data: data ?? this.data,
+      position: position ?? this.position,
+    );
+  }
 }
 
 // Фабрика узлов

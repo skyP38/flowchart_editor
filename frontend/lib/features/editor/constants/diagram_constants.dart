@@ -20,18 +20,26 @@ class LayoutConstants {
   static const double rankGap = 50;
   static const double bodyOffsetY = 30;
   static const double exitOffsetX = 40;
+  static const double endExtraOffset = 80;
+  static const double bodyIndentX = 0;
 }
 
 class ConnectionConstants {
   ConnectionConstants._();
   static const double loopbackGap = 20;
   static const double exitRightOffset = 30;
-  static const double exitTurnOffsetY = 30;
+  static const double exitTurnOffsetY = 40;
   static const double noSafeXOffset = 20;
   static const double endLineOffset = 0;
   static const double endOffsetY = 10;
   static const double hitDistance = 15;
   static const double hitStep = 2;
+  static const double loopbackBaseGap = 20;
+  static const double loopbackDepthStep = 20;
+  static const double exitDepthStep = 40;
+
+  static const double noDepthStep = 10;
+  static const double noDepthOffsetMax = 200;
 }
 
 class GridConstants {

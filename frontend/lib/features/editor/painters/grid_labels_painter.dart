@@ -1,3 +1,4 @@
+import 'package:flowchart_editor_frontend/features/editor/constants/diagram_constants.dart';
 import 'package:flutter/material.dart';
 
 // Преобразует номер колонки(цифру) в букву
@@ -31,7 +32,7 @@ class GridLabelsPainter extends CustomPainter {
 
     final textStyle = TextStyle(
       color: Colors.grey.shade700,
-      fontSize: 18,
+      fontSize: GridConstants.fontSize,
       fontWeight: FontWeight.w500,
     );
 
@@ -39,9 +40,8 @@ class GridLabelsPainter extends CustomPainter {
     int firstCol = ((startPosition.dx) / stepX!).floor();
     int lastCol = ((size.width - startPosition.dx) / stepX!).ceil();
     for (int col = firstCol; col <= lastCol; col++) {
-      final double stepXgrid = stepX! + 70;
+      final double stepXgrid = stepX! + GridConstants.stepXExtra;
       final double startCenterX = startPosition.dx + stepX! / 2;
-      // double x = (col + 1) * stepX!;
       double x = startCenterX + col * stepXgrid;
       if (x < 0 || x > size.width) continue;
       final number = col + 1;
@@ -55,13 +55,11 @@ class GridLabelsPainter extends CustomPainter {
     }
 
     // Подписи строк (буквы) слева
-    final double stepYgrid = stepY! + 40.0;
+    final double stepYgrid = stepY! + GridConstants.stepYExtra;
     final double startCenterY = startPosition.dy + stepY! / 2;
     int firstRow = ((0 - startCenterY) / stepY!).floor();
     int lastRow = ((size.height - startCenterY) / stepY!).ceil();
     for (int row = firstRow; row <= lastRow; row++) {
-      // double y = startPosition.dy + row * stepY! + stepY! / 2;
-      // double y = (row * 1.5) * stepY!;
       double y = startCenterY + row * stepYgrid;
       if (y < 0 || y > size.height) continue;
       String letter = numberToLetter(row);
@@ -71,7 +69,6 @@ class GridLabelsPainter extends CustomPainter {
         textDirection: TextDirection.ltr,
       );
       textPainter.layout();
-      // textPainter.paint(canvas, Offset(2, y));
       textPainter.paint(canvas, Offset(2, y - textPainter.height / 2));
     }
   }

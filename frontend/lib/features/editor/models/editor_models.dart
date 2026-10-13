@@ -1,3 +1,4 @@
+import 'package:flowchart_editor_frontend/features/editor/models/flow_models.dart';
 import 'package:flutter/material.dart';
 import '../factories/node_factory.dart';
 
@@ -8,7 +9,14 @@ class NodeWidgetData {
   NodeWidgetData({required this.node});
 
   Offset get position => node.position;
-  set position(Offset value) => node.position = value;
+  set position(Offset value) {
+    node = node.copyWith(position: value);
+  }
+
+  GostNodeData get data => node.data;
+  set data(GostNodeData value) {
+    node = node.copyWith(data: value);
+  }
 }
 
 // Описание связи между двумя блоками
