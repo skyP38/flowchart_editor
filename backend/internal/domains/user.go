@@ -3,16 +3,16 @@ package domains
 
 import "time"
 
+
 // User - зарегистрированный пользователь системы
 type User struct {
-	ID int64
-	// Login хранится в нормализованном виде
-	Login     string
-	PwdHash   string
-	Uname     string
-	Role      string
-	CreatedAt time.Time
-	IsActive  bool
+	ID int64 `json:"id"`
+	Login string `json:"login"`
+	PwdHash string `json:"-"`
+	Uname string `json:"uname"`
+	Role string `json:"role"`
+	CreatedAt time.Time `json:"createdAt"`
+	IsActive bool `json:"isActive"`
 }
 
 // Роли пользователей

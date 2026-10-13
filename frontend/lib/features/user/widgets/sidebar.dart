@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import 'item.dart';
 import '../screens/screens.dart';
+import '../screens/sessions.dart';
 import '../../auth/domain/auth_repository.dart';
 
 class Sidebar extends StatelessWidget {
@@ -58,6 +59,11 @@ class Sidebar extends StatelessWidget {
                 icon: Icons.shield_outlined,
                 title: 'Sessions',
                 active: currentRoute == 'session',
+                onTap: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => SessionScreen()),
+                  );
+                },
               ),
 
               NavItem(

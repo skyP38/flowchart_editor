@@ -1,5 +1,6 @@
 import '../../features/user/models/project.dart';
 import '../../features/user/models/flowchart.dart';
+import '../../features/user/models/session.dart';
 import 'api_client.dart';
 
 class ApiService {
@@ -52,5 +53,18 @@ class ApiService {
 
   Future<void> deleteFlowchart(int flowchartId) async {
     await _client.delete<void>('/api/flowcharts/$flowchartId');
+  }
+  
+  Future<List<Session>> listSessions() async {
+  final List<dynamic> data = await _client.get<List<dynamic>>(
+    '/api/sessions',
+  );
+  return data
+      .map((json) => Session.fromJson(json as Map<String, dynamic>))
+      .toList();
+  }
+
+  Future<void> closeSession(int sessionId) async {
+    await _client.delete<void>('/api/sessions/$sessionId');
   }
 }
