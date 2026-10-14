@@ -2,17 +2,15 @@ package repositories
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
-	"encoding/json"
 
 	"github.com/skyP38/flowchart_editor/backend/internal/domains"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
-
-var ErrNotFound = errors.New("not found")
 
 type ProjectRepository struct {
 	db *pgxpool.Pool
@@ -98,7 +96,7 @@ func (r *ProjectRepository) Update(
 		&p.DateUpdate,
 	)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return domains.Project{}, ErrNotFound
+		return domains.Project{}, domains.ErrNotFound
 	}
 	if err != nil {
 		return domains.Project{}, fmt.Errorf("update project: %w", err)
@@ -120,7 +118,7 @@ func (r *ProjectRepository) Delete(
 		return fmt.Errorf("delete project: %w", err)
 	}
 	if res.RowsAffected() == 0 {
-		return ErrNotFound
+		return domains.ErrNotFound
 	}
 	return nil
 }
@@ -143,7 +141,7 @@ func (r *ProjectRepository) GetByID(
 		&p.DateUpdate,
 	)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return domains.Project{}, ErrNotFound
+		return domains.Project{}, domains.ErrNotFound
 	}
 	if err != nil {
 		return domains.Project{}, fmt.Errorf("get project: %w", err)

@@ -6,8 +6,13 @@ import '../../editor/screens/editor_screen.dart';
 import '../../editor/persistence/editor_state.dart';
 
 class FlowchartEditorPage extends StatefulWidget {
+  final int projectId;
   final int flowchartId;
-  const FlowchartEditorPage({super.key, required this.flowchartId});
+  const FlowchartEditorPage({
+    super.key,
+    required this.projectId,
+    required this.flowchartId,
+  });
 
   @override
   State<FlowchartEditorPage> createState() => _FlowchartEditorPageState();
@@ -28,9 +33,17 @@ class _FlowchartEditorPageState extends State<FlowchartEditorPage> {
 
   Future<void> _load() async {
     try {
-      final json = await _api.getFlowchartContent(widget.flowchartId);
+      final json = await _api.getFlowchartContent(
+        widget.projectId,
+        widget.flowchartId,
+      );
+
+      final isEmpty =
+          json.isEmpty ||
+          json['nodes'] == null ||
+          (json['nodes'] as List).isEmpty;
       setState(() {
-        _initial = EditorSnapshot.fromJson(json);
+        _initial = isEmpty ? null : EditorSnapshot.fromJson(json);
         _loading = false;
       });
     } catch (e) {
@@ -42,7 +55,11 @@ class _FlowchartEditorPageState extends State<FlowchartEditorPage> {
   }
 
   Future<void> _save(EditorSnapshot snapshot) async {
-    await _api.updateFlowchartContent(widget.flowchartId, snapshot.toJson());
+    await _api.updateFlowchartContent(
+      widget.projectId,
+      widget.flowchartId,
+      snapshot.toJson(),
+    );
     if (mounted) {
       ScaffoldMessenger.of(
         context,

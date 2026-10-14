@@ -53,6 +53,8 @@ type Config struct {
 
 	SessionCleanupInterval time.Duration
 	SessionRetention       time.Duration
+
+	DatabaseURL string
 }
 
 // Load читает информацию из переменных окружения и возвращает заполненный Config
@@ -121,6 +123,7 @@ func Load() (*Config, error) {
 		RatelimitCleanupInterval:    cleanupInterval,
 		SessionCleanupInterval:      sessionCleanupInterval,
 		SessionRetention:            sessionRetention,
+		DatabaseURL:                 getEnv("DATABASE_URL", "postgres://postgres:password@localhost:5432/flowchart_db"),
 	}, nil
 }
 

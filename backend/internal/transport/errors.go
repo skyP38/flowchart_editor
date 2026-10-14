@@ -32,6 +32,7 @@ const (
 
 	// 404
 	CodeSessionNotFound = "session_not_found"
+	CodeNotFound        = "not_found"
 
 	// 409
 	CodeLoginTaken = "login_taken"

@@ -66,14 +66,17 @@ class _ProjectScreenState extends State<ProjectScreen> {
   }
 
   Future<void> _deleteFlowchart(int id) async {
-    await _api.deleteFlowchart(id);
+    await _api.deleteFlowchart(widget.projectId, id);
     _reload();
   }
 
   void _openFlowchart(Flowchart f) {
     Navigator.push(
       context,
-      MaterialPageRoute(builder: (_) => FlowchartEditorPage(flowchartId: f.id)),
+      MaterialPageRoute(
+        builder: (_) =>
+            FlowchartEditorPage(projectId: widget.projectId, flowchartId: f.id),
+      ),
     );
   }
 
@@ -128,68 +131,87 @@ class _ProjectScreenState extends State<ProjectScreen> {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                'My projects / ${project.name}',
-                style: const TextStyle(
-                  fontSize: 13,
-                  color: Color(0xFF6B7280),
-                  fontWeight: FontWeight.w500,
+              Expanded(
+                child: Text(
+                  'My projects / ${project.name}',
+                  style: const TextStyle(
+                    fontSize: 13,
+                    color: Color(0xFF6B7280),
+                    fontWeight: FontWeight.w500,
+                  ),
                 ),
               ),
 
-              Row(
-                children: [
-                  Container(
-                    width: 280,
-                    height: 37,
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFF3F4F6),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: const Row(
-                      children: [
-                        Icon(Icons.search, size: 18, color: Color(0xFF9CA3AF)),
-                        SizedBox(width: 8),
-                        Text(
-                          'Search for flowchart...',
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: Color(0xFF6B7280),
+              const SizedBox(width: 16),
+
+              Flexible(
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Flexible(
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(minWidth: 180),
+                        child: Container(
+                          // width: 280,
+                          height: 37,
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF3F4F6),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(
+                                Icons.search,
+                                size: 18,
+                                color: Color(0xFF9CA3AF),
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  'Search for flowchart...',
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    color: Color(0xFF6B7280),
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
                         ),
-                      ],
+                      ),
                     ),
-                  ),
 
-                  const SizedBox(width: 16),
-                  InkWell(
-                    onTap: _createFlowchart,
-                    borderRadius: BorderRadius.circular(8),
-                    child: Container(
-                      height: 37,
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF6750A4),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: const Row(
-                        children: [
-                          Icon(Icons.add, color: Colors.white, size: 18),
-                          SizedBox(width: 8),
-                          Text(
-                            'New flowchart',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600,
+                    const SizedBox(width: 16),
+
+                    InkWell(
+                      onTap: _createFlowchart,
+                      borderRadius: BorderRadius.circular(8),
+                      child: Container(
+                        height: 37,
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF6750A4),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Row(
+                          children: [
+                            Icon(Icons.add, color: Colors.white, size: 18),
+                            SizedBox(width: 8),
+                            Text(
+                              'New flowchart',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                              ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ],
           ),

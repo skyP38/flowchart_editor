@@ -1,7 +1,7 @@
 import '../../../../core/network/api_client.dart';
 import '../models/auth_response.dart';
 import '../models/user.dart';
-import '../models/session.dart';
+import '../../../user/models/session.dart';
 
 // слой над ApiClient: знает URL и DTO домена auth
 class AuthApi {

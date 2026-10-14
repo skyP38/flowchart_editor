@@ -45,8 +45,9 @@ class FlowchartCard extends StatelessWidget {
                       child: Text(
                         flowchart.name,
                         style: const TextStyle(
-                          fontSize: 16,
+                          fontSize: 15,
                           fontWeight: FontWeight.w600,
+                          height: 1.2,
                         ),
                         overflow: TextOverflow.ellipsis,
                       ),

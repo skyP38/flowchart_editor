@@ -15,11 +15,13 @@ import (
 	"github.com/skyP38/flowchart_editor/backend/internal/api"
 	"github.com/skyP38/flowchart_editor/backend/internal/config"
 	"github.com/skyP38/flowchart_editor/backend/internal/repositories"
+	"github.com/skyP38/flowchart_editor/backend/internal/service"
+
+	// "github.com/skyP38/flowchart_editor/backend/internal/service"
 	"github.com/skyP38/flowchart_editor/backend/internal/service/auth"
 	"github.com/skyP38/flowchart_editor/backend/internal/service/auth/token"
 	"github.com/skyP38/flowchart_editor/backend/internal/service/ratelimit"
 	"github.com/skyP38/flowchart_editor/backend/internal/service/sessioncleanup"
-	"github.com/skyP38/flowchart_editor/backend/internal/services"
 
 	//"github.com/skyP38/flowchart_editor/backend/internal/storage/memory"
 	"github.com/skyP38/flowchart_editor/backend/internal/transport"
@@ -32,38 +34,28 @@ func main() {
 		log.Fatalf("config: %v", err)
 	}
 
-	// фоновый чистильщик сессий
-	janitor, err := sessioncleanup.New(sessions, cfg.SessionCleanupInterval, cfg.SessionRetention)
-	if err != nil {
-		log.Fatalf("session janitor :%v", err)
-	}
-
-	dbURL := os.Getenv("DATABASE_URL")
-	if dbURL == "" {
-		log.Fatal("DATABASE_URL is not set")
-	}
-	db, err := pgxpool.New(context.Background(), dbURL)
+	// dbURL := os.Getenv("DATABASE_URL")
+	// if dbURL == "" {
+	// 	log.Fatal("DATABASE_URL is not set")
+	// }
+	db, err := pgxpool.New(context.Background(), cfg.DatabaseURL)
 	if err != nil {
 		log.Fatal(err)
 	}
 	defer db.Close()
 	log.Println("Connected to PostgreSQL")
 
-	//users := memory.NewMemoryUserRepo()
-	//sessions := memory.NewMemorySessionRepo()
-
+	// репозитории
 	userRepo := repositories.NewUserRepository(db)
 	sessionRepo := repositories.NewSessionRepository(db)
+	projectRepo := repositories.NewProjectRepository(db)
+	flowchartRepo := repositories.NewFlowchartRepository(db)
 
-	/*if err := memory.SeedAdmin(context.Background(), users,
-		cfg.AdminLogin, cfg.AdminPassword, cfg.PasswordPepper); err != nil {
-		log.Fatalf("seed admin: %v", err)
-	}*/
-
-	// менеджер access-токенов
-	accessMgr := token.NewAccessTokenManager(cfg.JWTSecret, cfg.AccessTokenTTL)
-	authSvc := auth.NewService(userRepo, sessionRepo, accessMgr, cfg.PasswordPepper, cfg.AccessTokenTTL, cfg.RefreshTokenTTL)
-	authMW := api.Auth(accessMgr)
+	// фоновый чистильщик сессий
+	janitor, err := sessioncleanup.New(sessionRepo, cfg.SessionCleanupInterval, cfg.SessionRetention)
+	if err != nil {
+		log.Fatalf("session janitor :%v", err)
+	}
 
 	// политика rate limit
 	loginPolicy := ratelimit.Policy{
@@ -81,17 +73,19 @@ func main() {
 		log.Fatalf("ratelimit: %v", err)
 	}
 
-	projectRepo := repositories.NewProjectRepository(db)
-	projectSvc := services.NewProjectService(projectRepo)
-	projectHandler := api.NewProjectHandler(projectSvc)
-
-	flowchartRepo := repositories.NewFlowchartRepository(db)
-	flowchartSvc := services.NewFlowchartService(flowchartRepo)
-	flowchartHandler := api.NewFlowchartHandler(flowchartSvc)
-
+	// менеджер access-токенов
+	accessMgr := token.NewAccessTokenManager(cfg.JWTSecret, cfg.AccessTokenTTL)
 	// сервис аутентификации
-	authSvc := auth.NewService(users, sessions, accessMgr, cfg.PasswordPepper, cfg.AccessTokenTTL, cfg.RefreshTokenTTL)
-	authMW := api.Auth(accessMgr, sessions)
+	authSvc := auth.NewService(userRepo, sessionRepo, accessMgr, cfg.PasswordPepper, cfg.AccessTokenTTL, cfg.RefreshTokenTTL)
+	authMW := api.Auth(accessMgr, sessionRepo)
+
+	// сервисы
+	projectSvc := service.NewProjectService(projectRepo)
+	flowchartSvc := service.NewFlowchartService(flowchartRepo)
+
+	// обработчики
+	projectHandler := api.NewProjectHandler(projectSvc)
+	flowchartHandler := api.NewFlowchartHandler(flowchartSvc)
 
 	// middlewera аутентификации
 	mux := http.NewServeMux()
@@ -103,21 +97,10 @@ func main() {
 
 	// регистрация маршрутов обработчиков
 	api.NewAuthHandler(authSvc, limiter).RegisterRoutes(mux, authMW)
-
-	// api.NewAuthHandler(authSvc).RegisterRoutes(mux, authMW)
 	api.NewSessionHandler(authSvc).RegisterRoutes(mux, authMW)
 
-	userHandler := api.NewUserHandler(authSvc)
-	mux.Handle("GET /api/users/me", authMW(http.HandlerFunc(userHandler.GetMe)))
-
-	mux.Handle("POST /api/projects", authMW(http.HandlerFunc(projectHandler.Create)))
-	mux.Handle("GET /api/projects", authMW(http.HandlerFunc(projectHandler.List)))
-	mux.Handle("GET /api/projects/{projectId}", authMW(http.HandlerFunc(projectHandler.Get)))
-	mux.Handle("PATCH /api/projects/{projectId}", authMW(http.HandlerFunc(projectHandler.Update)))
-	mux.Handle("DELETE /api/projects/{projectId}", authMW(http.HandlerFunc(projectHandler.Delete)))
-
-	mux.Handle("POST /api/projects/{projectId}/flowcharts", authMW(http.HandlerFunc(flowchartHandler.Create)))
-	mux.Handle("DELETE /api/projects/{projectId}/flowcharts/{flowchartId}", authMW(http.HandlerFunc(flowchartHandler.Delete)))
+	projectHandler.RegisterRoutes(mux, authMW)
+	flowchartHandler.RegisterRoutes(mux, authMW)
 
 	staticFiles := http.FileServer(http.Dir("../frontend/build/web"))
 	mux.Handle("/", staticFiles)

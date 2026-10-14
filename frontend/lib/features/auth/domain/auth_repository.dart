@@ -108,19 +108,30 @@ class AuthRepository extends ChangeNotifier {
 
   // Внутренняя логика
   Future<void> _doInit() async {
+    // final refreshToken = await _storage.getRefreshToken();
+    // if (refreshToken == null || refreshToken.isEmpty) {
+    //   _setState(const AuthUnauthenticated());
+    //   return;
+    // }
+
+    final accessToken = await _storage.getAccessToken();
     final refreshToken = await _storage.getRefreshToken();
-    if (refreshToken == null || refreshToken.isEmpty) {
+
+    final hasAccess = accessToken != null && accessToken.isNotEmpty;
+    final hasRefresh = refreshToken != null && refreshToken.isNotEmpty;
+
+    if (!hasAccess && !hasRefresh) {
       _setState(const AuthUnauthenticated());
       return;
     }
-
     try {
-      final response = await _api.refresh(refreshToken);
-      await _storage.saveTokens(
-        accessToken: response.tokens.accessToken,
-        refreshToken: response.tokens.refreshToken,
-      );
-
+      if (!hasAccess) {
+        final response = await _api.refresh(refreshToken!);
+        await _storage.saveTokens(
+          accessToken: response.tokens.accessToken,
+          refreshToken: response.tokens.refreshToken,
+        );
+      }
       final user = await _api.me();
       _setState(AuthAuthenticated(user));
     } catch (_) {
