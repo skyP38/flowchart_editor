@@ -66,5 +66,21 @@ class ApiService {
 
   Future<void> closeSession(int sessionId) async {
     await _client.delete<void>('/api/sessions/$sessionId');
+
+
+  Future<Map<String, dynamic>> getFlowchartContent(int flowchartId) async {
+    return await _client.get<Map<String, dynamic>>(
+      '/api/flowcharts/$flowchartId/content',
+    );
+  }
+
+  Future<void> updateFlowchartContent(
+    int flowchartId,
+    Map<String, dynamic> content,
+  ) async {
+    await _client.put<void>(
+      '/api/flowcharts/$flowchartId/content',
+      data: content,
+    );
   }
 }

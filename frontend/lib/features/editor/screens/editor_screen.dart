@@ -25,6 +25,10 @@ import '../utils/svg_exporter.dart';
 
 // Главный экран редактора блок-схем
 class EditorScreen extends StatefulWidget {
+  final EditorSnapshot? initialSnapshot;
+  final Future<void> Function(EditorSnapshot snapshot)? onSave;
+
+  const EditorScreen({super.key, this.initialSnapshot, this.onSave});
   @override
   State<EditorScreen> createState() => _EditorScreenState();
 }
@@ -55,7 +59,12 @@ class _EditorScreenState extends State<EditorScreen> {
   @override
   void initState() {
     super.initState();
-    _controller.initDefaultDiagram();
+    if (widget.initialSnapshot != null) {
+      _controller.fromSnapshot(widget.initialSnapshot!);
+    } else {
+      _controller.initDefaultDiagram();
+    }
+    // _controller.initDefaultDiagram();
     _rebuildRouter();
     _insertionPoints = _insertionPointsService.compute(_controller.graph);
     _controller.addListener(_onControllerChanged);

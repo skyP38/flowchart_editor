@@ -7,6 +7,8 @@ import '../models/flowchart.dart';
 import '../../../core/network/api_service.dart';
 import '../widgets/card_f.dart';
 
+import 'flowchart_editor_page.dart';
+
 class ProjectScreen extends StatefulWidget {
   final int projectId;
 
@@ -69,7 +71,10 @@ class _ProjectScreenState extends State<ProjectScreen> {
   }
 
   void _openFlowchart(Flowchart f) {
-    //TODO
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => FlowchartEditorPage(flowchartId: f.id)),
+    );
   }
 
   @override
@@ -234,6 +239,7 @@ class _ProjectScreenState extends State<ProjectScreen> {
                             final f = project.flowcharts[index];
                             return FlowchartCard(
                               flowchart: f,
+                              onTap: () => _openFlowchart(f),
                               onDelete: () => _deleteFlowchart(f.id),
                             );
                           },
