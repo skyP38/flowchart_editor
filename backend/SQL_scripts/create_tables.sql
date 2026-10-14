@@ -20,7 +20,7 @@ CREATE TABLE projects (
 	CONSTRAINT uq_projects_owner_name UNIQUE (owner_id, name_p),
     CONSTRAINT fk_projects_user
         FOREIGN KEY (owner_id)
-		REFERENCES users (owner_id)
+		REFERENCES users (id_user)
         ON DELETE RESTRICT
         ON UPDATE CASCADE
 );
@@ -46,7 +46,7 @@ CREATE TABLE sessions (
     created_at TIMESTAMPTZ NOT NULL,
 	expires_at TIMESTAMPTZ NOT NULL,
 	revoked_at TIMESTAMPTZ NULL,
-	token_hash VARCHAR(64) NOT NULL UNIQUE
+	token_hash VARCHAR(64) NOT NULL UNIQUE,
     CONSTRAINT fk_sessions_user
         FOREIGN KEY (id_user)
 		REFERENCES users (id_user)

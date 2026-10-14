@@ -8,12 +8,12 @@ const RevokeAllSessions int64 = 0
 // Session - сессия пользователя по refresh-токену
 // Пользователь может иметь несколько активных сессий одновременно
 type Session struct {
-	ID        int64
-	UserID    int64
-	TokenHash string
-	CreatedAt time.Time
-	ExpiresAt time.Time
-	RevokedAt *time.Time
+	ID        int64      `json:"id"`
+	UserID    int64      `json:"userId"`
+	TokenHash string     `json:"tokenHash"`
+	CreatedAt time.Time  `json:"createdAt"`
+	ExpiresAt time.Time  `json:"expiresAt"`
+	RevokedAt *time.Time `json:"revokedAt,omitempty"`
 }
 
 // IsActive сообщает активна ли сессия на момент now

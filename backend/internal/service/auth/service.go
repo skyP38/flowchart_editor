@@ -7,10 +7,13 @@ import (
 	"strings"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgconn"
+
 	"github.com/skyP38/flowchart_editor/backend/internal/domains"
 	"github.com/skyP38/flowchart_editor/backend/internal/service/auth/token"
 	"github.com/skyP38/flowchart_editor/backend/internal/service/password"
 	"golang.org/x/crypto/bcrypt"
+	//"github.com/skyP38/flowchart_editor/backend/internal/storage/memory"
 )
 
 var dummyHash = func() []byte {
@@ -64,7 +67,7 @@ type LoginInput struct {
 	Password string
 }
 
-// AuthResult результат успешной регистрации или логина
+// AuthResult - результат успешной регистрации или логина
 // nolint:revive
 type AuthResult struct {
 	User         *domains.User
@@ -91,13 +94,12 @@ func (s *Service) Register(ctx context.Context, in RegisterInput) (*AuthResult, 
 			verrs.Add(ve.Field, ve.Message)
 		} else {
 			verrs.Add("password", "invalid password")
+
 		}
 	}
-
 	if verrs.HasAny() {
 		return nil, verrs
 	}
-
 	if existing, err := s.users.GetByLogin(ctx, login); err == nil && existing != nil {
 		return nil, ErrLoginTaken
 	}
@@ -120,6 +122,13 @@ func (s *Service) Register(ctx context.Context, in RegisterInput) (*AuthResult, 
 		if errors.Is(err, domains.ErrUserAlreadyExists) {
 			return nil, ErrLoginTaken
 		}
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+			return nil, ErrLoginTaken
+		}
+		/*if errors.Is(err, memory.ErrUserAlreadyExists) {
+			return nil, ErrLoginTaken
+		}*/
 		return nil, err
 	}
 
