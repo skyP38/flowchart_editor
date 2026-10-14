@@ -5,6 +5,13 @@ import (
 	"time"
 )
 
+package domains
+
+import (
+	"context"
+	"time"
+)
+
 // UserRepository описывает хранилище пользователей
 type UserRepository interface {
 	// Create создает нового пользователя, если логин занят - ErrUserAlreadyExists

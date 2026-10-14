@@ -18,7 +18,6 @@ import (
 	"github.com/skyP38/flowchart_editor/backend/internal/service/auth"
 	"github.com/skyP38/flowchart_editor/backend/internal/service/auth/token"
 	"github.com/skyP38/flowchart_editor/backend/internal/services"
-	//"github.com/skyP38/flowchart_editor/backend/internal/storage/memory"
 	"github.com/skyP38/flowchart_editor/backend/internal/transport"
 )
 
@@ -37,17 +36,9 @@ func main() {
 	}
 	defer db.Close()
 	log.Println("Connected to PostgreSQL")
-
-	//users := memory.NewMemoryUserRepo()
-	//sessions := memory.NewMemorySessionRepo()
 	
 	userRepo := repositories.NewUserRepository(db)
         sessionRepo := repositories.NewSessionRepository(db)
-
-	/*if err := memory.SeedAdmin(context.Background(), users,
-		cfg.AdminLogin, cfg.AdminPassword, cfg.PasswordPepper); err != nil {
-		log.Fatalf("seed admin: %v", err)
-	}*/
 
 	accessMgr := token.NewAccessTokenManager(cfg.JWTSecret, cfg.AccessTokenTTL)
 	authSvc := auth.NewService(userRepo, sessionRepo, accessMgr, cfg.PasswordPepper, cfg.AccessTokenTTL, cfg.RefreshTokenTTL)

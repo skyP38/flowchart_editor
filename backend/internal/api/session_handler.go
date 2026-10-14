@@ -1,89 +1,116 @@
 package api
 
 import (
+	"encoding/json"
+	"errors"
 	"net/http"
 	"strconv"
-	"time"
 
-	"github.com/skyP38/flowchart_editor/backend/internal/domains"
 	"github.com/skyP38/flowchart_editor/backend/internal/service/auth"
-	"github.com/skyP38/flowchart_editor/backend/internal/transport"
 )
 
 type SessionHandler struct {
-	svc *auth.Service
+	service *auth.Service
 }
 
-func NewSessionHandler(svc *auth.Service) *SessionHandler {
-	return &SessionHandler{svc: svc}
+func NewSessionHandler(service *auth.Service) *SessionHandler {
+	return &SessionHandler{service: service}
 }
 
+// RegisterRoutes регистрирует маршруты в mux
 func (h *SessionHandler) RegisterRoutes(mux *http.ServeMux, authMW AuthMW) {
 	mux.Handle("GET /api/sessions", authMW(http.HandlerFunc(h.List)))
-	mux.Handle("DELETE /api/sessions/{id}", authMW(http.HandlerFunc(h.RevokeOne)))
-	mux.Handle("DELETE /api/sessions", authMW(http.HandlerFunc(h.RevokeAll)))
+	mux.Handle("DELETE /api/sessions/{sessionId}", authMW(http.HandlerFunc(h.Close)))
 }
 
-type sessionDTO struct {
-	ID        int64      `json:"id"`
-	CreatedAt time.Time  `json:"created_at"`
-	ExpiresAt time.Time  `json:"expires_at"`
-	RevokedAt *time.Time `json:"revoked_at,omitempty"`
-	Active    bool       `json:"active"`
-	Current   bool       `json:"current"`
-}
-
-// List - GET /api/sessions
 func (h *SessionHandler) List(w http.ResponseWriter, r *http.Request) {
-	uid := UserIDFrom(r.Context())
-	cur := SessionIDFrom(r.Context())
-
-	sessions, err := h.svc.ListSessions(r.Context(), uid)
+	userID := UserIDFrom(r.Context())
+	sessions, err := h.service.ListSessions(r.Context(), userID)
 	if err != nil {
-		transport.WriteError(w, http.StatusInternalServerError, "internal", "internal server error")
+		http.Error(w, "failed to list sessions", http.StatusInternalServerError)
 		return
 	}
-	now := time.Now().UTC()
-	out := make([]sessionDTO, 0, len(sessions))
-	for _, s := range sessions {
-		out = append(out, toSessionDTO(s, cur, now))
-	}
-	transport.WriteJSON(w, http.StatusOK, map[string]any{"sessions": out})
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(sessions)
 }
 
-// RevokeOne - DELETE /api/sessions/{id}
-func (h *SessionHandler) RevokeOne(w http.ResponseWriter, r *http.Request) {
-	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+func (h *SessionHandler) Close(w http.ResponseWriter, r *http.Request) {
+	userID := UserIDFrom(r.Context())
+	sessionID, err := strconv.ParseInt(r.PathValue("sessionId"), 10, 64)
 	if err != nil {
-		transport.WriteError(w, http.StatusBadRequest, "invalid_input", "invalid session id")
+		http.Error(w, "invalid session id", http.StatusBadRequest)
 		return
 	}
-	if err := h.svc.RevokeSession(r.Context(), UserIDFrom(r.Context()), id); err != nil {
-		transport.WriteError(w, http.StatusNotFound, "session_not_found", "session not found")
+	err = h.service.RevokeSession(r.Context(), userID, sessionID)
+	if errors.Is(err, auth.ErrSessionNotFound) {
+		http.Error(w, "session not found or already closed", http.StatusNotFound)
+		return
+	}
+	if err != nil {
+		http.Error(w, "failed to close session", http.StatusInternalServerError)
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// RevokeAll - DELETE /api/sessions
-// Закрывает все сессии пользователя, кроме текущей
-func (h *SessionHandler) RevokeAll(w http.ResponseWriter, r *http.Request) {
-	uid := UserIDFrom(r.Context())
-	cur := SessionIDFrom(r.Context())
-	if err := h.svc.RevokeAllSessions(r.Context(), uid, cur); err != nil {
-		transport.WriteError(w, http.StatusInternalServerError, "internal", "internal server error")
+/*package api
+
+import (
+	"encoding/json"
+	"errors"
+	"net/http"
+	"strconv"
+
+	"github.com/skyP38/flowchart_editor/backend/internal/repositories"
+	"github.com/skyP38/flowchart_editor/backend/internal/services"
+	//"github.com/skyP38/flowchart_editor/backend/internal/repositories"
+	//"github.com/skyP38/flowchart_editor/backend/internal/services"
+
+	//"github.com/skyP38/flowchart_editor/backend/internal/api"
+)
+
+type SessionHandler struct {
+	service *services.SessionService
+}
+
+func NewSessionHandler(
+	service *services.SessionService,
+) *SessionHandler {
+	return &SessionHandler{service: service}
+}
+
+func (h *SessionHandler) List(
+	w http.ResponseWriter,
+	r *http.Request,
+) {
+	userID := UserIDFrom(r.Context())
+	sessions, err := h.service.List(r.Context(), userID)
+	if err != nil {
+		http.Error(w, "failed to list sessions", http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(sessions)
+}
+
+func (h *SessionHandler) Close(
+	w http.ResponseWriter,
+	r *http.Request,
+) {
+	userID := UserIDFrom(r.Context())
+	sessionID, err := strconv.ParseInt(r.PathValue("sessionId"), 10, 64)
+	if err != nil {
+		http.Error(w, "invalid session id", http.StatusBadRequest)
+		return
+	}
+	err = h.service.Close(r.Context(), userID, sessionID)
+	if errors.Is(err, repositories.ErrNotFound) {
+		http.Error(w, "session not found or already closed", http.StatusNotFound)
+		return
+	}
+	if err != nil {
+		http.Error(w, "failed to close session", http.StatusInternalServerError)
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
-}
-
-func toSessionDTO(s *domains.Session, currentID int64, now time.Time) sessionDTO {
-	return sessionDTO{
-		ID:        s.ID,
-		CreatedAt: s.CreatedAt,
-		ExpiresAt: s.ExpiresAt,
-		RevokedAt: s.RevokedAt,
-		Active:    s.IsActive(now),
-		Current:   s.ID == currentID,
-	}
-}
+}*/
