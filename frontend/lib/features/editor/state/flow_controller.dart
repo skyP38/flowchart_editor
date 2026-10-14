@@ -94,8 +94,9 @@ class FlowController extends ChangeNotifier {
     final n = _graph.nodes[name];
     if (n == null) return;
     if (n.data is TerminalBlock &&
-        (n.data.text == 'Start' || n.data.text == 'End'))
+        (n.data.text == 'Start' || n.data.text == 'End')) {
       return;
+    }
     _history.push(_graph);
     _graph = _relayout(_removeWithBridge(_graph, name));
     notifyListeners();

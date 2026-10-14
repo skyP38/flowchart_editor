@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import 'item.dart';
-import '../screens/screens.dart';
 import '../screens/sessions.dart';
 import '../../auth/domain/auth_repository.dart';
 
@@ -60,9 +59,9 @@ class Sidebar extends StatelessWidget {
                 title: 'Sessions',
                 active: currentRoute == 'session',
                 onTap: () {
-                  Navigator.of(context).push(
-                    MaterialPageRoute(builder: (_) => SessionScreen()),
-                  );
+                  Navigator.of(
+                    context,
+                  ).push(MaterialPageRoute(builder: (_) => SessionScreen()));
                 },
               ),
 
@@ -73,7 +72,8 @@ class Sidebar extends StatelessWidget {
                 onTap: () async {
                   debugPrint('Logout tapped');
                   try {
-                    await context.read<AuthRepository>().logout();
+                    final authRepo = context.read<AuthRepository>();
+                    await authRepo.logout();
                     debugPrint(
                       'Logout done, stack=${Navigator.of(context).canPop()}',
                     );

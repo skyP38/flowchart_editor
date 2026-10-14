@@ -8,6 +8,7 @@ class HeaderButton extends StatelessWidget {
   final VoidCallback onTap;
 
   const HeaderButton({
+    super.key,
     required this.text,
     required this.background,
     required this.borderColor,
@@ -29,13 +30,7 @@ class HeaderButton extends StatelessWidget {
           borderRadius: BorderRadius.circular(8),
         ),
         child: Center(
-          child: Text(
-            text,
-            style: TextStyle(
-              fontSize: 16,
-              color: textColor,
-            ),
-          ),
+          child: Text(text, style: TextStyle(fontSize: 16, color: textColor)),
         ),
       ),
     );

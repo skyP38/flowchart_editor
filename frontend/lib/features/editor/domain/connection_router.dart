@@ -78,8 +78,33 @@ class ConnectionRouter {
       return path;
     }
 
-    final local = _subtreeBounds(g, c.sourceNodeName, stopAt: c.targetNodeName);
-    final desired = local.bottom + spacing.stepY / 8;
+    // Разные колонки. Нужно выбрать Y, на котором горизонтальный сдвиг
+    // и последующий спуск в целевую колонку не пересекут ни одного блока.
+    final minX = start.dx < end.dx ? start.dx : end.dx;
+    final maxX = start.dx < end.dx ? end.dx : start.dx;
+
+    double maxBottom = start.dy;
+    for (final e in g.nodes.entries) {
+      if (e.key == c.targetNodeName) continue;
+      final n = e.value;
+      final left = n.position.dx;
+      final right = n.position.dx + nodeSize.width;
+
+      // Блок должен пересекаться с горизонтальным коридором
+      if (right < minX || left > maxX) continue;
+      // Блоки на уровне цели или ниже — не мешают
+      if (n.position.dy >= end.dy - 1.0) continue;
+
+      final bottom = n.position.dy + nodeSize.height;
+      // Блоки целиком выше стартового порта — тоже не мешают
+      if (bottom <= start.dy) continue;
+      if (bottom > maxBottom) maxBottom = bottom;
+    }
+
+    final desired = maxBottom + spacing.stepY / 4;
+
+    // final local = _subtreeBounds(g, c.sourceNodeName, stopAt: c.targetNodeName);
+    // final desired = local.bottom + spacing.stepY / 8;
     final cap = end.dy - spacing.stepY / 8;
     final midY = desired < cap ? desired : cap;
     path

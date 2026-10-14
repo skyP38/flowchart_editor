@@ -20,6 +20,7 @@ class VerticalToolbar extends StatelessWidget {
   final ValueChanged<bool> onGridToggle;
   // Колбэк экспорта схемы
   final VoidCallback onExport;
+  final VoidCallback onExportJson;
 
   // Колбэк отмены последнего действия
   final VoidCallback onUndo;
@@ -30,6 +31,8 @@ class VerticalToolbar extends StatelessWidget {
   // Колбэк загрузки схемы
   final VoidCallback onLoad;
 
+  final bool isSaving;
+
   const VerticalToolbar({
     super.key,
     required this.selectedPrototype,
@@ -38,10 +41,12 @@ class VerticalToolbar extends StatelessWidget {
     required this.isGridVisible,
     required this.onGridToggle,
     required this.onExport,
+    required this.onExportJson,
     required this.onUndo,
     required this.onRedo,
     required this.onSave,
     required this.onLoad,
+    this.isSaving = false,
   });
 
   @override
@@ -111,6 +116,11 @@ class VerticalToolbar extends StatelessWidget {
               onPressed: onExport,
               child: const Text('Экспорт в SVG'),
             ),
+            const SizedBox(height: 8),
+            ElevatedButton(
+              onPressed: onExportJson,
+              child: const Text('Экспорт в JSON'),
+            ),
 
             // Кнопка вызова диалога задания размера блоков
             const SizedBox(height: 8),
@@ -130,7 +140,17 @@ class VerticalToolbar extends StatelessWidget {
               child: const Text('Вернуть (Ctrl+Y)'),
             ),
             const SizedBox(height: 8),
-            ElevatedButton(onPressed: onSave, child: const Text('Сохранить')),
+            // ElevatedButton(onPressed: onSave, child: const Text('Сохранить')),
+            ElevatedButton(
+              onPressed: isSaving ? null : onSave,
+              child: isSaving
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Text('Сохранить'),
+            ),
             const SizedBox(height: 8),
             ElevatedButton(onPressed: onLoad, child: const Text('Загрузить')),
           ],

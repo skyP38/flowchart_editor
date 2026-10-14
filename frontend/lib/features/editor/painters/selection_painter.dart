@@ -13,7 +13,7 @@ class SelectionRectPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final rect = Rect.fromPoints(start, end);
     final paint = Paint()
-      ..color = Colors.blue.withOpacity(SelectionConstants.fillOpacity)
+      ..color = Colors.blue.withValues(alpha: SelectionConstants.fillOpacity)
       ..style = PaintingStyle.fill;
     final borderPaint = Paint()
       ..color = Colors.blue

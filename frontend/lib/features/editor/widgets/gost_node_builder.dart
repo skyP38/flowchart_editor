@@ -38,7 +38,6 @@ class GostNodeBuilder {
     final shape = _ShapeNode(
       size: nodeSize,
       data: data,
-      child: _NodeContent(text: text),
       overlay: data is LogicBlock
           ? Stack(
               clipBehavior: Clip.none,
@@ -62,6 +61,7 @@ class GostNodeBuilder {
               ],
             )
           : null,
+      child: _NodeContent(text: text),
     );
 
     if (isSelected) {
@@ -398,7 +398,7 @@ class _ShapeNode extends StatelessWidget {
           ),
           // Текст (или любой другой child)
           Center(child: child),
-          if (overlay != null) overlay!,
+          ?overlay,
         ],
       ),
     );

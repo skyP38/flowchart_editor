@@ -1,14 +1,15 @@
+import 'dart:convert';
+
+import 'package:file_picker/file_picker.dart';
+import 'package:file_saver/file_saver.dart';
 import 'package:flowchart_editor_frontend/features/editor/factories/node_factory.dart';
 import 'package:flowchart_editor_frontend/features/editor/state/flow_controller.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/gestures.dart';
 import 'package:collection/collection.dart';
 import '../models/flow_models.dart';
 import '../widgets/gost_node_builder.dart';
 import '../widgets/vertical_toolbar.dart';
 import 'package:flutter/services.dart';
-import 'dart:convert';
-import 'package:path_provider/path_provider.dart';
 import 'dart:io';
 
 import '../models/editor_models.dart';
@@ -101,8 +102,8 @@ class _EditorScreenState extends State<EditorScreen> {
     });
   }
 
-  List<InsertionPoint> _computeInsertionPoints() =>
-      _insertionPointsService.compute(_controller.graph);
+  // List<InsertionPoint> _computeInsertionPoints() =>
+  //     _insertionPointsService.compute(_controller.graph);
 
   @override
   void dispose() {
@@ -361,54 +362,113 @@ class _EditorScreenState extends State<EditorScreen> {
     }
   }
 
-  // Сохраняет схему в JSON-файл в каталоге документов приложения
-  Future<void> _saveToJson() async {
-    final snapshot = _controller.toSnapshot();
-    final json = jsonEncode(snapshot.toJson());
-    final directory = await getApplicationDocumentsDirectory();
-    final file = File('${directory.path}/diagram.json');
-    await file.writeAsString(json);
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text('Схема сохранена: ${file.path}')));
+  bool _isSaving = false;
+
+  Future<void> _saveToDb() async {
+    final onSave = widget.onSave;
+    if (onSave == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Сохранение недоступно: экран открыт без проекта'),
+        ),
+      );
+      return;
+    }
+    if (_isSaving) return;
+
+    setState(() => _isSaving = true);
+    try {
+      await onSave(_controller.toSnapshot());
+      // FlowchartEditorPage уже показывает snackbar «Схема сохранена»,
+      // но на всякий случай продублируем — необязательно.
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Ошибка сохранения: $e')));
+    } finally {
+      if (mounted) setState(() => _isSaving = false);
+    }
   }
 
-  // Загружает схему из JSON-файла в каталоге документов
-  Future<void> _loadFromJson() async {
+  // Сохраняет схему в JSON-файл в каталоге документов приложения
+  // Future<void> _saveToJson() async {
+  //   final snapshot = _controller.toSnapshot();
+  //   final json = jsonEncode(snapshot.toJson());
+  //   final directory = await getApplicationDocumentsDirectory();
+  //   final file = File('${directory.path}/diagram.json');
+  //   await file.writeAsString(json);
+  //   ScaffoldMessenger.of(
+  //     context,
+  //   ).showSnackBar(SnackBar(content: Text('Схема сохранена: ${file.path}')));
+  // }
+
+  Future<void> _loadFromFile() async {
     try {
-      final directory = await getApplicationDocumentsDirectory();
-      final file = File('${directory.path}/diagram.json');
-      if (!await file.exists()) throw Exception('Файл не найден');
-      final jsonString = await file.readAsString();
-      final Map<String, dynamic> jsonMap = jsonDecode(jsonString);
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: const ['json'],
+        withData: true,
+      );
+      if (result == null || result.files.isEmpty) return;
+
+      final picked = result.files.first;
+      final bytes = picked.bytes;
+
+      String content;
+      if (bytes != null) {
+        content = utf8.decode(bytes);
+      } else if (picked.path != null) {
+        // desktop fallback
+        content = await File(picked.path!).readAsString();
+      } else {
+        throw Exception('Не удалось прочитать файл');
+      }
+
+      final jsonMap = jsonDecode(content) as Map<String, dynamic>;
       final snapshot = EditorSnapshot.fromJson(jsonMap);
-      _controller.fromSnapshot(snapshot);
+
+      _controller.fromSnapshot(snapshot); // внутри уже notifyListeners()
+      if (!mounted) return;
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text('Схема загружена')));
     } catch (e) {
+      if (!mounted) return;
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text('Ошибка загрузки: $e')));
     }
   }
 
-  Future<void> _exportToSvg() async {
-    if (_controller.nodes.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Нет элементов для экспорта')),
-      );
-      return;
-    }
-
-    // Диалог имени файла
-    final fileNameController = TextEditingController(text: 'diagram');
+  // Загружает схему из JSON-файла в каталоге документов
+  // Future<void> _loadFromJson() async {
+  //   try {
+  //     final directory = await getApplicationDocumentsDirectory();
+  //     final file = File('${directory.path}/diagram.json');
+  //     if (!await file.exists()) throw Exception('Файл не найден');
+  //     final jsonString = await file.readAsString();
+  //     final Map<String, dynamic> jsonMap = jsonDecode(jsonString);
+  //     final snapshot = EditorSnapshot.fromJson(jsonMap);
+  //     _controller.fromSnapshot(snapshot);
+  //     ScaffoldMessenger.of(
+  //       context,
+  //     ).showSnackBar(const SnackBar(content: Text('Схема загружена')));
+  //   } catch (e) {
+  //     ScaffoldMessenger.of(
+  //       context,
+  //     ).showSnackBar(SnackBar(content: Text('Ошибка загрузки: $e')));
+  //   }
+  // }
+  //
+  Future<String?> _askFileName(String title) async {
+    final controller = TextEditingController(text: 'diagram');
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Экспорт в SVG'),
+        title: Text(title),
         content: TextField(
-          controller: fileNameController,
+          controller: controller,
           decoration: const InputDecoration(labelText: 'Имя файла'),
         ),
         actions: [
@@ -423,9 +483,22 @@ class _EditorScreenState extends State<EditorScreen> {
         ],
       ),
     );
-    if (confirmed != true) return;
+    if (confirmed != true) return null;
+    final name = controller.text.trim();
+    return name.isEmpty ? 'diagram' : name;
+  }
 
-    // Чистый экспорт — только строка
+  Future<void> _exportToSvg() async {
+    if (_controller.nodes.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Нет элементов для экспорта')),
+      );
+      return;
+    }
+
+    final name = await _askFileName('Экспорт в SVG');
+    if (name == null) return;
+    // Чистый экспорт - только строка
     final svg = SvgExporter.export(
       graph: _controller.graph,
       router: _router,
@@ -435,16 +508,51 @@ class _EditorScreenState extends State<EditorScreen> {
     );
 
     try {
-      final directory = await getDownloadsDirectory();
-      if (directory == null) {
-        throw Exception('Не удалось получить директорию для сохранения');
-      }
-      final file = File('${directory.path}/${fileNameController.text}.svg');
-      await file.writeAsString(svg);
+      await FileSaver.instance.saveFile(
+        name: name, // без расширения
+        bytes: utf8.encode(svg),
+        ext: 'svg',
+        mimeType: MimeType.other,
+        customMimeType: 'image/svg+xml',
+      );
+      if (!mounted) return;
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(SnackBar(content: Text('Схема сохранена: ${file.path}')));
+      ).showSnackBar(SnackBar(content: Text('Файл $name.svg сохранён')));
     } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Ошибка экспорта: $e')));
+    }
+  }
+
+  Future<void> _exportToJson() async {
+    if (_controller.nodes.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Нет элементов для экспорта')),
+      );
+      return;
+    }
+
+    final name = await _askFileName('Экспорт в JSON');
+    if (name == null) return;
+
+    final json = jsonEncode(_controller.toSnapshot().toJson());
+
+    try {
+      await FileSaver.instance.saveFile(
+        name: name,
+        bytes: utf8.encode(json),
+        ext: 'json',
+        mimeType: MimeType.json,
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Файл $name.json сохранён')));
+    } catch (e) {
+      if (!mounted) return;
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text('Ошибка экспорта: $e')));
@@ -487,7 +595,7 @@ class _EditorScreenState extends State<EditorScreen> {
     final contentSize = _getContentSize();
     final graph = _controller.graph;
     final nodes = graph.nodes;
-    final connections = graph.connections;
+    // final connections = graph.connections;
     final nodeSize = _controller.nodeSize;
     final showGrid = _controller.showGrid;
     final scale = _controller.scale;
@@ -533,10 +641,12 @@ class _EditorScreenState extends State<EditorScreen> {
                     isGridVisible: showGrid,
                     onGridToggle: _controller.setShowGrid,
                     onExport: _exportToSvg,
+                    onExportJson: _exportToJson,
                     onUndo: _controller.undo,
                     onRedo: _controller.redo,
-                    onSave: _saveToJson,
-                    onLoad: _loadFromJson,
+                    onSave: _saveToDb,
+                    onLoad: _loadFromFile,
+                    isSaving: _isSaving,
                   ),
                 ),
               ),

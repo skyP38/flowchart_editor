@@ -57,8 +57,9 @@ class LayoutEngine {
     Set<String> inProgress,
   ) {
     if ((ranks[node] ?? -1) >= rank) return;
-    if (!inProgress.add(node))
-      return; // защита от циклов (loopback уже отфильтрован)
+    if (!inProgress.add(node)) {
+      return;
+    } // защита от циклов (loopback уже отфильтрован)
     ranks[node] = rank;
     for (final c in g.outgoing[node] ?? const []) {
       if (c.targetPort == 'loopback') continue;
