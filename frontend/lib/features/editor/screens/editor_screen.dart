@@ -53,8 +53,8 @@ class _EditorScreenState extends State<EditorScreen> {
   static const double _minScale = ScaleConstants.minScale;
   static const double _maxScale = ScaleConstants.maxScale;
 
-  late final ConnectionRouter _router;
-  late final InsertionPointsService _insertionPointsService;
+  late ConnectionRouter _router;
+  late InsertionPointsService _insertionPointsService;
   Size _lastNodeSize = Size.zero;
 
   @override

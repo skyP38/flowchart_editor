@@ -30,6 +30,7 @@ class FlowController extends ChangeNotifier {
   final HistoryManager _history = HistoryManager(
     maxSize: HistoryConstants.maxHistorySize,
   );
+  HistoryEntry _current() => HistoryEntry(_graph, _nodeSize);
 
   FlowController() {
     _layoutEngine = _buildEngine(_nodeSize);
@@ -84,7 +85,7 @@ class FlowController extends ChangeNotifier {
 
   // действия
   void insertNodeOnConnection(String connId, GostNodeData proto) {
-    _history.push(_graph);
+    _pushHistory();
     final res = _insertion.insertOnConnection(_graph, connId, proto);
     _graph = _relayout(res.graph);
     notifyListeners();
@@ -97,13 +98,13 @@ class FlowController extends ChangeNotifier {
         (n.data.text == 'Start' || n.data.text == 'End')) {
       return;
     }
-    _history.push(_graph);
+    _pushHistory();
     _graph = _relayout(_removeWithBridge(_graph, name));
     notifyListeners();
   }
 
   void removeConnection(String connectionId) {
-    _history.push(_graph);
+    _pushHistory();
     _graph = _relayout(_graph.withoutConnection(connectionId));
     notifyListeners();
   }
@@ -111,7 +112,7 @@ class FlowController extends ChangeNotifier {
   void updateNodeText(String name, String text) {
     final n = _graph.nodes[name];
     if (n == null) return;
-    _history.push(_graph);
+    _pushHistory();
     _graph = _graph.withNode(n.copyWith(data: n.data.copyWith(text: text)));
     notifyListeners();
   }
@@ -125,7 +126,7 @@ class FlowController extends ChangeNotifier {
 
   void setNodeSize(Size s) {
     if (_nodeSize == s) return;
-    _history.push(_graph);
+    _pushHistory();
     _nodeSize = s;
     _layoutEngine = LayoutEngine(
       nodeSize: s,
@@ -154,17 +155,21 @@ class FlowController extends ChangeNotifier {
   }
 
   void undo() {
-    final prev = _history.undo(_graph);
+    final prev = _history.undo(_current());
     if (prev != null) {
-      _graph = prev;
+      _graph = prev.graph;
+      _nodeSize = prev.nodeSize;
+      _layoutEngine = _buildEngine(_nodeSize);
       notifyListeners();
     }
   }
 
   void redo() {
-    final next = _history.redo(_graph);
+    final next = _history.redo(_current());
     if (next != null) {
-      _graph = next;
+      _graph = next.graph;
+      _nodeSize = next.nodeSize;
+      _layoutEngine = _buildEngine(_nodeSize);
       notifyListeners();
     }
   }
@@ -181,7 +186,7 @@ class FlowController extends ChangeNotifier {
 
   // загрузка
   void fromSnapshot(EditorSnapshot s) {
-    _history.push(_graph); // загрузку тоже можно отменить
+    _pushHistory(); // загрузку тоже можно отменить
     final restored = GraphMapper.fromSnapshot(s);
 
     _nodeSize = restored.nodeSize;
@@ -311,5 +316,9 @@ class FlowController extends ChangeNotifier {
 
     dfs(start);
     return result;
+  }
+
+  void _pushHistory() {
+    _history.push(HistoryEntry(_graph, _nodeSize));
   }
 }
