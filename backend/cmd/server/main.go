@@ -21,6 +21,7 @@ import (
 	"github.com/skyP38/flowchart_editor/backend/internal/service/auth"
 	"github.com/skyP38/flowchart_editor/backend/internal/service/auth/token"
 	"github.com/skyP38/flowchart_editor/backend/internal/service/ratelimit"
+	"github.com/skyP38/flowchart_editor/backend/internal/service/seed"
 	"github.com/skyP38/flowchart_editor/backend/internal/service/sessioncleanup"
 
 	//"github.com/skyP38/flowchart_editor/backend/internal/storage/memory"
@@ -50,6 +51,11 @@ func main() {
 	sessionRepo := repositories.NewSessionRepository(db)
 	projectRepo := repositories.NewProjectRepository(db)
 	flowchartRepo := repositories.NewFlowchartRepository(db)
+
+	if err := seed.Admin(context.Background(), userRepo,
+		cfg.AdminLogin, cfg.AdminPassword, cfg.PasswordPepper); err != nil {
+		log.Fatalf("seed admin: %v", err)
+	}
 
 	// фоновый чистильщик сессий
 	janitor, err := sessioncleanup.New(sessionRepo, cfg.SessionCleanupInterval, cfg.SessionRetention)

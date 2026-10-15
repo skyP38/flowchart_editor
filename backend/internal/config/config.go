@@ -51,7 +51,11 @@ type Config struct {
 	// По умолчанию: 5 минут
 	RatelimitCleanupInterval time.Duration
 
+	// Интервал запуска очистки просроченных записей сессий
+	// По умолчанию: 5 минут
 	SessionCleanupInterval time.Duration
+	// Через сколько удаляется запись сессии
+	// По умолчанию: 24 часа
 	SessionRetention       time.Duration
 
 	DatabaseURL string
@@ -98,11 +102,11 @@ func Load() (*Config, error) {
 		return nil, err
 	}
 
-	sessionCleanupInterval, err := getDuration("SESSION_CLEANUP_INTERVAL", 5*time.Minute)
+	sessionCleanupInterval, err := getDuration("SESSION_CLEANUP_INTERVAL", 1*time.Minute)
 	if err != nil {
 		return nil, err
 	}
-	sessionRetention, err := getDuration("SESSION_RETENTION", 24*time.Hour)
+	sessionRetention, err := getDuration("SESSION_RETENTION", 6*time.Hour)
 	if err != nil {
 		return nil, err
 	}
