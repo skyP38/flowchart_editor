@@ -56,6 +56,7 @@ go run ./cmd/server
 | `RATELIMIT_CLEANUP_INTERVAL` |         `5m` | Очистка rate limiter          |
 | `SESSION_CLEANUP_INTERVAL`   |         `5m` | Очистка сессий                |
 | `SESSION_RETENTION`          |        `24h` | Хранение просроченных сессий  |
+| `DATABASE_URL`               | `postgres://postgres:password@localhost:5432/flowchart_db` | Подключение к БД |     
 
 ## API
 
