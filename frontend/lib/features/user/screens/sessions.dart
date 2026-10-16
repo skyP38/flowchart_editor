@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../widgets/sidebar.dart';
+// import '../../../core/navigation/last_route_storage.dart';
+// import '../../../core/navigation/route_observer.dart';
+// import '../widgets/sidebar.dart';
 import '../models/session.dart';
 import '../../../core/network/api_service.dart';
 
@@ -50,56 +52,55 @@ class _SessionScreenState extends State<SessionScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFF5F5F5),
-      body: Row(
-        children: [
-          const Sidebar(currentRoute: 'session'),
-          Expanded(
-            child: Container(
-              color: Colors.white,
-              child: Column(
-                children: [
-                  _buildTopBar(),
-                  Expanded(
-                    child: SingleChildScrollView(
-                      padding: const EdgeInsets.all(40),
-                      child: FutureBuilder<List<Session>>(
-                        future: _sessionsFuture,
-                        builder: (context, snapshot) {
-                          if (snapshot.connectionState ==
-                              ConnectionState.waiting) {
-                            return const Center(
-                              child: CircularProgressIndicator(),
-                            );
-                          }
-                          if (snapshot.hasError) {
-                            return Center(
-                              child: Column(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Text('Ошибка: ${snapshot.error}'),
-                                  const SizedBox(height: 16),
-                                  ElevatedButton(
-                                    onPressed: _reload,
-                                    child: const Text('Повторить'),
-                                  ),
-                                ],
-                              ),
-                            );
-                          }
-                          final sessions = snapshot.data ?? [];
-                          return _buildContent(sessions);
-                        },
-                      ),
+    return Column(
+      children: [
+        // return Scaffold(
+        // backgroundColor: const Color(0xFFF5F5F5),
+        // body: Row(
+        // children: [
+        // const Sidebar(currentRoute: 'sessions'),
+        // Expanded(
+        //   child: Container(
+        //     color: Colors.white,
+        //     child: Column(
+        //       children: [
+        _buildTopBar(),
+        Expanded(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(40),
+            child: FutureBuilder<List<Session>>(
+              future: _sessionsFuture,
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+                if (snapshot.hasError) {
+                  return Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text('Ошибка: ${snapshot.error}'),
+                        const SizedBox(height: 16),
+                        ElevatedButton(
+                          onPressed: _reload,
+                          child: const Text('Повторить'),
+                        ),
+                      ],
                     ),
-                  ),
-                ],
-              ),
+                  );
+                }
+                final sessions = snapshot.data ?? [];
+                return _buildContent(sessions);
+              },
             ),
           ),
-        ],
-      ),
+        ),
+      ],
+      // ),
+      // ),
+      // ),
+      // ],
+      // ),
     );
   }
 

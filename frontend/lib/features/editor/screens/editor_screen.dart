@@ -2,8 +2,8 @@ import 'dart:convert';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:file_saver/file_saver.dart';
-import 'package:flowchart_editor_frontend/features/editor/factories/node_factory.dart';
-import 'package:flowchart_editor_frontend/features/editor/state/flow_controller.dart';
+import '../factories/node_factory.dart';
+import '../state/flow_controller.dart';
 import 'package:flutter/material.dart';
 import 'package:collection/collection.dart';
 import '../models/flow_models.dart';

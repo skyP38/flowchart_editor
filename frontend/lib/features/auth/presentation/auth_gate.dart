@@ -2,16 +2,42 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../../core/network/api_error.dart';
+// import '../../../core/navigation/last_route_storage.dart';
 import '../../user/screens/screens.dart';
 import '../../user/screens/welcome.dart';
+import '../../user/screens/sessions.dart';
+import '../../user/screens/home_shell.dart';
+
 // import '../../home/presentation/home_screen.dart';
 import '../domain/auth_repository.dart';
 import '../domain/auth_state.dart';
 //import 'login_screen.dart';
 
 /// Корневой виджет, который выбирает экран по состоянию AuthRepository
-class AuthGate extends StatelessWidget {
+class AuthGate extends StatefulWidget {
   const AuthGate({super.key});
+  @override
+  State<AuthGate> createState() => _AuthGateState();
+}
+
+class _AuthGateState extends State<AuthGate> {
+  // final _storage = LastRouteStorage();
+  // String _lastRoute = LastRouteStorage.routeProjects;
+  // // bool _routeLoaded = false;
+
+  // @override
+  // void initState() {
+  //   super.initState();
+  //   _lastRoute =
+  //       LastRouteStorage.instance.current ?? LastRouteStorage.routeProjects;
+  //   // _storage.get().then((r) {
+  //   //   if (!mounted) return;
+  //   //   setState(() {
+  //   //     _lastRoute = r;
+  //   //     _routeLoaded = true;
+  //   //   });
+  //   // });
+  // }
 
   @override
   Widget build(BuildContext context) {
@@ -19,12 +45,16 @@ class AuthGate extends StatelessWidget {
     final authRepository = context.watch<AuthRepository>();
     final state = authRepository.state;
 
-    debugPrint('AuthGate build: ${state.runtimeType}');
+    // if (!_routeLoaded) {
+    //   return const _SplashScreen();
+    // }
 
-    // Фоновое обновление
-    if (state is AuthLoading && state.isBackground) {
-      return const ProjectsScreen(); //HomeScreen(user: state.user!);
-    }
+    // // Фоновое обновление
+    // if (state is AuthLoading && state.isBackground) {
+    //   return _screenForRoute(
+    //     _lastRoute,
+    //   ); //return const ProjectsScreen(); //HomeScreen(user: state.user!);
+    // }
 
     return switch (state) {
       AuthUnknown() => const _SplashScreen(),
@@ -33,8 +63,10 @@ class AuthGate extends StatelessWidget {
 
       AuthUnauthenticated() => const WelcomeScreen(),
 
-      AuthAuthenticated() => const ProjectsScreen(),
-
+      AuthAuthenticated() => const HomeShell(),
+      // _screenForRoute(
+      // _lastRoute,
+      // ), //const ProjectsScreen(),
       //AuthUnauthenticated() => LoginScreen(onLoggedIn: () {}),
 
       // AuthAuthenticated(:final user) =>
@@ -45,6 +77,16 @@ class AuthGate extends StatelessWidget {
       ),
     };
   }
+
+  // Widget _screenForRoute(String route) {
+  //   switch (route) {
+  //     case LastRouteStorage.routeSessions:
+  //       return const SessionScreen();
+  //     case LastRouteStorage.routeProjects:
+  //     default:
+  //       return const ProjectsContent();
+  //   }
+  // }
 }
 
 // экран-заглушка на время восстановления сессии/загрузки
