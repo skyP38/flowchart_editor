@@ -3,17 +3,21 @@ import '../models/flowchart.dart';
 
 class FlowchartCard extends StatelessWidget {
   final Flowchart flowchart;
+  final VoidCallback? onTap;
   final VoidCallback? onDelete;
 
   const FlowchartCard({
     super.key,
     required this.flowchart,
+    this.onTap,
     this.onDelete,
   });
 
   @override
   Widget build(BuildContext context) {
     return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
       child: Container(
         decoration: BoxDecoration(
           color: Colors.white,
@@ -27,7 +31,7 @@ class FlowchartCard extends StatelessWidget {
               flex: 3,
               child: Container(
                 width: double.infinity,
-                  color: const Color(0xFFF9FAFB),
+                color: const Color(0xFFF9FAFB),
               ),
             ),
             Expanded(
@@ -41,8 +45,9 @@ class FlowchartCard extends StatelessWidget {
                       child: Text(
                         flowchart.name,
                         style: const TextStyle(
-                          fontSize: 16,
+                          fontSize: 15,
                           fontWeight: FontWeight.w600,
+                          height: 1.2,
                         ),
                         overflow: TextOverflow.ellipsis,
                       ),

@@ -51,17 +51,38 @@ class ApiService {
     return Flowchart.fromJson(json);
   }
 
-  Future<void> deleteFlowchart(int flowchartId) async {
-    await _client.delete<void>('/api/flowcharts/$flowchartId');
+  Future<void> deleteFlowchart(int projectId, int flowchartId) async {
+    await _client.delete<void>(
+      '/api/projects/$projectId/flowcharts/$flowchartId',
+    );
   }
-  
+
+  Future<Map<String, dynamic>> getFlowchartContent(
+    int projectId,
+    int flowchartId,
+  ) async {
+    return await _client.get<Map<String, dynamic>>(
+      '/api/projects/$projectId/flowcharts/$flowchartId/content',
+    );
+  }
+
+  Future<void> updateFlowchartContent(
+    int projectId,
+    int flowchartId,
+    Map<String, dynamic> content,
+  ) async {
+    await _client.put<void>(
+      '/api/projects/$projectId/flowcharts/$flowchartId/content',
+      data: content,
+    );
+  }
+
   Future<List<Session>> listSessions() async {
-  final List<dynamic> data = await _client.get<List<dynamic>>(
-    '/api/sessions',
-  );
-  return data
-      .map((json) => Session.fromJson(json as Map<String, dynamic>))
-      .toList();
+    final json = await _client.get<Map<String, dynamic>>('/api/sessions');
+    final list = (json['sessions'] as List<dynamic>?) ?? const <dynamic>[];
+    return list
+        .map((e) => Session.fromJson(e as Map<String, dynamic>))
+        .toList();
   }
 
   Future<void> closeSession(int sessionId) async {

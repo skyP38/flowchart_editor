@@ -3,11 +3,9 @@
 
 
 ### TODO:
-- подключение БД
 - валидация конфига
-- редактор бс
-- управления активными сессиями (UI)
 - панель администратора (пользователи, проекты)
+- бд с логами для администратора
 - документированный REST API
 - HTTPS и управление сертификатами
 
@@ -58,6 +56,7 @@ go run ./cmd/server
 | `RATELIMIT_CLEANUP_INTERVAL` |         `5m` | Очистка rate limiter          |
 | `SESSION_CLEANUP_INTERVAL`   |         `5m` | Очистка сессий                |
 | `SESSION_RETENTION`          |        `24h` | Хранение просроченных сессий  |
+| `DATABASE_URL`               | `postgres://postgres:password@localhost:5432/flowchart_db` | Подключение к БД |     
 
 ## API
 

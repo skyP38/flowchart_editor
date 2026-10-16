@@ -38,7 +38,7 @@ func (r *UserRepository) GetByID(
 		&u.IsActive,
 	)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return nil, ErrNotFound
+		return nil, domains.ErrNotFound
 	}
 	if err != nil {
 		return nil, fmt.Errorf("get user: %w", err)
@@ -66,7 +66,7 @@ func (r *UserRepository) GetByLogin(ctx context.Context, login string) (*domains
 		&u.ID, &u.Login, &u.PwdHash, &u.Uname, &u.Role, &u.CreatedAt, &u.IsActive,
 	)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return nil, ErrNotFound
+		return nil, domains.ErrNotFound
 	}
 	if err != nil {
 		return nil, fmt.Errorf("get user by login: %w", err)

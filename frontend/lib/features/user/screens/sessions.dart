@@ -13,11 +13,11 @@ class SessionScreen extends StatefulWidget {
 }
 
 class _SessionScreenState extends State<SessionScreen> {
-  static const double _createdWidth = 180;
-  static const double _statusWidth = 150;
-  static const double _activityWidth = 150;
-  static const double _actionWidth = 180;
-  static const double _colGap = 16;
+  // static const double _createdWidth = 180;
+  // static const double _statusWidth = 150;
+  // static const double _activityWidth = 150;
+  // static const double _actionWidth = 180;
+  // static const double _colGap = 16;
 
   //final ApiService _api = ApiService();
   late final ApiService _api;
@@ -42,9 +42,9 @@ class _SessionScreenState extends State<SessionScreen> {
       _reload();
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Ошибка: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Ошибка: $e')));
     }
   }
 
@@ -109,9 +109,7 @@ class _SessionScreenState extends State<SessionScreen> {
       padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 18),
       decoration: const BoxDecoration(
         color: Colors.white,
-        border: Border(
-          bottom: BorderSide(color: Color(0xFFD9D9D9)),
-        ),
+        border: Border(bottom: BorderSide(color: Color(0xFFD9D9D9))),
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -167,10 +165,7 @@ class _SessionScreenState extends State<SessionScreen> {
                 )
               else
                 for (int i = 0; i < sessions.length; i++)
-                  _buildRow(
-                    sessions[i],
-                    isLast: i == sessions.length - 1,
-                  ),
+                  _buildRow(sessions[i], isLast: i == sessions.length - 1),
             ],
           ),
         ),
@@ -183,9 +178,7 @@ class _SessionScreenState extends State<SessionScreen> {
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
       decoration: const BoxDecoration(
         color: Color(0xFFF9FAFB),
-        border: Border(
-          bottom: BorderSide(color: Color(0xFFE5E7EB)),
-        ),
+        border: Border(bottom: BorderSide(color: Color(0xFFE5E7EB))),
       ),
       child: _columns(
         session: const _HeaderCell('SESSION'),
@@ -203,9 +196,7 @@ class _SessionScreenState extends State<SessionScreen> {
       decoration: BoxDecoration(
         border: isLast
             ? null
-            : const Border(
-                bottom: BorderSide(color: Color(0xFFF3F4F6)),
-              ),
+            : const Border(bottom: BorderSide(color: Color(0xFFF3F4F6))),
       ),
       child: _columns(
         session: Row(
@@ -227,6 +218,8 @@ class _SessionScreenState extends State<SessionScreen> {
             Expanded(
               child: Text(
                 'Session #${s.id}',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w600,
@@ -238,6 +231,8 @@ class _SessionScreenState extends State<SessionScreen> {
         ),
         created: Text(
           s.createdLabel,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
           style: const TextStyle(fontSize: 14, color: Color(0xFF4B5563)),
         ),
         status: Container(
@@ -251,6 +246,8 @@ class _SessionScreenState extends State<SessionScreen> {
           ),
           child: Text(
             s.statusLabel,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
             style: TextStyle(
               fontSize: 14,
               fontWeight: FontWeight.w600,
@@ -262,6 +259,8 @@ class _SessionScreenState extends State<SessionScreen> {
         ),
         activity: Text(
           s.activityLabel,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
           style: const TextStyle(fontSize: 14, color: Color(0xFF4B5563)),
         ),
         action: Align(
@@ -283,15 +282,24 @@ class _SessionScreenState extends State<SessionScreen> {
   }) {
     return Row(
       children: [
-        Expanded(child: session),
-        const SizedBox(width: _colGap),
-        SizedBox(width: _createdWidth, child: created),
-        const SizedBox(width: _colGap),
-        SizedBox(width: _statusWidth, child: status),
-        const SizedBox(width: _colGap),
-        SizedBox(width: _activityWidth, child: activity),
-        const SizedBox(width: _colGap),
-        SizedBox(width: _actionWidth, child: action),
+        Expanded(flex: 4, child: session),
+        const SizedBox(width: 12),
+        Expanded(flex: 3, child: created),
+        const SizedBox(width: 12),
+        Expanded(flex: 3, child: status),
+        const SizedBox(width: 12),
+        Expanded(flex: 3, child: activity),
+        const SizedBox(width: 12),
+        Expanded(flex: 3, child: action),
+        // Expanded(child: session),
+        // const SizedBox(width: _colGap),
+        // SizedBox(width: _createdWidth, child: created),
+        // const SizedBox(width: _colGap),
+        // SizedBox(width: _statusWidth, child: status),
+        // const SizedBox(width: _colGap),
+        // SizedBox(width: _activityWidth, child: activity),
+        // const SizedBox(width: _colGap),
+        // SizedBox(width: _actionWidth, child: action),
       ],
     );
   }

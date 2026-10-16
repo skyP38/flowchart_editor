@@ -2,12 +2,12 @@ package repositories
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
-	"errors"
 
 	"github.com/skyP38/flowchart_editor/backend/internal/domains"
-	
+
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -36,7 +36,6 @@ func (r *SessionRepository) AddSession(
 	}
 	return id, nil
 }
-
 
 func (r *SessionRepository) ListByUserID(
 	ctx context.Context,
@@ -84,7 +83,7 @@ func (r *SessionRepository) Close(
 		return fmt.Errorf("close session: %w", err)
 	}
 	if result.RowsAffected() == 0 {
-		return ErrNotFound
+		return domains.ErrNotFound
 	}
 	return nil
 }
@@ -109,7 +108,7 @@ func (r *SessionRepository) GetByTokenHash(ctx context.Context, hash string) (*d
 		&s.ID, &s.UserID, &s.TokenHash, &s.CreatedAt, &s.ExpiresAt, &s.RevokedAt,
 	)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return nil, ErrNotFound
+		return nil, domains.ErrNotFound
 	}
 	if err != nil {
 		return nil, fmt.Errorf("get session by hash: %w", err)
@@ -125,7 +124,7 @@ func (r *SessionRepository) GetByID(ctx context.Context, id int64) (*domains.Ses
 		&s.ID, &s.UserID, &s.TokenHash, &s.CreatedAt, &s.ExpiresAt, &s.RevokedAt,
 	)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return nil, ErrNotFound
+		return nil, domains.ErrNotFound
 	}
 	if err != nil {
 		return nil, fmt.Errorf("get session: %w", err)
@@ -134,9 +133,14 @@ func (r *SessionRepository) GetByID(ctx context.Context, id int64) (*domains.Ses
 }
 
 func (r *SessionRepository) Revoke(ctx context.Context, id int64, now time.Time) error {
-	_, err := r.db.Exec(ctx,
-		`UPDATE sessions SET revoked_at = $1
-		WHERE id_sessions = $2 AND revoked_at IS NULL`, now, id)
+	var idOut int64
+	err := r.db.QueryRow(ctx,
+		`UPDATE sessions SET revoked_at = COALESCE(revoked_at, $1)
+		WHERE id_sessions = $2 RETURNING id_sessions`,
+		now, id).Scan(&idOut)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return domains.ErrNotFound
+	}
 	if err != nil {
 		return fmt.Errorf("revoke session: %w", err)
 	}
@@ -152,4 +156,16 @@ func (r *SessionRepository) RevokeAllExcept(ctx context.Context, userID, keepID 
 		return fmt.Errorf("revoke all except: %w", err)
 	}
 	return nil
+}
+
+func (r *SessionRepository) RemoveExpired(ctx context.Context, retention time.Duration) (int, error) {
+	cutoff := time.Now().UTC().Add(-retention)
+	res, err := r.db.Exec(ctx,
+		`DELETE FROM sessions
+         WHERE (expires_at < $1) OR (revoked_at IS NOT NULL AND revoked_at < $1)`,
+		cutoff)
+	if err != nil {
+		return 0, err
+	}
+	return int(res.RowsAffected()), nil
 }

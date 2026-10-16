@@ -3,6 +3,7 @@ package api
 
 import (
 	"context"
+	"errors"
 	"log"
 	"net/http"
 	"strconv"
@@ -53,7 +54,17 @@ func Auth(mgr *token.AccessTokenManager, sessions domains.SessionRepository) Aut
 
 			// проверка сессии в хранилище на каждом запросе приводит к logout
 			sess, err := sessions.GetByID(r.Context(), sid)
-			if err != nil || sess.UserID != uid || !sess.IsActive(time.Now().UTC()) {
+			if err != nil {
+				if errors.Is(err, domains.ErrNotFound) {
+					transport.WriteError(w, http.StatusUnauthorized, transport.CodeSessionRevoked, "session is no longer active")
+					return
+				}
+				// реальная ошибка БД
+				log.Printf("auth: session lookup: %v", err)
+				transport.WriteError(w, http.StatusInternalServerError, transport.CodeInternal, "internal server error")
+				return
+			}
+			if sess.UserID != uid || !sess.IsActive(time.Now().UTC()) {
 				transport.WriteError(w, http.StatusUnauthorized, transport.CodeSessionRevoked, "session is no longer active")
 				return
 			}
