@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:collection/collection.dart';
 import '../models/flow_models.dart';
 import 'flowchart_graph.dart';
+import 'dart:math' as math;
 
 class LayoutSpacing {
   final double stepX;
@@ -141,12 +142,25 @@ class LayoutEngine {
 
     // 3. Сборка
     final result = <String, Offset>{};
+    // Сдвиг для центровки блоков в ячейках сетки
+    final shiftX = (spacing.stepX - nodeSize.width) / 2;
+    final shiftY = (spacing.stepY - nodeSize.height) / 2;
+    // Фиксированная база — не зависит от start.position,
+    // иначе сдвиг накапливается при каждом relayout.
+    //
+    final depth = maxForDepth(g);
+    final insetOuter = spacing.stepX / 12.0 * (depth + 1);
+    const leftMargin = 20.0;
+    final baseX = math.max(50.0, insetOuter - shiftX + leftMargin);
+
+    // const baseX = 50.0;
+    const baseY = 50.0;
     for (final name in g.nodes.keys) {
       final r = ranks[name] ?? 0;
       final c = cols[name] ?? 0;
       result[name] = Offset(
-        start.position.dx + c * spacing.stepX,
-        start.position.dy + r * spacing.stepY,
+        baseX + c * spacing.stepX + shiftX,
+        baseY + r * spacing.stepY + shiftY,
       );
     }
     return result;
@@ -329,6 +343,62 @@ class LayoutEngine {
       cur = next;
     }
     return maxRank;
+  }
+
+  // Максимальная глубина вложенности среди всех For графа
+  static int maxForDepth(FlowchartGraph g) {
+    int maxDepth = 0;
+    for (final e in g.nodes.entries) {
+      if (e.value.data is! ForBlock) continue;
+      final a = _forAncestorCount(g, e.key);
+      if (a > maxDepth) maxDepth = a;
+    }
+    return maxDepth;
+  }
+
+  static int _forAncestorCount(FlowchartGraph g, String forName) {
+    int count = 0;
+    String cur = forName;
+    final visited = <String>{forName};
+    while (true) {
+      String? bestParent;
+      int bestSize = 1 << 30;
+      for (final c in g.connections) {
+        if (c.sourcePort != 'body') continue;
+        if (visited.contains(c.sourceNodeName)) continue;
+        if (c.targetNodeName == cur) {
+          bestParent = c.sourceNodeName;
+          bestSize = 0;
+          break;
+        }
+        final sub = _subtreeNodesStatic(g, c.targetNodeName);
+        if (sub.contains(cur) && sub.length < bestSize) {
+          bestSize = sub.length;
+          bestParent = c.sourceNodeName;
+        }
+      }
+      if (bestParent == null) break;
+      visited.add(bestParent);
+      count++;
+      cur = bestParent;
+    }
+    return count;
+  }
+
+  static Set<String> _subtreeNodesStatic(FlowchartGraph g, String root) {
+    final result = <String>{};
+    void dfs(String n) {
+      if (result.contains(n)) return;
+      result.add(n);
+      if (g.isEnd(n)) return;
+      for (final c in g.outgoing[n] ?? const []) {
+        if (c.targetPort == 'loopback') continue;
+        dfs(c.targetNodeName);
+      }
+    }
+
+    dfs(root);
+    return result;
   }
 }
 

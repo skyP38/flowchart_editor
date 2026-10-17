@@ -45,6 +45,7 @@ class _EditorScreenState extends State<EditorScreen> {
   List<InsertionPoint> _insertionPoints = [];
   GostNodeData? _selectedPrototype;
   String? _selectedConnectionId;
+  LayoutSpacing? _lastSpacing;
 
   final FocusNode _focusNode = FocusNode();
   final ScrollController _verticalScrollController = ScrollController();
@@ -74,18 +75,33 @@ class _EditorScreenState extends State<EditorScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _focusNode.requestFocus();
     });
+
+    debugPrint(
+      '[EditorScreen] init snapshot=${widget.initialSnapshot != null}',
+    );
+    if (widget.initialSnapshot != null) {
+      _controller.fromSnapshot(widget.initialSnapshot!);
+      debugPrint(
+        '[EditorScreen] fromSnapshot done, '
+        'nodes=${_controller.nodes.length}',
+      );
+      _controller.clearHistory();
+    } else {
+      _controller.initDefaultDiagram();
+      debugPrint(
+        '[EditorScreen] default done, '
+        'nodes=${_controller.nodes.length}',
+      );
+    }
   }
 
   // Пересобирает роутер и сервис точек вставки под текущий размер блока
   void _rebuildRouter() {
-    final size = _controller.nodeSize;
-    _lastNodeSize = size;
+    _lastNodeSize = _controller.nodeSize;
+    _lastSpacing = _controller.spacing;
     _router = ConnectionRouter(
-      nodeSize: size,
-      spacing: LayoutSpacing(
-        stepX: size.width + LayoutConstants.stepXExtra,
-        stepY: size.height + LayoutConstants.stepYExtra,
-      ),
+      nodeSize: _controller.nodeSize,
+      spacing: _controller.spacing,
     );
     _insertionPointsService = InsertionPointsService(router: _router);
   }
@@ -94,7 +110,10 @@ class _EditorScreenState extends State<EditorScreen> {
   void _onControllerChanged() {
     if (!mounted) return;
 
-    if (_controller.nodeSize != _lastNodeSize) {
+    final spacing = _controller.spacing;
+    if (_controller.nodeSize != _lastNodeSize ||
+        spacing.stepX != _lastSpacing?.stepX ||
+        spacing.stepY != _lastSpacing?.stepY) {
       _rebuildRouter();
     }
 
@@ -372,6 +391,11 @@ class _EditorScreenState extends State<EditorScreen> {
   //
   // Rank считается из вертикальной позиции, col - из горизонтальной.
   void _dumpLayout() {
+    debugPrint(
+      '[layout] stepX=${_controller.spacing.stepX} '
+      'stepY=${_controller.spacing.stepY} '
+      'depth=${LayoutEngine.maxForDepth(_controller.graph)}',
+    );
     final graph = _controller.graph;
     final nodes = graph.nodes;
     if (nodes.isEmpty) {
@@ -589,6 +613,7 @@ class _EditorScreenState extends State<EditorScreen> {
       graph: _controller.graph,
       router: _router,
       nodeSize: _controller.nodeSize,
+      spacing: _controller.spacing,
       canvasSize: _getContentSize(),
       showGrid: _controller.showGrid,
     );
@@ -696,10 +721,20 @@ class _EditorScreenState extends State<EditorScreen> {
       if (startNodeEntry != null) {
         gridWidget = GridWithLabels(
           canvasSize: contentSize,
-          stepX: nodeSize.width,
-          stepY: nodeSize.height,
+          columnWidth: _controller.spacing.stepX, // ← вот это ключевое
+          rowHeight: _controller.spacing.stepY,
+          nodeWidth: _controller.nodeSize.width,
+          nodeHeight: _controller.nodeSize.height,
           startPosition: startNodeEntry.value.position,
         );
+        // gridWidget = GridWithLabels(
+        //   canvasSize: contentSize,
+        //   stepX: _controller.spacing.stepX - GridConstants.stepXExtra,
+        //   stepY: _controller.spacing.stepY - GridConstants.stepYExtra,
+        //   // stepX: nodeSize.width,
+        //   // stepY: nodeSize.height,
+        //   startPosition: startNodeEntry.value.position,
+        // );
       }
     }
 
@@ -939,17 +974,49 @@ class _EditorScreenState extends State<EditorScreen> {
 }
 
 /// Виджет с подписями сетки (буквы строк и цифры столбцов).
+// class GridWithLabels extends StatelessWidget {
+//   final Size canvasSize;
+//   final double stepX;
+//   final double stepY;
+//   final Offset? startPosition;
+
+//   const GridWithLabels({
+//     super.key,
+//     required this.canvasSize,
+//     required this.stepX,
+//     required this.stepY,
+//     required this.startPosition,
+//   });
+
+//   @override
+//   Widget build(BuildContext context) {
+//     if (startPosition == null) return const SizedBox.shrink();
+//     return CustomPaint(
+//       size: canvasSize,
+//       painter: GridLabelsPainter(
+//         stepX: stepX,
+//         stepY: stepY,
+//         startPosition: startPosition!,
+//       ),
+//     );
+//   }
+// }
+
 class GridWithLabels extends StatelessWidget {
   final Size canvasSize;
-  final double stepX;
-  final double stepY;
+  final double columnWidth;
+  final double rowHeight;
+  final double nodeWidth;
+  final double nodeHeight;
   final Offset? startPosition;
 
   const GridWithLabels({
     super.key,
     required this.canvasSize,
-    required this.stepX,
-    required this.stepY,
+    required this.columnWidth,
+    required this.rowHeight,
+    required this.nodeWidth,
+    required this.nodeHeight,
     required this.startPosition,
   });
 
@@ -959,8 +1026,10 @@ class GridWithLabels extends StatelessWidget {
     return CustomPaint(
       size: canvasSize,
       painter: GridLabelsPainter(
-        stepX: stepX,
-        stepY: stepY,
+        columnWidth: columnWidth,
+        rowHeight: rowHeight,
+        nodeWidth: nodeWidth,
+        nodeHeight: nodeHeight,
         startPosition: startPosition!,
       ),
     );

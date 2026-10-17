@@ -9,14 +9,18 @@ class NodeConstants {
   static const double handleInnerSize = 14;
   static const double handleOffset = -14;
   static const double handleRightOffset = -12;
-  static const double startPadding = 50;
+  static const double startPadding = 70;
 }
 
 class LayoutConstants {
   LayoutConstants._();
   static const double stepXExtra = 70;
   static const double stepYExtra = 40;
-  static const double startPadding = 50;
+  // Дополнительный горизонтальный шаг на каждый уровень вложенности For.
+  static const double loopbackChannelWidth = 15;
+  // Дополнительный вертикальный шаг на каждый уровень вложенности For.
+  static const double loopbackChannelHeight = 8;
+  static const double startPadding = 70;
   static const double rankGap = 50;
   static const double bodyOffsetY = 30;
   static const double exitOffsetX = 40;

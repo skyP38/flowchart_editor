@@ -33,16 +33,41 @@ class FlowController extends ChangeNotifier {
   HistoryEntry _current() => HistoryEntry(_graph, _nodeSize);
 
   FlowController() {
-    _layoutEngine = _buildEngine(_nodeSize);
+    _layoutEngine = _buildEngine(_graph, _nodeSize);
   }
 
-  static LayoutEngine _buildEngine(Size size) => LayoutEngine(
-    nodeSize: size,
-    spacing: LayoutSpacing(
-      stepX: size.width + LayoutConstants.stepXExtra,
-      stepY: size.height + LayoutConstants.stepYExtra,
-    ),
-  );
+  static LayoutEngine _buildEngine(FlowchartGraph g, Size size) {
+    final depth = LayoutEngine.maxForDepth(g);
+
+    // горизонтальный шаг
+    final baseExtraX = LayoutConstants.stepXExtra;
+    double extraX = baseExtraX - 20;
+    if (depth > 0) {
+      const padding = LayoutConstants.loopbackChannelWidth;
+      final ratio = 1.0 - (depth + 1) / 12.0;
+      if (ratio > 0.1) {
+        final requiredWidth = (size.width + padding) / ratio;
+        final requiredExtra = requiredWidth - size.width;
+        if (requiredExtra > extraX) extraX = requiredExtra;
+      } else {
+        // fallback на случай очень глубокой вложенности
+        extraX = baseExtraX + depth * LayoutConstants.loopbackChannelWidth;
+      }
+    }
+    // final extraX =
+    //     LayoutConstants.stepXExtra +
+    //     forDepth * LayoutConstants.loopbackChannelWidth;
+    final extraY =
+        LayoutConstants.stepYExtra +
+        depth * LayoutConstants.loopbackChannelHeight;
+    return LayoutEngine(
+      nodeSize: size,
+      spacing: LayoutSpacing(
+        stepX: size.width + extraX,
+        stepY: size.height + extraY,
+      ),
+    );
+  }
 
   FlowchartGraph get graph => _graph;
   Map<String, NodeModel> get nodes => _graph.nodes;
@@ -53,6 +78,7 @@ class FlowController extends ChangeNotifier {
   bool get isToolbarVisible => _isToolbarVisible;
   bool get canUndo => _history.canUndo;
   bool get canRedo => _history.canRedo;
+  LayoutSpacing get spacing => _layoutEngine.spacing;
 
   void initDefaultDiagram() {
     final start = NodeFactory.createNode(
@@ -128,10 +154,10 @@ class FlowController extends ChangeNotifier {
     if (_nodeSize == s) return;
     _pushHistory();
     _nodeSize = s;
-    _layoutEngine = LayoutEngine(
-      nodeSize: s,
-      spacing: LayoutSpacing(stepX: s.width + 70, stepY: s.height + 40),
-    );
+    // _layoutEngine = LayoutEngine(
+    //   nodeSize: s,
+    //   spacing: LayoutSpacing(stepX: s.width + 70, stepY: s.height + 40),
+    // );
     _graph = _relayout(_graph);
     notifyListeners();
   }
@@ -159,7 +185,7 @@ class FlowController extends ChangeNotifier {
     if (prev != null) {
       _graph = prev.graph;
       _nodeSize = prev.nodeSize;
-      _layoutEngine = _buildEngine(_nodeSize);
+      _layoutEngine = _buildEngine(_graph, _nodeSize);
       notifyListeners();
     }
   }
@@ -169,7 +195,7 @@ class FlowController extends ChangeNotifier {
     if (next != null) {
       _graph = next.graph;
       _nodeSize = next.nodeSize;
-      _layoutEngine = _buildEngine(_nodeSize);
+      _layoutEngine = _buildEngine(_graph, _nodeSize);
       notifyListeners();
     }
   }
@@ -190,13 +216,13 @@ class FlowController extends ChangeNotifier {
     final restored = GraphMapper.fromSnapshot(s);
 
     _nodeSize = restored.nodeSize;
-    _layoutEngine = LayoutEngine(
-      nodeSize: _nodeSize,
-      spacing: LayoutSpacing(
-        stepX: _nodeSize.width + 70,
-        stepY: _nodeSize.height + 40,
-      ),
-    );
+    // _layoutEngine = LayoutEngine(
+    //   nodeSize: _nodeSize,
+    //   spacing: LayoutSpacing(
+    //     stepX: _nodeSize.width + 70,
+    //     stepY: _nodeSize.height + 40,
+    //   ),
+    // );
 
     _graph = _relayout(restored.graph); // пересчитываем раскладку из данных
     _showGrid = restored.showGrid;
@@ -208,6 +234,9 @@ class FlowController extends ChangeNotifier {
 
   // helpers
   FlowchartGraph _relayout(FlowchartGraph g) {
+    // final depth = LayoutEngine.maxForDepth(g);
+    _layoutEngine = _buildEngine(g, _nodeSize);
+
     final positions = _layoutEngine.compute(g);
     final newNodes = <String, NodeModel>{};
     for (final e in g.nodes.entries) {
