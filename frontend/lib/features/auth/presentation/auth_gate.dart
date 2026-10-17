@@ -10,6 +10,8 @@ import '../domain/auth_state.dart';
 
 import 'widgets/auth_dimensions.dart';
 import 'widgets/auth_typ.dart';
+import '../../../core/navigation/last_route_storage.dart';
+import '../../user/screens/guest_editor_screen.dart';
 
 // Корневой виджет, который выбирает экран по состоянию AuthRepository
 class AuthGate extends StatefulWidget {
@@ -23,6 +25,7 @@ class _AuthGateState extends State<AuthGate> {
   Widget build(BuildContext context) {
     // AuthGate перестраивается при каждом notifyListeners()
     final authRepository = context.watch<AuthRepository>();
+    final routeStorage = context.watch<LastRouteStorage>();
     final state = authRepository.state;
 
     return switch (state) {
@@ -30,10 +33,12 @@ class _AuthGateState extends State<AuthGate> {
 
       AuthLoading() => const _SplashScreen(),
 
-      AuthUnauthenticated() => const WelcomeScreen(),
+      AuthUnauthenticated() =>
+        routeStorage.isGuest
+            ? const GuestEditorScreen()
+            : const WelcomeScreen(),
 
-      AuthAuthenticated() => const HomeShell(),
-      // _screenForRoute(
+      AuthAuthenticated() => const HomeShell(), // _screenForRoute(
       // _lastRoute,
       // ), //const ProjectsScreen(),
       //AuthUnauthenticated() => LoginScreen(onLoggedIn: () {}),

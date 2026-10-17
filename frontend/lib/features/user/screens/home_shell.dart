@@ -22,6 +22,10 @@ class _HomeShellState extends State<HomeShell> {
   @override
   void initState() {
     super.initState();
+    if (LastRouteStorage.instance.isGuest) {
+      LastRouteStorage.instance.setGuest(false);
+    }
+
     final storage = LastRouteStorage.instance;
     _tab = storage.tab == LastRouteStorage.routeSessions
         ? _sessions
@@ -50,42 +54,17 @@ class _HomeShellState extends State<HomeShell> {
       PageRouteBuilder(
         transitionDuration: Duration.zero,
         reverseTransitionDuration: Duration.zero,
-        pageBuilder: (_, __, ___) => ProjectScreen(
+        pageBuilder: (_, _, _) => ProjectScreen(
           projectId: projectId,
           restoreFlowchartId: LastRouteStorage.instance.flowchartId,
         ),
       ),
     );
 
-    // await Navigator.of(context).push(
-    //   MaterialPageRoute(
-    //     builder: (_) => ProjectScreen(
-    //       projectId: projectId,
-    //       restoreFlowchartId: LastRouteStorage.instance.flowchartId,
-    //     ),
-    //   ),
-    // );
-
     if (!mounted) return;
     // Пользователь вернулся из проекта
     setState(() => _drillDownActive = false);
   }
-
-  // Future<void> _restoreDrillDown() async {
-  //   final storage = LastRouteStorage.instance;
-  //   final projectId = storage.projectId;
-  //   if (projectId == null || !mounted) return;
-
-  //   await Navigator.of(context).push(
-  //     MaterialPageRoute(
-  //       builder: (_) => ProjectScreen(
-  //         projectId: projectId,
-  //         restoreFlowchartId:
-  //             storage.flowchartId, // null, если редактор не был открыт
-  //       ),
-  //     ),
-  //   );
-  // }
 
   Future<void> _selectTab(int index) async {
     if (_tab == index) return;
@@ -110,10 +89,6 @@ class _HomeShellState extends State<HomeShell> {
                     index: _tab,
                     children: const [ProjectsContent(), SessionScreen()],
                   ),
-            // child: IndexedStack(
-            //   index: _tab,
-            //   children: const [ProjectsContent(), SessionScreen()],
-            // ),
           ),
         ],
       ),

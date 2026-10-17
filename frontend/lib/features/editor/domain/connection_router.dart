@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import '../factories/node_factory.dart';
 import '../models/editor_models.dart';
-import '../models/flow_models.dart';
 import 'flowchart_graph.dart';
 import 'layout_engine.dart';
 

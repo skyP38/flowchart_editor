@@ -33,6 +33,8 @@ class VerticalToolbar extends StatelessWidget {
 
   final bool isSaving;
 
+  final bool canSave;
+
   const VerticalToolbar({
     super.key,
     required this.selectedPrototype,
@@ -47,6 +49,7 @@ class VerticalToolbar extends StatelessWidget {
     required this.onSave,
     required this.onLoad,
     this.isSaving = false,
+    this.canSave = true,
   });
 
   @override
@@ -141,18 +144,21 @@ class VerticalToolbar extends StatelessWidget {
               onPressed: onRedo,
               child: const Text('Вернуть (Ctrl+Y)'),
             ),
-            const SizedBox(height: 8),
-            // ElevatedButton(onPressed: onSave, child: const Text('Сохранить')),
-            ElevatedButton(
-              onPressed: isSaving ? null : onSave,
-              child: isSaving
-                  ? const SizedBox(
-                      width: 16,
-                      height: 16,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Text('Сохранить'),
-            ),
+
+            if (canSave) ...[
+              const SizedBox(height: 8),
+              // ElevatedButton(onPressed: onSave, child: const Text('Сохранить')),
+              ElevatedButton(
+                onPressed: isSaving ? null : onSave,
+                child: isSaving
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Text('Сохранить'),
+              ),
+            ],
           ],
         ),
       ),

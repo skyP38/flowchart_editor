@@ -195,8 +195,9 @@ class LayoutEngine {
     cols[node] = column;
 
     for (final c in g.outgoing[node] ?? const []) {
-      if (c.sourcePort == 'no')
+      if (c.sourcePort == 'no') {
         continue; // вложенные no обрабатываются отдельно
+      }
       if (c.targetPort == 'loopback') continue;
       _assignBranchSubtree(
         c.targetNodeName,

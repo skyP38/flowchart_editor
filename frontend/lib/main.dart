@@ -45,6 +45,9 @@ Future<void> main() async {
         Provider<AuthApi>.value(value: authApi),
         Provider<ApiService>.value(value: apiService),
         ChangeNotifierProvider<AuthRepository>.value(value: authRepository),
+        ChangeNotifierProvider<LastRouteStorage>.value(
+          value: LastRouteStorage.instance,
+        ),
         Provider<ApiService>.value(value: apiService),
       ],
       child: const MyApp(),

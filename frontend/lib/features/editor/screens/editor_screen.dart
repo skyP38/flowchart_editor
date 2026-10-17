@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:async';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:file_saver/file_saver.dart';
@@ -23,13 +24,21 @@ import '../domain/connection_router.dart';
 import '../domain/insertion_points.dart';
 import '../constants/diagram_constants.dart';
 import '../utils/svg_exporter.dart';
+import '../../../core/storage/guest_diagram_storage.dart';
 
 // Главный экран редактора блок-схем
 class EditorScreen extends StatefulWidget {
   final EditorSnapshot? initialSnapshot;
   final Future<void> Function(EditorSnapshot snapshot)? onSave;
 
-  const EditorScreen({super.key, this.initialSnapshot, this.onSave});
+  final bool canSave;
+
+  const EditorScreen({
+    super.key,
+    this.initialSnapshot,
+    this.onSave,
+    this.canSave = true,
+  });
   @override
   State<EditorScreen> createState() => _EditorScreenState();
 }
@@ -58,6 +67,9 @@ class _EditorScreenState extends State<EditorScreen> {
   late InsertionPointsService _insertionPointsService;
   Size _lastNodeSize = Size.zero;
 
+  Timer? _saveDebounce;
+  bool _autoSaveEnabled = false;
+
   @override
   void initState() {
     super.initState();
@@ -72,8 +84,15 @@ class _EditorScreenState extends State<EditorScreen> {
     _insertionPoints = _insertionPointsService.compute(_controller.graph);
     _controller.addListener(_onControllerChanged);
 
-    WidgetsBinding.instance.addPostFrameCallback((_) {
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
       _focusNode.requestFocus();
+
+      // Гостевой режим - восстанавливаем черновик
+      if (!widget.canSave && widget.onSave == null) {
+        await _tryRestoreGuestDraft();
+        if (!mounted) return;
+        _autoSaveEnabled = true;
+      }
     });
 
     debugPrint(
@@ -92,6 +111,42 @@ class _EditorScreenState extends State<EditorScreen> {
         '[EditorScreen] default done, '
         'nodes=${_controller.nodes.length}',
       );
+    }
+  }
+
+  Future<void> _tryRestoreGuestDraft() async {
+    final raw = await GuestDiagramStorage.instance.load();
+    if (raw == null || !mounted) return;
+    try {
+      final json = jsonDecode(raw) as Map<String, dynamic>;
+      final snapshot = EditorSnapshot.fromJson(json);
+      _controller.fromSnapshot(snapshot);
+      _controller.clearHistory();
+      setState(() {
+        _insertionPoints = _insertionPointsService.compute(_controller.graph);
+      });
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Восстановлен черновик')));
+    } catch (e) {
+      debugPrint('[GuestEditor] restore failed: $e');
+      await GuestDiagramStorage.instance.clear();
+    }
+  }
+
+  void _scheduleAutoSave() {
+    _saveDebounce?.cancel();
+    _saveDebounce = Timer(const Duration(milliseconds: 500), _flushAutoSave);
+  }
+
+  Future<void> _flushAutoSave() async {
+    if (!_autoSaveEnabled || !mounted) return;
+    try {
+      final snap = _controller.toSnapshot();
+      await GuestDiagramStorage.instance.save(jsonEncode(snap.toJson()));
+    } catch (e) {
+      debugPrint('[GuestEditor] autosave failed: $e');
     }
   }
 
@@ -120,10 +175,21 @@ class _EditorScreenState extends State<EditorScreen> {
     setState(() {
       _insertionPoints = _insertionPointsService.compute(_controller.graph);
     });
+
+    if (_autoSaveEnabled) {
+      _scheduleAutoSave();
+    }
   }
 
   @override
   void dispose() {
+    _saveDebounce?.cancel();
+    if (_autoSaveEnabled) {
+      try {
+        final snap = _controller.toSnapshot();
+        GuestDiagramStorage.instance.save(jsonEncode(snap.toJson()));
+      } catch (_) {}
+    }
     _controller.removeListener(_onControllerChanged);
     _controller.dispose();
     _focusNode.dispose();
@@ -766,6 +832,7 @@ class _EditorScreenState extends State<EditorScreen> {
                     onUndo: _controller.undo,
                     onRedo: _controller.redo,
                     onSave: _saveToDb,
+                    canSave: widget.canSave && widget.onSave != null,
                     onLoad: _loadFromFile,
                     isSaving: _isSaving,
                   ),
