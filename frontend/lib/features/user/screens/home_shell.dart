@@ -27,10 +27,18 @@ class _HomeShellState extends State<HomeShell> {
         ? _sessions
         : _projects;
 
+    debugPrint(
+      '[HomeShell] init tab=$_tab pid=${storage.projectId} '
+      'fid=${storage.flowchartId}',
+    );
+
     final pid = storage.projectId;
     if (pid != null) {
       _drillDownActive = true;
-      WidgetsBinding.instance.addPostFrameCallback((_) => _pushProject(pid));
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        debugPrint('[HomeShell] pushing ProjectScreen($pid)');
+        _pushProject(pid);
+      });
     }
     // WidgetsBinding.instance.addPostFrameCallback((_) => _restoreDrillDown());
   }

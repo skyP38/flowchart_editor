@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
 import 'auth_colors.dart';
+import 'auth_dimensions.dart';
+import 'auth_typ.dart';
 
 // Подпись над полем ввода
 class AuthLabel extends StatelessWidget {
@@ -11,13 +13,13 @@ class AuthLabel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 8.0),
+      padding: const EdgeInsets.only(bottom: AuthDimensions.gapSm),
       child: Text(
         text,
         style: const TextStyle(
           color: AuthColors.text,
-          fontSize: 14,
-          fontWeight: FontWeight.w500,
+          fontSize: AuthTypography.fontSizeSm,
+          fontWeight: AuthTypography.weightMedium,
         ),
       ),
     );

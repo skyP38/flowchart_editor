@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'auth_colors.dart';
+import 'auth_dimensions.dart';
 
-/// Белая карточка с тенью, в которой лежит форма
+// карточка с тенью, в которой лежит форма
 class AuthCard extends StatelessWidget {
   final Widget child;
 
@@ -9,15 +11,18 @@ class AuthCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 40),
+      padding: const EdgeInsets.symmetric(
+        horizontal: AuthDimensions.cardHorizontalPadding,
+        vertical: AuthDimensions.cardVerticalPadding,
+      ),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
+        color: AuthColors.surface,
+        borderRadius: BorderRadius.circular(AuthDimensions.radiusLg),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 20,
-            offset: const Offset(0, 10),
+            color: AuthColors.cardShadow,
+            blurRadius: AuthDimensions.cardShadowBlur,
+            offset: AuthDimensions.cardShadowOffset,
           ),
         ],
       ),

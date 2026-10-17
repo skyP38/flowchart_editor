@@ -42,6 +42,8 @@ Future<void> main() async {
   runApp(
     MultiProvider(
       providers: [
+        Provider<AuthApi>.value(value: authApi),
+        Provider<ApiService>.value(value: apiService),
         ChangeNotifierProvider<AuthRepository>.value(value: authRepository),
         Provider<ApiService>.value(value: apiService),
       ],

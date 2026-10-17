@@ -33,13 +33,19 @@ class _ProjectScreenState extends State<ProjectScreen> {
   @override
   void initState() {
     super.initState();
+    debugPrint(
+      '[ProjectScreen] init pid=${widget.projectId} '
+      'restore=${widget.restoreFlowchartId}',
+    );
     _api = context.read<ApiService>();
     _projectFuture = _api.getProject(widget.projectId);
     _storage.setProject(widget.projectId);
     final fid = widget.restoreFlowchartId;
     if (fid != null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted) return;
+        debugPrint('[ProjectScreen] pushing editor($fid)');
+        // _restoreFlowchartEditor(fid);
+        // if (!mounted) return;
         _openFlowchartEditor(fid);
       });
     }

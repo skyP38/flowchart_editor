@@ -5,6 +5,7 @@ import '../../../core/network/api_error.dart';
 import '../domain/auth_repository.dart';
 import '../domain/auth_state.dart';
 import 'widgets/auth_widgets.dart';
+import '../domain/auth_limits.dart';
 
 class RegistrationScreen extends StatefulWidget {
   const RegistrationScreen({super.key});
@@ -57,18 +58,23 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
 
     if (login.isEmpty) {
       localErrors['login'] = 'Enter login';
-    } else if (login.length < 3) {
-      localErrors['login'] = 'Login with at least 3 characters';
+    } else if (login.length < AuthLimits.minLoginLength) {
+      localErrors['login'] =
+          'Login with at least ${AuthLimits.minLoginLength} characters';
     }
 
     if (name.isEmpty) {
       localErrors['name'] = 'Enter name';
+    } else if (name.length < AuthLimits.minNameLength) {
+      localErrors['name'] =
+          'Name with at least ${AuthLimits.minNameLength} characters';
     }
 
     if (password.isEmpty) {
       localErrors['password'] = 'Enter password';
-    } else if (password.length < 6) {
-      localErrors['password'] = 'Password with at least 6 characters';
+    } else if (password.length < AuthLimits.minPasswordLength) {
+      localErrors['password'] =
+          'Password with at least ${AuthLimits.minPasswordLength} characters';
     }
 
     if (confirm.isEmpty) {
@@ -142,10 +148,10 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
     return Scaffold(
       body: Center(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24.0),
+          padding: const EdgeInsets.all(AuthDimensions.screenPadding),
           child: ConstrainedBox(
             constraints: const BoxConstraints(
-              maxWidth: 420,
+              maxWidth: AuthDimensions.contentMaxWidth,
             ), // Ограничение ширины для Web
             child: AuthCard(
               child: Column(
@@ -153,22 +159,22 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   const AuthLogoHeader(),
-                  const SizedBox(height: 24),
+                  const SizedBox(height: AuthDimensions.gapXxl),
 
                   const Text(
                     'Create account',
                     textAlign: TextAlign.center,
                     style: TextStyle(
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.black87,
+                      fontSize: AuthTypography.fontSizeTitle,
+                      fontWeight: AuthTypography.weightBold,
+                      color: AuthColors.textStrong,
                     ),
                   ),
-                  const SizedBox(height: 32),
+                  const SizedBox(height: AuthDimensions.gapHuge),
 
                   if (_generalError != null) ...[
                     AuthErrorBanner(_generalError!),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: AuthDimensions.gapLg),
                   ],
 
                   const AuthLabel('Login'),
@@ -179,17 +185,17 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
                     errorText: _fieldErrors['login'],
                     onChanged: (_) => _clearErrorFor('login'),
                   ),
-                  const SizedBox(height: 20),
+                  const SizedBox(height: AuthDimensions.gapXl),
 
                   const AuthLabel('Name'),
                   AuthTextField(
                     controller: _nameController,
-                    hintText: 'Иванов Иван Иванович',
+                    hintText: 'Ivanov Ivan Ivanovich',
                     enabled: !_isSubmitting,
                     errorText: _fieldErrors['name'],
                     onChanged: (_) => _clearErrorFor('name'),
                   ),
-                  const SizedBox(height: 20),
+                  const SizedBox(height: AuthDimensions.gapXl),
 
                   const AuthLabel('Password'),
                   AuthTextField(
@@ -205,14 +211,14 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
                             ? Icons.visibility_outlined
                             : Icons.visibility_off_outlined,
                         color: AuthColors.hint,
-                        size: 20,
+                        size: AuthDimensions.iconMd,
                       ),
                       onPressed: () => setState(
                         () => _isPasswordVisible = !_isPasswordVisible,
                       ),
                     ),
                   ),
-                  const SizedBox(height: 20),
+                  const SizedBox(height: AuthDimensions.gapXl),
 
                   const AuthLabel('Confirm the password'),
                   AuthTextField(
@@ -229,7 +235,7 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
                             ? Icons.visibility_outlined
                             : Icons.visibility_off_outlined,
                         color: AuthColors.hint,
-                        size: 20,
+                        size: AuthDimensions.iconMd,
                       ),
                       onPressed: () => setState(
                         () => _isConfirmPasswordVisible =
@@ -237,14 +243,14 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
                       ),
                     ),
                   ),
-                  const SizedBox(height: 32),
+                  const SizedBox(height: AuthDimensions.gapHuge),
 
                   AuthPrimaryButton(
                     label: 'Register',
                     isLoading: _isSubmitting,
                     onPressed: _submit,
                   ),
-                  const SizedBox(height: 24),
+                  const SizedBox(height: AuthDimensions.gapXxl),
 
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
@@ -259,8 +265,8 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
                             'Do you already have an account? Enter',
                             style: TextStyle(
                               color: AuthColors.primary,
-                              fontSize: 14,
-                              fontWeight: FontWeight.w500,
+                              fontSize: AuthTypography.fontSizeSm,
+                              fontWeight: AuthTypography.weightMedium,
                             ),
                           ),
                         ),
