@@ -56,9 +56,19 @@ type Config struct {
 	SessionCleanupInterval time.Duration
 	// Через сколько удаляется запись сессии
 	// По умолчанию: 24 часа
-	SessionRetention       time.Duration
+	SessionRetention time.Duration
 
 	DatabaseURL string
+
+	// HTTP-сервер
+	ReadHeaderTimeout time.Duration
+	ReadTimeout       time.Duration
+	WriteTimeout      time.Duration
+	ShutdownTimeout   time.Duration
+
+	// Статика и лимиты
+	StaticDir      string
+	UploadMaxBytes int64
 }
 
 // Load читает информацию из переменных окружения и возвращает заполненный Config
@@ -102,7 +112,7 @@ func Load() (*Config, error) {
 		return nil, err
 	}
 
-	sessionCleanupInterval, err := getDuration("SESSION_CLEANUP_INTERVAL", 1*time.Minute)
+	sessionCleanupInterval, err := getDuration("SESSION_CLEANUP_INTERVAL", 5*time.Minute)
 	if err != nil {
 		return nil, err
 	}
@@ -128,6 +138,13 @@ func Load() (*Config, error) {
 		SessionCleanupInterval:      sessionCleanupInterval,
 		SessionRetention:            sessionRetention,
 		DatabaseURL:                 getEnv("DATABASE_URL", "postgres://postgres:password@localhost:5432/flowchart_db"),
+		ReadHeaderTimeout:           5 * time.Second,
+		ReadTimeout:                 10 * time.Second,
+		WriteTimeout:                15 * time.Second,
+		ShutdownTimeout:             10 * time.Second,
+
+		StaticDir:      getEnv("STATIC_DIR", "../frontend/build/web"),
+		UploadMaxBytes: 25 << 20,
 	}, nil
 }
 

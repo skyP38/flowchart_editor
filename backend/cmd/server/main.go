@@ -8,7 +8,6 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
-	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
@@ -83,7 +82,6 @@ func main() {
 	accessMgr := token.NewAccessTokenManager(cfg.JWTSecret, cfg.AccessTokenTTL)
 	// сервис аутентификации
 	authSvc := auth.NewService(userRepo, sessionRepo, accessMgr, cfg.PasswordPepper, cfg.AccessTokenTTL, cfg.RefreshTokenTTL)
-	authMW := api.Auth(accessMgr, sessionRepo)
 
 	// сервисы
 	projectSvc := service.NewProjectService(projectRepo)
@@ -93,7 +91,9 @@ func main() {
 	projectHandler := api.NewProjectHandler(projectSvc)
 	flowchartHandler := api.NewFlowchartHandler(flowchartSvc)
 
-	// middlewera аутентификации
+	// middleware аутентификации
+	authMW := api.Auth(accessMgr, sessionRepo)
+
 	mux := http.NewServeMux()
 
 	// health-check
@@ -108,7 +108,7 @@ func main() {
 	projectHandler.RegisterRoutes(mux, authMW)
 	flowchartHandler.RegisterRoutes(mux, authMW)
 
-	staticFiles := http.FileServer(http.Dir("../frontend/build/web"))
+	staticFiles := http.FileServer(http.Dir(cfg.StaticDir))
 	mux.Handle("/", staticFiles)
 
 	// сборка middleware
@@ -126,9 +126,9 @@ func main() {
 		Addr:    ":" + cfg.AppPort,
 		Handler: handler,
 		// ограничение времени чтения заголовка запроса
-		ReadHeaderTimeout: 5 * time.Second,
-		ReadTimeout:       10 * time.Second,
-		WriteTimeout:      15 * time.Second,
+		ReadHeaderTimeout: cfg.ReadHeaderTimeout,
+		ReadTimeout:       cfg.ReadTimeout,
+		WriteTimeout:      cfg.WriteTimeout,
 	}
 
 	go func() {
@@ -144,7 +144,7 @@ func main() {
 	<-stop
 
 	log.Println("shutting down...")
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), cfg.ShutdownTimeout)
 	defer cancel()
 	if err := srv.Shutdown(ctx); err != nil {
 		log.Printf("shutdown: %v", err)
