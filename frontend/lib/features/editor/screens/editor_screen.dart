@@ -62,6 +62,7 @@ class _EditorScreenState extends State<EditorScreen> {
     super.initState();
     if (widget.initialSnapshot != null) {
       _controller.fromSnapshot(widget.initialSnapshot!);
+      _controller.clearHistory();
     } else {
       _controller.initDefaultDiagram();
     }
@@ -101,9 +102,6 @@ class _EditorScreenState extends State<EditorScreen> {
       _insertionPoints = _insertionPointsService.compute(_controller.graph);
     });
   }
-
-  // List<InsertionPoint> _computeInsertionPoints() =>
-  //     _insertionPointsService.compute(_controller.graph);
 
   @override
   void dispose() {
@@ -364,7 +362,95 @@ class _EditorScreenState extends State<EditorScreen> {
 
   bool _isSaving = false;
 
+  // Печатает текущую раскладку блок-схемы в консоль в виде дерева:
+  //
+  //   Rank 0:  Start         (col 0)
+  //   Rank 1:  Cond1         (col 0)
+  //   Rank 2:  A             (col 0)
+  //            └─ no → X     (col 1)
+  //   Rank 3:  End           (col 0)
+  //
+  // Rank считается из вертикальной позиции, col - из горизонтальной.
+  void _dumpLayout() {
+    final graph = _controller.graph;
+    final nodes = graph.nodes;
+    if (nodes.isEmpty) {
+      debugPrint('[layout] empty graph');
+      return;
+    }
+    final start = graph.findStart();
+    if (start == null) {
+      debugPrint('[layout] no Start node');
+      return;
+    }
+
+    final size = _controller.nodeSize;
+    final stepX = size.width + LayoutConstants.stepXExtra;
+    final stepY = size.height + LayoutConstants.stepYExtra;
+
+    String labelOf(String name) {
+      final n = nodes[name];
+      if (n == null) return name;
+      final t = n.data.text;
+      return t.isEmpty ? name : t;
+    }
+
+    // rank -> [(nodeName, label, col)]
+    final byRank = <int, List<(String, String, int)>>{};
+    for (final e in nodes.entries) {
+      final pos = e.value.position;
+      final rank = ((pos.dy - start.position.dy) / stepY).round();
+      final col = ((pos.dx - start.position.dx) / stepX).round();
+      byRank.putIfAbsent(rank, () => []).add((e.key, labelOf(e.key), col));
+    }
+
+    // для каждой цели - порт входящего ребра (out/yes/no/body/exit/in)
+    final inPort = <String, String>{};
+    for (final c in graph.connections) {
+      inPort[c.targetNodeName] = c.sourcePort;
+    }
+
+    // ширина колонки под подписи - по самому длинному тексту
+    final labelWidth = byRank.values
+        .expand((row) => row)
+        .map((r) => r.$2.length)
+        .fold<int>(8, (a, b) => a > b ? a : b);
+
+    const rankPrefixWidth = 10; // 'Rank 00:  '
+
+    debugPrint('────── Layout dump ──────');
+    final ranks = byRank.keys.toList()..sort();
+    for (final r in ranks) {
+      final row = byRank[r]!..sort((a, b) => a.$3.compareTo(b.$3));
+      for (var i = 0; i < row.length; i++) {
+        final (nodeName, label, col) = row[i];
+        final namePadded = label.padRight(labelWidth);
+
+        if (i == 0) {
+          // main-строка ранга
+          final prefix = 'Rank $r:'.padRight(rankPrefixWidth);
+          debugPrint('$prefix$namePadded (col $col)');
+        } else {
+          // no
+          final port = inPort[nodeName] ?? '?';
+          final branch = i == row.length - 1 ? '└─' : '├─';
+          final indent = ' ' * rankPrefixWidth;
+          debugPrint('$indent$branch $port → $namePadded (col $col)');
+        }
+      }
+    }
+    debugPrint('Edges:');
+
+    for (final c in graph.connections) {
+      debugPrint(
+        '  ${c.sourceNodeName} --${c.sourcePort}--> ${c.targetNodeName}',
+      );
+    }
+    debugPrint('─────────────────────────');
+  }
+
   Future<void> _saveToDb() async {
+    _dumpLayout();
     final onSave = widget.onSave;
     if (onSave == null) {
       ScaffoldMessenger.of(context).showSnackBar(

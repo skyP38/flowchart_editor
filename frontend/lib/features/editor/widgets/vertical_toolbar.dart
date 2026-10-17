@@ -121,6 +121,8 @@ class VerticalToolbar extends StatelessWidget {
               onPressed: onExportJson,
               child: const Text('Экспорт в JSON'),
             ),
+            const SizedBox(height: 8),
+            ElevatedButton(onPressed: onLoad, child: const Text('Импорт')),
 
             // Кнопка вызова диалога задания размера блоков
             const SizedBox(height: 8),
@@ -151,8 +153,6 @@ class VerticalToolbar extends StatelessWidget {
                     )
                   : const Text('Сохранить'),
             ),
-            const SizedBox(height: 8),
-            ElevatedButton(onPressed: onLoad, child: const Text('Загрузить')),
           ],
         ),
       ),

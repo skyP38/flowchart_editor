@@ -321,4 +321,10 @@ class FlowController extends ChangeNotifier {
   void _pushHistory() {
     _history.push(HistoryEntry(_graph, _nodeSize));
   }
+
+  // Очищает undo/redo
+  void clearHistory() {
+    _history.clear();
+    notifyListeners();
+  }
 }
