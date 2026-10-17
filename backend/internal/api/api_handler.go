@@ -8,6 +8,7 @@ import (
 
 	"github.com/skyP38/flowchart_editor/backend/internal/domains"
 	"github.com/skyP38/flowchart_editor/backend/internal/service"
+	"github.com/skyP38/flowchart_editor/backend/internal/transport"
 )
 
 type ProjectHandler struct {
@@ -69,12 +70,7 @@ func (h *ProjectHandler) Create(
 		)
 		return
 	}
-	w.Header().Set(
-		"Content-Type",
-		"application/json",
-	)
-	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(project)
+	transport.WriteJSON(w, http.StatusCreated, project)
 }
 
 func (h *ProjectHandler) Get(
@@ -116,11 +112,7 @@ func (h *ProjectHandler) Get(
 		)
 		return
 	}
-	w.Header().Set(
-		"Content-Type",
-		"application/json",
-	)
-	json.NewEncoder(w).Encode(project)
+	transport.WriteJSON(w, http.StatusCreated, project)
 }
 
 type UpdateProjectRequest struct {
@@ -184,12 +176,7 @@ func (h *ProjectHandler) Update(
 		)
 		return
 	}
-	w.Header().Set(
-		"Content-Type",
-		"application/json",
-	)
-
-	json.NewEncoder(w).Encode(project)
+	transport.WriteJSON(w, http.StatusCreated, project)
 }
 
 func (h *ProjectHandler) Delete(
@@ -244,6 +231,5 @@ func (h *ProjectHandler) List(
 		http.Error(w, "failed to list projects", http.StatusInternalServerError)
 		return
 	}
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(projects)
+	transport.WriteJSON(w, http.StatusOK, projects)
 }

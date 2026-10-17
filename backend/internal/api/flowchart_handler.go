@@ -59,9 +59,7 @@ func (h *FlowchartHandler) Create(
 		http.Error(w, "failed to create flowchart", http.StatusInternalServerError)
 		return
 	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(flowchart)
+	transport.WriteJSON(w, http.StatusCreated, flowchart)
 }
 
 func (h *FlowchartHandler) Delete(

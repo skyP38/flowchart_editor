@@ -23,7 +23,6 @@ import (
 	"github.com/skyP38/flowchart_editor/backend/internal/service/seed"
 	"github.com/skyP38/flowchart_editor/backend/internal/service/sessioncleanup"
 
-	//"github.com/skyP38/flowchart_editor/backend/internal/storage/memory"
 	"github.com/skyP38/flowchart_editor/backend/internal/transport"
 )
 
@@ -53,13 +52,13 @@ func main() {
 
 	if err := seed.Admin(context.Background(), userRepo,
 		cfg.AdminLogin, cfg.AdminPassword, cfg.PasswordPepper); err != nil {
-		log.Fatalf("seed admin: %v", err)
+		log.Printf("seed admin: %v", err)
 	}
 
 	// фоновый чистильщик сессий
 	janitor, err := sessioncleanup.New(sessionRepo, cfg.SessionCleanupInterval, cfg.SessionRetention)
 	if err != nil {
-		log.Fatalf("session janitor :%v", err)
+		log.Printf("session janitor :%v", err)
 	}
 
 	// политика rate limit
@@ -75,7 +74,7 @@ func main() {
 		cfg.RatelimitCleanupInterval,
 	)
 	if err != nil {
-		log.Fatalf("ratelimit: %v", err)
+		log.Printf("ratelimit: %v", err)
 	}
 
 	// менеджер access-токенов

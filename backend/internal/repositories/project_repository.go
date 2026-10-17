@@ -25,7 +25,6 @@ func (r *ProjectRepository) Create(
 	userID int64,
 	name string,
 ) (domains.Project, error) {
-
 	var p domains.Project
 
 	err := r.db.QueryRow(ctx,

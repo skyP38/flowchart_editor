@@ -30,9 +30,11 @@ func (r *FlowchartRepository) Create(
 	var data []byte
 	err := r.db.QueryRow(ctx,
 		`INSERT INTO flowcharts (name_f, id_project, data_f, created_at)
-		VALUES ($1, $2, '{}'::jsonb, NOW())
-		RETURNING id_flowchart, name_f, data_f, created_at, updated_at`,
-		name, projectID).Scan(
+		SELECT $1, id_project, '{}'::jsonb, NOW()
+    FROM projects
+    WHERE id_project = $2 AND owner_id = $3
+    RETURNING id_flowchart, name_f, data_f, created_at, updated_at`,
+		name, projectID, userID).Scan(
 		&f.ID,
 		&f.Name,
 		&data,
