@@ -11,7 +11,7 @@ RUN go mod download
 COPY . .
 
 # сборка приложения
-RUN go build -o  /app/server ./cmd/server/main.go
+RUN CGO_ENABLED=0 go build -ldflags="-w -s" -o /app/server ./cmd/server/main.go
 
 
 # образ для развертывания

@@ -3,21 +3,23 @@ services:
     image: postgres:17-alpine
     environment:
       POSTGRES_USER: postgres
-      POSTGES_PASSWORD: password
+      POSTGRES_PASSWORD: password
       POSTGRES_DB: flowchart_db
     ports:
-      - "5432:5432"
+      - "5433:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
-      - ./SQL_scripts/create_tables.sql:/docker-entrypoint-initdb.d/init.sql
-  healthcheck:
-    test: ["CMD-SHELL", "pg_isready -U postgres -d flowchart_db"]
-    interval: 5s
-    timeout: 5s
-    retries: 5
+      - ./backebd/SQL_scripts/create_tables.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      retries: 5
+      start_period: 30s
+      timeout: 10s
     
   backend:
-    build: .
+    build:
+      context: ./backend
     ports:
       - "8080:8080"
     environment:
@@ -27,11 +29,11 @@ services:
       - PASSWORD_PEPPER=change-me
       - ADMIN_LOGIN=admin
       - ADMIN_PASSWORD=admin
-  depends_on:
+    depends_on:
       db:
         condition: service_healthy
-
-        
+        restart: true
+             
   frontend:
     build:
       context: ./frontend
