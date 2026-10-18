@@ -184,12 +184,6 @@ class _EditorScreenState extends State<EditorScreen> {
   @override
   void dispose() {
     _saveDebounce?.cancel();
-    if (_autoSaveEnabled) {
-      try {
-        final snap = _controller.toSnapshot();
-        GuestDiagramStorage.instance.save(jsonEncode(snap.toJson()));
-      } catch (_) {}
-    }
     _controller.removeListener(_onControllerChanged);
     _controller.dispose();
     _focusNode.dispose();
@@ -834,6 +828,7 @@ class _EditorScreenState extends State<EditorScreen> {
                     onSave: _saveToDb,
                     canSave: widget.canSave && widget.onSave != null,
                     onLoad: _loadFromFile,
+                    // onClear: _controller.resetToDefault,
                     isSaving: _isSaving,
                   ),
                 ),

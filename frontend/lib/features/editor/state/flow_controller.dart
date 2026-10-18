@@ -216,13 +216,6 @@ class FlowController extends ChangeNotifier {
     final restored = GraphMapper.fromSnapshot(s);
 
     _nodeSize = restored.nodeSize;
-    // _layoutEngine = LayoutEngine(
-    //   nodeSize: _nodeSize,
-    //   spacing: LayoutSpacing(
-    //     stepX: _nodeSize.width + 70,
-    //     stepY: _nodeSize.height + 40,
-    //   ),
-    // );
 
     _graph = _relayout(restored.graph); // пересчитываем раскладку из данных
     _showGrid = restored.showGrid;

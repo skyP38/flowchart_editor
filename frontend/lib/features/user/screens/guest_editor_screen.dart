@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../core/storage/guest_diagram_storage.dart';
 import '../../editor/screens/editor_screen.dart';
+import '../../../core/navigation/last_route_storage.dart';
 
 // Редактор без привязки к проекту - для неавторизованных пользователей
 // Работает все кроме сохранения в БД
@@ -47,7 +48,7 @@ class _GuestEditorScreenState extends State<GuestEditorScreen> {
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           tooltip: 'На главную',
-          onPressed: () => Navigator.of(context).pop(),
+          onPressed: () => LastRouteStorage.instance.setGuest(false),
         ),
         title: const Text('Guest Editor'),
         backgroundColor: Colors.white,
@@ -61,7 +62,12 @@ class _GuestEditorScreenState extends State<GuestEditorScreen> {
           ),
         ],
       ),
-      body: EditorScreen(initialSnapshot: null, onSave: null, canSave: false),
+      body: EditorScreen(
+        key: ValueKey(_resetKey),
+        initialSnapshot: null,
+        onSave: null,
+        canSave: false,
+      ),
     );
   }
 }

@@ -30,11 +30,21 @@ class SerializableNode {
     return SerializableNode(
       id: node.id,
       name: node.name,
-      dataType: node.data.runtimeType.toString(),
+      dataType: _typeOf(node.data),
       text: node.data.text,
       posX: node.position.dx,
       posY: node.position.dy,
     );
+  }
+
+  static String _typeOf(GostNodeData data) {
+    if (data is TerminalBlock) return 'TerminalBlock';
+    if (data is LogicBlock) return 'LogicBlock';
+    if (data is ProcessBlock) return 'ProcessBlock';
+    if (data is IOBlock) return 'IOBlock';
+    if (data is SubroutineBlock) return 'SubroutineBlock';
+    if (data is ForBlock) return 'ForBlock';
+    return 'ProcessBlock'; // fallback
   }
 
   // Восстановление узла из JSON
