@@ -362,3 +362,17 @@ frontend
 ├── pubspec.lock
 └── pubspec.yaml
 ```
+
+
+
+Граф зависимостей пакетов для go:
+```bash
+nix-shell -p goda graphviz
+goda graph -cluster -short "github.com/skyP38/flowchart_editor/backend/...:all" | dot -Tsvg -o graph.svg # супер подробно
+goda graph -cluster -short "github.com/skyP38/flowchart_editor/backend/..." | dot -Tsvg -o graph.svg # только внутренние зависимости
+```
+
+Запуск линтера для go:
+```bash
+golangci-lint run
+```
