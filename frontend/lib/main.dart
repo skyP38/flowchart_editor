@@ -3,6 +3,8 @@ import 'package:provider/provider.dart';
 
 import 'core/network/api_client.dart';
 import 'core/network/api_service.dart';
+import 'core/navigation/last_route_storage.dart';
+// import 'core/navigation/route_observer.dart';
 import 'features/auth/data/api/auth_api.dart';
 import 'features/auth/data/storage/secure_token_storage.dart';
 import 'features/auth/domain/auth_repository.dart';
@@ -10,6 +12,8 @@ import 'features/auth/presentation/auth_gate.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  await LastRouteStorage.instance.init();
 
   const baseUrl = String.fromEnvironment(
     'API_BASE_URL',
@@ -38,7 +42,12 @@ Future<void> main() async {
   runApp(
     MultiProvider(
       providers: [
+        Provider<AuthApi>.value(value: authApi),
+        Provider<ApiService>.value(value: apiService),
         ChangeNotifierProvider<AuthRepository>.value(value: authRepository),
+        ChangeNotifierProvider<LastRouteStorage>.value(
+          value: LastRouteStorage.instance,
+        ),
         Provider<ApiService>.value(value: apiService),
       ],
       child: const MyApp(),
@@ -53,6 +62,7 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Flowchart Editor',
+      // navigatorObservers: [routeObserver],
       theme: ThemeData(
         scaffoldBackgroundColor: const Color(0xFFFFFFFF),
         fontFamily: 'Inter',

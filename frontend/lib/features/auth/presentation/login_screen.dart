@@ -119,10 +119,10 @@ class _LoginScreenState extends State<LoginScreen> {
     return Scaffold(
       body: Center(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24.0),
+          padding: const EdgeInsets.all(AuthDimensions.screenPadding),
           child: ConstrainedBox(
             constraints: const BoxConstraints(
-              maxWidth: 420,
+              maxWidth: AuthDimensions.contentMaxWidth,
             ), // Ограничение ширины для Web
             child: AuthCard(
               child: Column(
@@ -130,23 +130,23 @@ class _LoginScreenState extends State<LoginScreen> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   const AuthLogoHeader(),
-                  const SizedBox(height: 24),
+                  const SizedBox(height: AuthDimensions.gapXxl),
 
                   // Заголовок
                   const Text(
                     'Sign in',
                     textAlign: TextAlign.center,
                     style: TextStyle(
-                      fontSize: 24,
+                      fontSize: AuthTypography.fontSizeTitle,
                       fontWeight: FontWeight.bold,
                       color: Colors.black87,
                     ),
                   ),
-                  const SizedBox(height: 32),
+                  const SizedBox(height: AuthDimensions.gapHuge),
 
                   if (_generalError != null) ...[
                     AuthErrorBanner(_generalError!),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: AuthDimensions.gapLg),
                   ],
 
                   const AuthLabel('Login'),
@@ -157,7 +157,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     errorText: _fieldErrors['login'],
                     onChanged: (_) => _clearErrorFor('login'),
                   ),
-                  const SizedBox(height: 20),
+                  const SizedBox(height: AuthDimensions.gapXl),
 
                   const AuthLabel('Password'),
                   AuthTextField(
@@ -170,21 +170,21 @@ class _LoginScreenState extends State<LoginScreen> {
                             ? Icons.visibility_outlined
                             : Icons.visibility_off_outlined,
                         color: AuthColors.hint,
-                        size: 20,
+                        size: AuthDimensions.iconMd,
                       ),
                       onPressed: () => setState(
                         () => _isPasswordVisible = !_isPasswordVisible,
                       ),
                     ),
                   ),
-                  const SizedBox(height: 20),
+                  const SizedBox(height: AuthDimensions.gapXl),
 
                   AuthPrimaryButton(
                     label: 'Login',
                     isLoading: _isSubmitting,
                     onPressed: _submit,
                   ),
-                  const SizedBox(height: 24),
+                  const SizedBox(height: AuthDimensions.gapXxl),
 
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
@@ -197,8 +197,8 @@ class _LoginScreenState extends State<LoginScreen> {
                             'No account? Register',
                             style: TextStyle(
                               color: AuthColors.primary,
-                              fontSize: 14,
-                              fontWeight: FontWeight.w500,
+                              fontSize: AuthTypography.fontSizeSm,
+                              fontWeight: AuthTypography.weightMedium,
                             ),
                           ),
                         ),

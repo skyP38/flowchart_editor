@@ -126,10 +126,10 @@ class AuthRepository extends ChangeNotifier {
     }
     try {
       if (!hasAccess) {
-        final response = await _api.refresh(refreshToken!);
+        final tokens = await _api.refresh(refreshToken!);
         await _storage.saveTokens(
-          accessToken: response.tokens.accessToken,
-          refreshToken: response.tokens.refreshToken,
+          accessToken: tokens.accessToken,
+          refreshToken: tokens.refreshToken,
         );
       }
       final user = await _api.me();

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../widgets/header_button.dart';
 import '../../auth/presentation/login_screen.dart';
 import '../../auth/presentation/registration_screen.dart';
+import '../../../core/navigation/last_route_storage.dart';
 
 class WelcomeScreen extends StatelessWidget {
   const WelcomeScreen({super.key});
@@ -84,6 +85,29 @@ class WelcomeScreen extends StatelessWidget {
                       fontWeight: FontWeight.normal,
                       color: Color(0xFFDED8E1),
                       height: 1.2,
+                    ),
+                  ),
+                  const SizedBox(height: 48),
+                  ElevatedButton(
+                    onPressed: () => LastRouteStorage.instance.setGuest(true),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF6750A4),
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 40,
+                        vertical: 18,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      elevation: 0,
+                    ),
+                    child: const Text(
+                      'Try as guest',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                   ),
                 ],

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
 import 'auth_colors.dart';
+import 'auth_dimensions.dart';
+import 'auth_typ.dart';
 
 // Универсальное текстовое поле для форм авторизации
 class AuthTextField extends StatelessWidget {
@@ -36,33 +38,48 @@ class AuthTextField extends StatelessWidget {
       enabled: enabled,
       onChanged: onChanged,
       onFieldSubmitted: onSubmitted,
-      style: const TextStyle(fontSize: 15),
+      style: const TextStyle(fontSize: AuthTypography.fontSizeMd),
       decoration: InputDecoration(
         hintText: hintText,
-        hintStyle: const TextStyle(color: AuthColors.hint, fontSize: 15),
+        hintStyle: const TextStyle(
+          color: AuthColors.hint,
+          fontSize: AuthTypography.fontSizeMd,
+        ),
         errorText: errorText,
         contentPadding: const EdgeInsets.symmetric(
-          horizontal: 16,
-          vertical: 16,
+          horizontal: AuthDimensions.fieldHorizontalPadding,
+          vertical: AuthDimensions.fieldVerticalPadding,
         ),
         filled: true,
-        fillColor: Colors.white,
+        fillColor: AuthColors.surface,
         suffixIcon: suffixIcon,
         enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
-          borderSide: const BorderSide(color: AuthColors.border, width: 1),
+          borderRadius: BorderRadius.circular(AuthDimensions.radiusSm),
+          borderSide: const BorderSide(
+            color: AuthColors.border,
+            width: AuthDimensions.borderWidthThin,
+          ),
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
-          borderSide: const BorderSide(color: AuthColors.primary, width: 1.5),
+          borderRadius: BorderRadius.circular(AuthDimensions.radiusSm),
+          borderSide: const BorderSide(
+            color: AuthColors.primary,
+            width: AuthDimensions.borderWidthMedium,
+          ),
         ),
         errorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
-          borderSide: const BorderSide(color: Colors.red, width: 1),
+          borderRadius: BorderRadius.circular(AuthDimensions.radiusSm),
+          borderSide: const BorderSide(
+            color: Colors.red,
+            width: AuthDimensions.borderWidthThin,
+          ),
         ),
         focusedErrorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
-          borderSide: const BorderSide(color: Colors.red, width: 1.5),
+          borderRadius: BorderRadius.circular(AuthDimensions.radiusSm),
+          borderSide: const BorderSide(
+            color: Colors.red,
+            width: AuthDimensions.borderWidthMedium,
+          ),
         ),
       ),
     );

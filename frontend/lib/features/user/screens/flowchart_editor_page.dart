@@ -27,6 +27,9 @@ class _FlowchartEditorPageState extends State<FlowchartEditorPage> {
   @override
   void initState() {
     super.initState();
+    debugPrint(
+      '[EditorPage] init pid=${widget.projectId} fid=${widget.flowchartId}',
+    );
     _api = context.read<ApiService>();
     _load();
   }

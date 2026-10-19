@@ -40,7 +40,7 @@ func (h *SessionHandler) List(w http.ResponseWriter, r *http.Request) {
 
 	sessions, err := h.svc.ListSessions(r.Context(), uid)
 	if err != nil {
-		transport.WriteError(w, http.StatusInternalServerError, "internal", "internal server error")
+		transport.WriteError(w, http.StatusInternalServerError, transport.CodeInternal, "internal server error")
 		return
 	}
 	now := time.Now().UTC()
@@ -55,11 +55,11 @@ func (h *SessionHandler) List(w http.ResponseWriter, r *http.Request) {
 func (h *SessionHandler) RevokeOne(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	if err != nil {
-		transport.WriteError(w, http.StatusBadRequest, "invalid_input", "invalid session id")
+		transport.WriteError(w, http.StatusBadRequest, transport.CodeInvalidInput, "invalid session id")
 		return
 	}
 	if err := h.svc.RevokeSession(r.Context(), UserIDFrom(r.Context()), id); err != nil {
-		transport.WriteError(w, http.StatusNotFound, "session_not_found", "session not found")
+		transport.WriteError(w, http.StatusNotFound, transport.CodeSessionNotFound, "session not found")
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
@@ -71,7 +71,7 @@ func (h *SessionHandler) RevokeAll(w http.ResponseWriter, r *http.Request) {
 	uid := UserIDFrom(r.Context())
 	cur := SessionIDFrom(r.Context())
 	if err := h.svc.RevokeAllSessions(r.Context(), uid, cur); err != nil {
-		transport.WriteError(w, http.StatusInternalServerError, "internal", "internal server error")
+		transport.WriteError(w, http.StatusInternalServerError, transport.CodeInternal, "internal server error")
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)

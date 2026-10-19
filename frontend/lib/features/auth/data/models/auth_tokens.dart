@@ -1,3 +1,5 @@
+import '../../../../core/network/json_keys.dart';
+
 class AuthTokens {
   final String accessToken;
   final String refreshToken;
@@ -10,14 +12,14 @@ class AuthTokens {
   });
 
   factory AuthTokens.fromJson(Map<String, dynamic> json) => AuthTokens(
-    accessToken: json['access_token'] as String,
-    refreshToken: json['refresh_token'] as String,
-    expiresIn: (json['expires_in'] as num).toInt(),
+    accessToken: json[JsonKeys.accessToken] as String,
+    refreshToken: json[JsonKeys.refreshToken] as String,
+    expiresIn: (json[JsonKeys.expiresIn] as num).toInt(),
   );
 
   Map<String, dynamic> toJson() => {
-    'access_token': accessToken,
-    'refresh_token': refreshToken,
-    'expires_in': expiresIn,
+    JsonKeys.accessToken: accessToken,
+    JsonKeys.refreshToken: refreshToken,
+    JsonKeys.expiresIn: expiresIn,
   };
 }

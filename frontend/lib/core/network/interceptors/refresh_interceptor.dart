@@ -1,6 +1,9 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 
+import '../api_paths.dart';
+import '../http_headers.dart';
+import '../json_keys.dart';
 import '../token_storage.dart';
 
 // Ловит 401, пытается обновить access-токен через refresh-токен и повторить исходный запрос
@@ -16,11 +19,11 @@ class RefreshInterceptor extends Interceptor {
 
   Future<String?>? _refreshFuture;
 
-  static const _publicPaths = <String>[
-    '/api/auth/login',
-    '/api/auth/register',
-    '/api/auth/refresh',
-  ];
+  // static const _publicPaths = <String>[
+  //   '/api/auth/login',
+  //   '/api/auth/register',
+  //   '/api/auth/refresh',
+  // ];
 
   RefreshInterceptor({
     required Dio dio,
@@ -39,12 +42,12 @@ class RefreshInterceptor extends Interceptor {
     }
 
     final response = err.response;
-    final path = err.requestOptions.path;
-    final isPublic = _publicPaths.any((p) => path.startsWith(p));
     final alreadyRetried = err.requestOptions.extra['__retried'] == true;
 
     // Реакция на 401 в защищенных запросах 1 раз
-    if (response?.statusCode != 401 || isPublic || alreadyRetried) {
+    if (response?.statusCode != 401 ||
+        ApiPaths.isPublic(err.requestOptions.path) ||
+        alreadyRetried) {
       return handler.next(err);
     }
 
@@ -58,7 +61,7 @@ class RefreshInterceptor extends Interceptor {
 
     // Повторяем исходный запрос с новым access-токеном
     final options = err.requestOptions;
-    options.headers['Authorization'] = 'Bearer $newAccess';
+    options.headers[ApiHeaders.authorization] = ApiHeaders.bearer(newAccess);
     options.extra['__retried'] = true;
 
     try {
@@ -88,16 +91,16 @@ class RefreshInterceptor extends Interceptor {
 
     try {
       final res = await _dio.post<Map<String, dynamic>>(
-        '/api/auth/refresh',
-        data: {'refresh_token': refreshToken},
+        ApiPaths.refresh,
+        data: {JsonKeys.refreshToken: refreshToken},
         options: Options(extra: {'__skipInterceptors': true}),
       );
 
       final data = res.data;
       if (data == null) return null;
 
-      final access = data['access_token'] as String?;
-      final refresh = data['refresh_token'] as String?;
+      final access = data[JsonKeys.accessToken] as String?;
+      final refresh = data[JsonKeys.refreshToken] as String?;
       if (access == null || refresh == null) return null;
 
       await _storage.saveTokens(accessToken: access, refreshToken: refresh);

@@ -1,9 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../widgets/sidebar.dart';
 import '../models/session.dart';
-import '../../../core/network/api_service.dart';
+import '../../auth/data/api/auth_api.dart';
 
 class SessionScreen extends StatefulWidget {
   const SessionScreen({super.key});
@@ -13,93 +12,70 @@ class SessionScreen extends StatefulWidget {
 }
 
 class _SessionScreenState extends State<SessionScreen> {
-  // static const double _createdWidth = 180;
-  // static const double _statusWidth = 150;
-  // static const double _activityWidth = 150;
-  // static const double _actionWidth = 180;
-  // static const double _colGap = 16;
-
-  //final ApiService _api = ApiService();
-  late final ApiService _api;
+  late final AuthApi _api;
   late Future<List<Session>> _sessionsFuture;
 
   @override
   void initState() {
     super.initState();
-    _api = context.read<ApiService>();
-    _sessionsFuture = _api.listSessions();
+    _api = context.read<AuthApi>();
+    _sessionsFuture = _api.sessions();
   }
 
   void _reload() {
     setState(() {
-      _sessionsFuture = _api.listSessions();
+      _sessionsFuture = _api.sessions();
     });
   }
 
   Future<void> _close(Session s) async {
     try {
-      await _api.closeSession(s.id);
+      await _api.revokeSession(s.id);
       _reload();
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(SnackBar(content: Text('Ошибка: $e')));
+      ).showSnackBar(SnackBar(content: Text('Error: $e')));
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFF5F5F5),
-      body: Row(
-        children: [
-          const Sidebar(currentRoute: 'session'),
-          Expanded(
-            child: Container(
-              color: Colors.white,
-              child: Column(
-                children: [
-                  _buildTopBar(),
-                  Expanded(
-                    child: SingleChildScrollView(
-                      padding: const EdgeInsets.all(40),
-                      child: FutureBuilder<List<Session>>(
-                        future: _sessionsFuture,
-                        builder: (context, snapshot) {
-                          if (snapshot.connectionState ==
-                              ConnectionState.waiting) {
-                            return const Center(
-                              child: CircularProgressIndicator(),
-                            );
-                          }
-                          if (snapshot.hasError) {
-                            return Center(
-                              child: Column(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Text('Ошибка: ${snapshot.error}'),
-                                  const SizedBox(height: 16),
-                                  ElevatedButton(
-                                    onPressed: _reload,
-                                    child: const Text('Повторить'),
-                                  ),
-                                ],
-                              ),
-                            );
-                          }
-                          final sessions = snapshot.data ?? [];
-                          return _buildContent(sessions);
-                        },
-                      ),
+    return Column(
+      children: [
+        _buildTopBar(),
+        Expanded(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(40),
+            child: FutureBuilder<List<Session>>(
+              future: _sessionsFuture,
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+                if (snapshot.hasError) {
+                  return Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text('Ошибка: ${snapshot.error}'),
+                        const SizedBox(height: 16),
+                        ElevatedButton(
+                          onPressed: _reload,
+                          child: const Text('Повторить'),
+                        ),
+                      ],
                     ),
-                  ),
-                ],
-              ),
+                  );
+                }
+                final sessions = snapshot.data ?? [];
+                return _buildContent(sessions);
+              },
             ),
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 

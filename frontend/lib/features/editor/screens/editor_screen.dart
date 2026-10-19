@@ -1,9 +1,10 @@
 import 'dart:convert';
+import 'dart:async';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:file_saver/file_saver.dart';
-import 'package:flowchart_editor_frontend/features/editor/factories/node_factory.dart';
-import 'package:flowchart_editor_frontend/features/editor/state/flow_controller.dart';
+import '../factories/node_factory.dart';
+import '../state/flow_controller.dart';
 import 'package:flutter/material.dart';
 import 'package:collection/collection.dart';
 import '../models/flow_models.dart';
@@ -23,13 +24,21 @@ import '../domain/connection_router.dart';
 import '../domain/insertion_points.dart';
 import '../constants/diagram_constants.dart';
 import '../utils/svg_exporter.dart';
+import '../../../core/storage/guest_diagram_storage.dart';
 
 // Главный экран редактора блок-схем
 class EditorScreen extends StatefulWidget {
   final EditorSnapshot? initialSnapshot;
   final Future<void> Function(EditorSnapshot snapshot)? onSave;
 
-  const EditorScreen({super.key, this.initialSnapshot, this.onSave});
+  final bool canSave;
+
+  const EditorScreen({
+    super.key,
+    this.initialSnapshot,
+    this.onSave,
+    this.canSave = true,
+  });
   @override
   State<EditorScreen> createState() => _EditorScreenState();
 }
@@ -45,6 +54,7 @@ class _EditorScreenState extends State<EditorScreen> {
   List<InsertionPoint> _insertionPoints = [];
   GostNodeData? _selectedPrototype;
   String? _selectedConnectionId;
+  LayoutSpacing? _lastSpacing;
 
   final FocusNode _focusNode = FocusNode();
   final ScrollController _verticalScrollController = ScrollController();
@@ -53,15 +63,19 @@ class _EditorScreenState extends State<EditorScreen> {
   static const double _minScale = ScaleConstants.minScale;
   static const double _maxScale = ScaleConstants.maxScale;
 
-  late final ConnectionRouter _router;
-  late final InsertionPointsService _insertionPointsService;
+  late ConnectionRouter _router;
+  late InsertionPointsService _insertionPointsService;
   Size _lastNodeSize = Size.zero;
+
+  Timer? _saveDebounce;
+  bool _autoSaveEnabled = false;
 
   @override
   void initState() {
     super.initState();
     if (widget.initialSnapshot != null) {
       _controller.fromSnapshot(widget.initialSnapshot!);
+      _controller.clearHistory();
     } else {
       _controller.initDefaultDiagram();
     }
@@ -70,21 +84,79 @@ class _EditorScreenState extends State<EditorScreen> {
     _insertionPoints = _insertionPointsService.compute(_controller.graph);
     _controller.addListener(_onControllerChanged);
 
-    WidgetsBinding.instance.addPostFrameCallback((_) {
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
       _focusNode.requestFocus();
+
+      // Гостевой режим - восстанавливаем черновик
+      if (!widget.canSave && widget.onSave == null) {
+        await _tryRestoreGuestDraft();
+        if (!mounted) return;
+        _autoSaveEnabled = true;
+      }
     });
+
+    debugPrint(
+      '[EditorScreen] init snapshot=${widget.initialSnapshot != null}',
+    );
+    if (widget.initialSnapshot != null) {
+      _controller.fromSnapshot(widget.initialSnapshot!);
+      debugPrint(
+        '[EditorScreen] fromSnapshot done, '
+        'nodes=${_controller.nodes.length}',
+      );
+      _controller.clearHistory();
+    } else {
+      _controller.initDefaultDiagram();
+      debugPrint(
+        '[EditorScreen] default done, '
+        'nodes=${_controller.nodes.length}',
+      );
+    }
+  }
+
+  Future<void> _tryRestoreGuestDraft() async {
+    final raw = await GuestDiagramStorage.instance.load();
+    if (raw == null || !mounted) return;
+    try {
+      final json = jsonDecode(raw) as Map<String, dynamic>;
+      final snapshot = EditorSnapshot.fromJson(json);
+      _controller.fromSnapshot(snapshot);
+      _controller.clearHistory();
+      setState(() {
+        _insertionPoints = _insertionPointsService.compute(_controller.graph);
+      });
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Восстановлен черновик')));
+    } catch (e) {
+      debugPrint('[GuestEditor] restore failed: $e');
+      await GuestDiagramStorage.instance.clear();
+    }
+  }
+
+  void _scheduleAutoSave() {
+    _saveDebounce?.cancel();
+    _saveDebounce = Timer(const Duration(milliseconds: 500), _flushAutoSave);
+  }
+
+  Future<void> _flushAutoSave() async {
+    if (!_autoSaveEnabled || !mounted) return;
+    try {
+      final snap = _controller.toSnapshot();
+      await GuestDiagramStorage.instance.save(jsonEncode(snap.toJson()));
+    } catch (e) {
+      debugPrint('[GuestEditor] autosave failed: $e');
+    }
   }
 
   // Пересобирает роутер и сервис точек вставки под текущий размер блока
   void _rebuildRouter() {
-    final size = _controller.nodeSize;
-    _lastNodeSize = size;
+    _lastNodeSize = _controller.nodeSize;
+    _lastSpacing = _controller.spacing;
     _router = ConnectionRouter(
-      nodeSize: size,
-      spacing: LayoutSpacing(
-        stepX: size.width + LayoutConstants.stepXExtra,
-        stepY: size.height + LayoutConstants.stepYExtra,
-      ),
+      nodeSize: _controller.nodeSize,
+      spacing: _controller.spacing,
     );
     _insertionPointsService = InsertionPointsService(router: _router);
   }
@@ -93,20 +165,25 @@ class _EditorScreenState extends State<EditorScreen> {
   void _onControllerChanged() {
     if (!mounted) return;
 
-    if (_controller.nodeSize != _lastNodeSize) {
+    final spacing = _controller.spacing;
+    if (_controller.nodeSize != _lastNodeSize ||
+        spacing.stepX != _lastSpacing?.stepX ||
+        spacing.stepY != _lastSpacing?.stepY) {
       _rebuildRouter();
     }
 
     setState(() {
       _insertionPoints = _insertionPointsService.compute(_controller.graph);
     });
-  }
 
-  // List<InsertionPoint> _computeInsertionPoints() =>
-  //     _insertionPointsService.compute(_controller.graph);
+    if (_autoSaveEnabled) {
+      _scheduleAutoSave();
+    }
+  }
 
   @override
   void dispose() {
+    _saveDebounce?.cancel();
     _controller.removeListener(_onControllerChanged);
     _controller.dispose();
     _focusNode.dispose();
@@ -364,7 +441,100 @@ class _EditorScreenState extends State<EditorScreen> {
 
   bool _isSaving = false;
 
+  // Печатает текущую раскладку блок-схемы в консоль в виде дерева:
+  //
+  //   Rank 0:  Start         (col 0)
+  //   Rank 1:  Cond1         (col 0)
+  //   Rank 2:  A             (col 0)
+  //            └─ no → X     (col 1)
+  //   Rank 3:  End           (col 0)
+  //
+  // Rank считается из вертикальной позиции, col - из горизонтальной.
+  void _dumpLayout() {
+    debugPrint(
+      '[layout] stepX=${_controller.spacing.stepX} '
+      'stepY=${_controller.spacing.stepY} '
+      'depth=${LayoutEngine.maxForDepth(_controller.graph)}',
+    );
+    final graph = _controller.graph;
+    final nodes = graph.nodes;
+    if (nodes.isEmpty) {
+      debugPrint('[layout] empty graph');
+      return;
+    }
+    final start = graph.findStart();
+    if (start == null) {
+      debugPrint('[layout] no Start node');
+      return;
+    }
+
+    final size = _controller.nodeSize;
+    final stepX = size.width + LayoutConstants.stepXExtra;
+    final stepY = size.height + LayoutConstants.stepYExtra;
+
+    String labelOf(String name) {
+      final n = nodes[name];
+      if (n == null) return name;
+      final t = n.data.text;
+      return t.isEmpty ? name : t;
+    }
+
+    // rank -> [(nodeName, label, col)]
+    final byRank = <int, List<(String, String, int)>>{};
+    for (final e in nodes.entries) {
+      final pos = e.value.position;
+      final rank = ((pos.dy - start.position.dy) / stepY).round();
+      final col = ((pos.dx - start.position.dx) / stepX).round();
+      byRank.putIfAbsent(rank, () => []).add((e.key, labelOf(e.key), col));
+    }
+
+    // для каждой цели - порт входящего ребра (out/yes/no/body/exit/in)
+    final inPort = <String, String>{};
+    for (final c in graph.connections) {
+      inPort[c.targetNodeName] = c.sourcePort;
+    }
+
+    // ширина колонки под подписи - по самому длинному тексту
+    final labelWidth = byRank.values
+        .expand((row) => row)
+        .map((r) => r.$2.length)
+        .fold<int>(8, (a, b) => a > b ? a : b);
+
+    const rankPrefixWidth = 10; // 'Rank 00:  '
+
+    debugPrint('────── Layout dump ──────');
+    final ranks = byRank.keys.toList()..sort();
+    for (final r in ranks) {
+      final row = byRank[r]!..sort((a, b) => a.$3.compareTo(b.$3));
+      for (var i = 0; i < row.length; i++) {
+        final (nodeName, label, col) = row[i];
+        final namePadded = label.padRight(labelWidth);
+
+        if (i == 0) {
+          // main-строка ранга
+          final prefix = 'Rank $r:'.padRight(rankPrefixWidth);
+          debugPrint('$prefix$namePadded (col $col)');
+        } else {
+          // no
+          final port = inPort[nodeName] ?? '?';
+          final branch = i == row.length - 1 ? '└─' : '├─';
+          final indent = ' ' * rankPrefixWidth;
+          debugPrint('$indent$branch $port → $namePadded (col $col)');
+        }
+      }
+    }
+    debugPrint('Edges:');
+
+    for (final c in graph.connections) {
+      debugPrint(
+        '  ${c.sourceNodeName} --${c.sourcePort}--> ${c.targetNodeName}',
+      );
+    }
+    debugPrint('─────────────────────────');
+  }
+
   Future<void> _saveToDb() async {
+    _dumpLayout();
     final onSave = widget.onSave;
     if (onSave == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -503,6 +673,7 @@ class _EditorScreenState extends State<EditorScreen> {
       graph: _controller.graph,
       router: _router,
       nodeSize: _controller.nodeSize,
+      spacing: _controller.spacing,
       canvasSize: _getContentSize(),
       showGrid: _controller.showGrid,
     );
@@ -610,10 +781,20 @@ class _EditorScreenState extends State<EditorScreen> {
       if (startNodeEntry != null) {
         gridWidget = GridWithLabels(
           canvasSize: contentSize,
-          stepX: nodeSize.width,
-          stepY: nodeSize.height,
+          columnWidth: _controller.spacing.stepX, // ← вот это ключевое
+          rowHeight: _controller.spacing.stepY,
+          nodeWidth: _controller.nodeSize.width,
+          nodeHeight: _controller.nodeSize.height,
           startPosition: startNodeEntry.value.position,
         );
+        // gridWidget = GridWithLabels(
+        //   canvasSize: contentSize,
+        //   stepX: _controller.spacing.stepX - GridConstants.stepXExtra,
+        //   stepY: _controller.spacing.stepY - GridConstants.stepYExtra,
+        //   // stepX: nodeSize.width,
+        //   // stepY: nodeSize.height,
+        //   startPosition: startNodeEntry.value.position,
+        // );
       }
     }
 
@@ -645,7 +826,9 @@ class _EditorScreenState extends State<EditorScreen> {
                     onUndo: _controller.undo,
                     onRedo: _controller.redo,
                     onSave: _saveToDb,
+                    canSave: widget.canSave && widget.onSave != null,
                     onLoad: _loadFromFile,
+                    // onClear: _controller.resetToDefault,
                     isSaving: _isSaving,
                   ),
                 ),
@@ -853,17 +1036,49 @@ class _EditorScreenState extends State<EditorScreen> {
 }
 
 /// Виджет с подписями сетки (буквы строк и цифры столбцов).
+// class GridWithLabels extends StatelessWidget {
+//   final Size canvasSize;
+//   final double stepX;
+//   final double stepY;
+//   final Offset? startPosition;
+
+//   const GridWithLabels({
+//     super.key,
+//     required this.canvasSize,
+//     required this.stepX,
+//     required this.stepY,
+//     required this.startPosition,
+//   });
+
+//   @override
+//   Widget build(BuildContext context) {
+//     if (startPosition == null) return const SizedBox.shrink();
+//     return CustomPaint(
+//       size: canvasSize,
+//       painter: GridLabelsPainter(
+//         stepX: stepX,
+//         stepY: stepY,
+//         startPosition: startPosition!,
+//       ),
+//     );
+//   }
+// }
+
 class GridWithLabels extends StatelessWidget {
   final Size canvasSize;
-  final double stepX;
-  final double stepY;
+  final double columnWidth;
+  final double rowHeight;
+  final double nodeWidth;
+  final double nodeHeight;
   final Offset? startPosition;
 
   const GridWithLabels({
     super.key,
     required this.canvasSize,
-    required this.stepX,
-    required this.stepY,
+    required this.columnWidth,
+    required this.rowHeight,
+    required this.nodeWidth,
+    required this.nodeHeight,
     required this.startPosition,
   });
 
@@ -873,8 +1088,10 @@ class GridWithLabels extends StatelessWidget {
     return CustomPaint(
       size: canvasSize,
       painter: GridLabelsPainter(
-        stepX: stepX,
-        stepY: stepY,
+        columnWidth: columnWidth,
+        rowHeight: rowHeight,
+        nodeWidth: nodeWidth,
+        nodeHeight: nodeHeight,
         startPosition: startPosition!,
       ),
     );

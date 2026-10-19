@@ -3,6 +3,7 @@ package auth
 import (
 	"context"
 	"errors"
+	"fmt"
 	"regexp"
 	"strings"
 	"time"
@@ -13,8 +14,18 @@ import (
 	"github.com/skyP38/flowchart_editor/backend/internal/service/auth/token"
 	"github.com/skyP38/flowchart_editor/backend/internal/service/password"
 	"golang.org/x/crypto/bcrypt"
-	//"github.com/skyP38/flowchart_editor/backend/internal/storage/memory"
 )
+
+const (
+	minLoginLen    = 3
+	maxLoginLen    = 32
+	minUnameLen    = 1
+	maxUnameLen    = 200
+	minPasswordLen = 8
+)
+
+// loginRe - регулярное выражение для валидации логина
+var loginRe = regexp.MustCompile(fmt.Sprintf(`^[a-zA-Z0-9_]{%d,%d}$`, minLoginLen, maxLoginLen))
 
 var dummyHash = func() []byte {
 	h, err := bcrypt.GenerateFromPassword([]byte("dummy-password-for-timing"), bcrypt.DefaultCost)
@@ -23,9 +34,6 @@ var dummyHash = func() []byte {
 	}
 	return h
 }()
-
-// loginRe - регулярное выражение для валидации логина
-var loginRe = regexp.MustCompile(`^[a-zA-Z0-9_]{3,32}$`)
 
 // Service - сервис аутентификации
 type Service struct {
@@ -86,15 +94,14 @@ func (s *Service) Register(ctx context.Context, in RegisterInput) (*AuthResult, 
 	if !loginRe.MatchString(login) {
 		verrs.Add("login", "must be 3-32 chars of [a-zA-Z0-9_]")
 	}
-	if l := len([]rune(uname)); l < 1 || l > 200 {
-		verrs.Add("uname", "must be 1-200 characters")
+	if l := len([]rune(uname)); l < minUnameLen || l > maxUnameLen {
+		verrs.Add("uname", fmt.Sprintf("must be %d-%d characters", minUnameLen, maxUnameLen))
 	}
 	if err := validatePassword(in.Password); err != nil {
 		if ve, ok := errors.AsType[*ValidationError](err); ok {
 			verrs.Add(ve.Field, ve.Message)
 		} else {
 			verrs.Add("password", "invalid password")
-
 		}
 	}
 	if verrs.HasAny() {
@@ -262,12 +269,12 @@ func (s *Service) issueTokens(ctx context.Context, u *domains.User) (*AuthResult
 
 // validatePassword проверяет требования к паролю
 // Требования:
-//   - длина не менее 8 байт;
+//   - длина не менее minPasswordLen байт;
 //   - содержит хотя бы одну латинскую букву (a–z или A–Z);
 //   - содержит хотя бы одну цифру (0–9)
 func validatePassword(p string) error {
-	if len(p) < 8 {
-		return &ValidationError{Field: "password", Message: "must be at least 8 characters"}
+	if len(p) < minPasswordLen {
+		return &ValidationError{Field: "password", Message: fmt.Sprintf("must be at least %d characters", minPasswordLen)}
 	}
 	var hasLetter, hasDigit bool
 	for _, r := range p {

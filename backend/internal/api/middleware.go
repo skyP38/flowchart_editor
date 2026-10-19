@@ -55,7 +55,7 @@ func Auth(mgr *token.AccessTokenManager, sessions domains.SessionRepository) Aut
 			// проверка сессии в хранилище на каждом запросе приводит к logout
 			sess, err := sessions.GetByID(r.Context(), sid)
 			if err != nil {
-				if errors.Is(err, domains.ErrNotFound) {
+				if errors.Is(err, domains.ErrNotFound) || errors.Is(err, domains.ErrSessionNotFound) {
 					transport.WriteError(w, http.StatusUnauthorized, transport.CodeSessionRevoked, "session is no longer active")
 					return
 				}

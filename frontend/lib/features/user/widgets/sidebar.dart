@@ -2,16 +2,29 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import 'item.dart';
-import '../screens/sessions.dart';
+// import '../../../core/navigation/navigation_service.dart';
+import '../../../core/navigation/last_route_storage.dart';
+
+// import '../screens/screens.dart';
+// import '../screens/sessions.dart';
 import '../../auth/domain/auth_repository.dart';
 
 class Sidebar extends StatelessWidget {
-  final String currentRoute;
+  final int currentIndex;
+  final ValueChanged<int> onSelect;
 
-  const Sidebar({super.key, this.currentRoute = 'projects'});
+  const Sidebar({
+    super.key,
+    required this.currentIndex,
+    required this.onSelect,
+  });
+
+  // final String currentRoute;
+  // const Sidebar({super.key, this.currentRoute = 'projects'});
 
   @override
   Widget build(BuildContext context) {
+    // final nav = context.read<NavigationService>();
     return Container(
       width: 260,
       padding: const EdgeInsets.all(24),
@@ -50,40 +63,62 @@ class Sidebar extends StatelessWidget {
               NavItem(
                 icon: Icons.folder_outlined,
                 title: 'My projects',
-                active: currentRoute == 'projects',
-                onTap: () => Navigator.of(context).popUntil((r) => r.isFirst),
+                active: currentIndex == 0,
+                onTap: () => onSelect(0),
+                // active: currentRoute == 'projects',
+                // onTap: currentRoute == 'projects'
+                //     ? null
+                //     : () => Navigator.of(context).popUntil((r) => r.isFirst),
               ),
 
               NavItem(
                 icon: Icons.shield_outlined,
                 title: 'Sessions',
-                active: currentRoute == 'session',
-                onTap: () {
-                  Navigator.of(
-                    context,
-                  ).push(MaterialPageRoute(builder: (_) => SessionScreen()));
-                },
+                active: currentIndex == 1,
+                onTap: () => onSelect(1),
+                // active: currentRoute == 'sessions',
+                // onTap: currentRoute == 'sessions'
+                //     ? null
+                //     : () {
+                //         Navigator.of(context).push(
+                //           MaterialPageRoute(
+                //             settings: const RouteSettings(
+                //               name: LastRouteStorage.routeSessions,
+                //             ),
+                //             builder: (_) => const SessionScreen(),
+                //           ),
+                //         );
+                //       },
               ),
 
               NavItem(
                 icon: Icons.logout,
                 title: 'Log out',
-                active: currentRoute == 'logout',
+                active: false,
                 onTap: () async {
-                  debugPrint('Logout tapped');
-                  try {
-                    final authRepo = context.read<AuthRepository>();
-                    await authRepo.logout();
-                    debugPrint(
-                      'Logout done, stack=${Navigator.of(context).canPop()}',
-                    );
-                    if (context.mounted) {
-                      Navigator.of(context).popUntil((r) => r.isFirst);
-                    }
-                  } catch (e, st) {
-                    debugPrint('Logout error: $e\n$st');
-                  }
+                  final auth = context.read<AuthRepository>();
+                  await auth.logout();
+                  if (!context.mounted) return;
+                  await LastRouteStorage.instance.clear();
+                  // await context.read<NavigationService>().clear();
+                  // if (!context.mounted) return;
+                  // Navigator.of(context).popUntil((r) => r.isFirst);
                 },
+                // onTap: () async {
+                //   debugPrint('Logout tapped');
+                //   try {
+                //     final authRepo = context.read<AuthRepository>();
+                //     await authRepo.logout();
+                //     debugPrint(
+                //       'Logout done, stack=${Navigator.of(context).canPop()}',
+                //     );
+                //     if (context.mounted) {
+                //       Navigator.of(context).popUntil((r) => r.isFirst);
+                //     }
+                //   } catch (e, st) {
+                //     debugPrint('Logout error: $e\n$st');
+                //   }
+                // },
               ),
             ],
           ),

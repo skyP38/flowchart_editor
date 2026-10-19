@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
 import 'auth_colors.dart';
+import 'auth_dimensions.dart';
+import 'auth_typ.dart';
 
 class AuthErrorBanner extends StatelessWidget {
   final String message;
@@ -10,10 +12,13 @@ class AuthErrorBanner extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      padding: const EdgeInsets.symmetric(
+        horizontal: AuthDimensions.bannerHorizontalPadding,
+        vertical: AuthDimensions.bannerVerticalPadding,
+      ),
       decoration: BoxDecoration(
         color: AuthColors.errorBg,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(AuthDimensions.radiusSm),
         border: Border.all(color: AuthColors.errorBorder),
       ),
       child: Row(
@@ -22,13 +27,16 @@ class AuthErrorBanner extends StatelessWidget {
           const Icon(
             Icons.error_outline,
             color: AuthColors.errorText,
-            size: 18,
+            size: AuthDimensions.iconSm,
           ),
-          const SizedBox(width: 8),
+          const SizedBox(width: AuthDimensions.gapSm),
           Expanded(
             child: Text(
               message,
-              style: const TextStyle(color: AuthColors.errorText, fontSize: 13),
+              style: const TextStyle(
+                color: AuthColors.errorText,
+                fontSize: AuthTypography.fontSizeXs,
+              ),
             ),
           ),
         ],

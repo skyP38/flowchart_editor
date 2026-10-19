@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import '../factories/node_factory.dart';
 import '../models/editor_models.dart';
-import '../models/flow_models.dart';
 import 'flowchart_graph.dart';
 import 'layout_engine.dart';
 
@@ -182,7 +181,7 @@ class ConnectionRouter {
     final local = _subtreeBounds(g, c.sourceNodeName, stopAt: c.targetNodeName);
     // Глубина: сколько For-предков у данного источника
     final ancestors = _forAncestorCount(g, c.sourceNodeName);
-    final maxDepth = _maxForDepth(g);
+    final maxDepth = LayoutEngine.maxForDepth(g);
     final levelsFromInner = maxDepth - ancestors;
 
     // Правый коридор
@@ -220,7 +219,7 @@ class ConnectionRouter {
     final bas = spacing.stepX / 6;
 
     final ancestors = _forAncestorCount(g, c.targetNodeName);
-    final maxDepth = _maxForDepth(g);
+    final maxDepth = LayoutEngine.maxForDepth(g);
     final levelsFromInner = maxDepth - ancestors; // 0 у самого внутреннего
     final inset = bas / 2 * (levelsFromInner + 1);
     // final gap = spacing.stepX / 6;
@@ -285,17 +284,6 @@ class ConnectionRouter {
 
     dfs(root);
     return result;
-  }
-
-  // Максимальная глубина вложенности среди всех For графа
-  int _maxForDepth(FlowchartGraph g) {
-    int maxDepth = 0;
-    for (final e in g.nodes.entries) {
-      if (e.value.data is! ForBlock) continue;
-      final a = _forAncestorCount(g, e.key);
-      if (a > maxDepth) maxDepth = a;
-    }
-    return maxDepth;
   }
 
   // Нижняя и правая границы поддерева, начиная с rootName

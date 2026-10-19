@@ -1,18 +1,25 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../widgets/sidebar.dart';
+import '../../../core/network/api_service.dart';
+import '../../../core/navigation/last_route_storage.dart';
+
+// import '../widgets/sidebar.dart';
 import '../models/project.dart';
 import '../models/flowchart.dart';
-import '../../../core/network/api_service.dart';
 import '../widgets/card_f.dart';
 
 import 'flowchart_editor_page.dart';
 
 class ProjectScreen extends StatefulWidget {
   final int projectId;
+  final int? restoreFlowchartId;
 
-  const ProjectScreen({super.key, required this.projectId});
+  const ProjectScreen({
+    super.key,
+    required this.projectId,
+    this.restoreFlowchartId,
+  });
 
   @override
   State<ProjectScreen> createState() => _ProjectScreenState();
@@ -21,13 +28,56 @@ class ProjectScreen extends StatefulWidget {
 class _ProjectScreenState extends State<ProjectScreen> {
   late final ApiService _api;
   late Future<Project> _projectFuture;
+  final _storage = LastRouteStorage.instance;
 
   @override
   void initState() {
     super.initState();
+    debugPrint(
+      '[ProjectScreen] init pid=${widget.projectId} '
+      'restore=${widget.restoreFlowchartId}',
+    );
     _api = context.read<ApiService>();
-    _reload();
+    _projectFuture = _api.getProject(widget.projectId);
+    _storage.setProject(widget.projectId);
+    final fid = widget.restoreFlowchartId;
+    if (fid != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        debugPrint('[ProjectScreen] pushing editor($fid)');
+        // _restoreFlowchartEditor(fid);
+        // if (!mounted) return;
+        _openFlowchartEditor(fid);
+      });
+    }
+    // _reload();
   }
+
+  @override
+  void dispose() {
+    // Выход из проекта — стираем всё, что было открыто поверх.
+    _storage.setProject(null);
+    super.dispose();
+  }
+
+  Future<void> _openFlowchartEditor(int flowchartId) async {
+    await _storage.setFlowchart(flowchartId);
+    if (!mounted) return;
+
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => FlowchartEditorPage(
+          projectId: widget.projectId,
+          flowchartId: flowchartId,
+        ),
+      ),
+    );
+
+    // Редактор закрыт
+    await _storage.setFlowchart(null);
+  }
+
+  // все тапы по карточкам идут через это
+  void _openFlowchart(Flowchart f) => _openFlowchartEditor(f.id);
 
   void _reload() {
     setState(() {
@@ -70,53 +120,53 @@ class _ProjectScreenState extends State<ProjectScreen> {
     _reload();
   }
 
-  void _openFlowchart(Flowchart f) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) =>
-            FlowchartEditorPage(projectId: widget.projectId, flowchartId: f.id),
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF5F5F5),
-      body: Row(
-        children: [
-          const Sidebar(currentRoute: 'projects'),
-          Expanded(
-            child: FutureBuilder<Project>(
-              future: _projectFuture,
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
-                }
+      appBar: AppBar(
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+        title: Text('My projects / ...'), // ← breadcrumb можно сюда
+        backgroundColor: Colors.white,
+        elevation: 0,
+      ),
+      // body.: Row(
+      // children: [
+      //   const Sidebar(currentRoute: 'projects'),
+      //   Expanded(
+      //     child:
+      body: FutureBuilder<Project>(
+        future: _projectFuture,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
 
-                if (snapshot.hasError) {
-                  return Center(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text('Error: ${snapshot.error}'),
-                        const SizedBox(height: 16),
-                        ElevatedButton(
-                          onPressed: _reload,
-                          child: const Text('Repeat'),
-                        ),
-                      ],
-                    ),
-                  );
-                }
+          if (snapshot.hasError) {
+            return Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text('Error: ${snapshot.error}'),
+                  const SizedBox(height: 16),
+                  ElevatedButton(
+                    onPressed: _reload,
+                    child: const Text('Repeat'),
+                  ),
+                ],
+              ),
+            );
+          }
 
-                final project = snapshot.data!;
-                return _buildContent(project);
-              },
-            ),
-          ),
-        ],
+          final project = snapshot.data!;
+          return _buildContent(project);
+        },
+        // ),
+        // ),
+        // ],
       ),
     );
   }

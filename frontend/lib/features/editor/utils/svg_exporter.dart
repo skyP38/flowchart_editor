@@ -1,3 +1,4 @@
+import 'package:flowchart_editor_frontend/features/editor/domain/layout_engine.dart';
 import 'package:flutter/material.dart';
 
 import '../constants/diagram_constants.dart';
@@ -14,6 +15,7 @@ class SvgExporter {
     required FlowchartGraph graph,
     required ConnectionRouter router,
     required Size nodeSize,
+    required LayoutSpacing spacing,
     required Size canvasSize,
     required bool showGrid,
   }) {
@@ -37,8 +39,10 @@ class SvgExporter {
           _buildGridSvg(
             canvasSize: canvasSize,
             startPosition: start.position,
-            stepX: nodeSize.width,
-            stepY: nodeSize.height,
+            stepX: spacing.stepX - GridConstants.stepXExtra,
+            stepY: spacing.stepY - GridConstants.stepYExtra,
+            // stepX: nodeSize.width,
+            // stepY: nodeSize.height,
           ),
         );
       }

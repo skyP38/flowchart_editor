@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
 import 'auth_colors.dart';
+import 'auth_dimensions.dart';
+import 'auth_typ.dart';
 
 // Основная кнопка форм авторизации с режимом загрузки
 class AuthPrimaryButton extends StatelessWidget {
@@ -23,23 +25,30 @@ class AuthPrimaryButton extends StatelessWidget {
         backgroundColor: AuthColors.primary,
         foregroundColor: Colors.white,
         disabledBackgroundColor: AuthColors.primary.withValues(alpha: 0.6),
-        disabledForegroundColor: Colors.white70,
-        padding: const EdgeInsets.symmetric(vertical: 16),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        disabledForegroundColor: AuthColors.surfaceMuted,
+        padding: const EdgeInsets.symmetric(
+          vertical: AuthDimensions.buttonVerticalPadding,
+        ),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AuthDimensions.radiusSm),
+        ),
         elevation: 0,
       ),
       child: isLoading
           ? const SizedBox(
-              width: 20,
-              height: 20,
+              width: AuthDimensions.progressSize,
+              height: AuthDimensions.progressSize,
               child: CircularProgressIndicator(
-                strokeWidth: 2,
-                valueColor: AlwaysStoppedAnimation(Colors.white),
+                strokeWidth: AuthDimensions.progressStrokeWidth,
+                valueColor: AlwaysStoppedAnimation(AuthColors.surface),
               ),
             )
           : Text(
               label,
-              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+              style: const TextStyle(
+                fontSize: AuthTypography.fontSizeLg,
+                fontWeight: AuthTypography.weightSemiBold,
+              ),
             ),
     );
   }

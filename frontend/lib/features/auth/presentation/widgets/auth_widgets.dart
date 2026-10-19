@@ -5,3 +5,5 @@ export 'auth_label.dart';
 export 'auth_logo_header.dart';
 export 'auth_primary_button.dart';
 export 'auth_text_field.dart';
+export 'auth_dimensions.dart';
+export 'auth_typ.dart';
