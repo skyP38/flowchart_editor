@@ -76,7 +76,7 @@ class _FlowchartEditorPageState extends State<FlowchartEditorPage> {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
     if (_error != null) {
-      return Scaffold(body: Center(child: Text('Ошибка: $_error')));
+      return Scaffold(body: Center(child: Text('Error: $_error')));
     }
     return EditorScreen(initialSnapshot: _initial, onSave: _save);
   }

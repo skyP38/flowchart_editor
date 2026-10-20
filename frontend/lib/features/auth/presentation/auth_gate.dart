@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../../../core/network/api_error.dart';
 import '../../user/screens/welcome.dart';
 import '../../user/screens/home_shell.dart';
+import '../../admin/presentation/admin_shell.dart';
 
 import '../domain/auth_repository.dart';
 import '../domain/auth_state.dart';
@@ -38,7 +39,8 @@ class _AuthGateState extends State<AuthGate> {
             ? const GuestEditorScreen()
             : const WelcomeScreen(),
 
-      AuthAuthenticated() => const HomeShell(), // _screenForRoute(
+      AuthAuthenticated(:final user) =>
+        user.role?.toLowerCase() == 'admin' ? const AdminShell() : const HomeShell(), // _screenForRoute(
       // _lastRoute,
       // ), //const ProjectsScreen(),
       //AuthUnauthenticated() => LoginScreen(onLoggedIn: () {}),
