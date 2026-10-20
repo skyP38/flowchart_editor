@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -28,14 +29,20 @@ type AdminUserRepository interface {
 	ListAll(ctx context.Context) ([]*domains.User, error)
 }
 
+type AdminSessionRepository interface {
+	SessionStatsProvider
+	ListAll(ctx context.Context) ([]*domains.Session, error)
+	Revoke(ctx context.Context, id int64, at time.Time) error
+}
+
 // AdminHandler handles administrator-only API routes.
 type AdminHandler struct {
-	sessions SessionStatsProvider
+	sessions AdminSessionRepository
 	users    AdminUserRepository
 	pepper   string
 }
 
-func NewAdminHandler(s SessionStatsProvider, users AdminUserRepository, pepper string) *AdminHandler {
+func NewAdminHandler(s AdminSessionRepository, users AdminUserRepository, pepper string) *AdminHandler {
 	return &AdminHandler{sessions: s, users: users, pepper: pepper}
 }
 
@@ -47,6 +54,8 @@ func (h *AdminHandler) RegisterRoutes(mux *http.ServeMux, authMW AuthMW) {
 	mux.Handle("GET /api/admin/stats", adminMW(http.HandlerFunc(h.Stats)))
 	mux.Handle("GET /api/admin/users", adminMW(http.HandlerFunc(h.ListUsers)))
 	mux.Handle("POST /api/admin/users", adminMW(http.HandlerFunc(h.CreateUser)))
+	mux.Handle("GET /api/admin/sessions", adminMW(http.HandlerFunc(h.ListSessions)))
+	mux.Handle("DELETE /api/admin/sessions/{id}", adminMW(http.HandlerFunc(h.RevokeSession)))
 }
 
 // Stats handles GET /api/admin/stats.
@@ -173,4 +182,67 @@ func (h *AdminHandler) CreateUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	transport.WriteJSON(w, http.StatusCreated, map[string]any{"user": toAdminUserDTO(u)})
+}
+
+type adminSessionDTO struct {
+	ID        int64      `json:"id"`
+	UserID    int64      `json:"userId"`
+	Login     string     `json:"login"`
+	Uname     string     `json:"uname"`
+	CreatedAt time.Time  `json:"createdAt"`
+	ExpiresAt time.Time  `json:"expiresAt"`
+	RevokedAt *time.Time `json:"revokedAt,omitempty"`
+	Active    bool       `json:"active"`
+}
+
+func (h *AdminHandler) ListSessions(w http.ResponseWriter, r *http.Request) {
+	sessions, err := h.sessions.ListAll(r.Context())
+	if err != nil {
+		log.Printf("admin list sessions: %v", err)
+		transport.WriteError(w, http.StatusInternalServerError, transport.CodeInternal, "internal server error")
+		return
+	}
+	users, err := h.users.ListAll(r.Context())
+	if err != nil {
+		log.Printf("admin list session users: %v", err)
+		transport.WriteError(w, http.StatusInternalServerError, transport.CodeInternal, "internal server error")
+		return
+	}
+	usersByID := make(map[int64]*domains.User, len(users))
+	for _, user := range users {
+		usersByID[user.ID] = user
+	}
+	now := time.Now().UTC()
+	result := make([]adminSessionDTO, 0, len(sessions))
+	for _, session := range sessions {
+		item := adminSessionDTO{
+			ID: session.ID, UserID: session.UserID, CreatedAt: session.CreatedAt,
+			ExpiresAt: session.ExpiresAt, RevokedAt: session.RevokedAt,
+			Active: session.IsActive(now),
+		}
+		if user, ok := usersByID[session.UserID]; ok {
+			item.Login = user.Login
+			item.Uname = user.Uname
+		}
+		result = append(result, item)
+	}
+	transport.WriteJSON(w, http.StatusOK, map[string]any{"sessions": result})
+}
+
+func (h *AdminHandler) RevokeSession(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil || id <= 0 {
+		transport.WriteError(w, http.StatusBadRequest, transport.CodeInvalidInput, "invalid session id")
+		return
+	}
+	if err := h.sessions.Revoke(r.Context(), id, time.Now().UTC()); err != nil {
+		if errors.Is(err, domains.ErrNotFound) || errors.Is(err, domains.ErrSessionNotFound) {
+			transport.WriteError(w, http.StatusNotFound, transport.CodeSessionNotFound, "session not found")
+			return
+		}
+		log.Printf("admin revoke session: %v", err)
+		transport.WriteError(w, http.StatusInternalServerError, transport.CodeInternal, "internal server error")
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }

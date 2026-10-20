@@ -69,6 +69,37 @@ func (r *SessionRepository) ListByUserID(
 	return sessions, rows.Err()
 }
 
+func (r *SessionRepository) ListAll(ctx context.Context) ([]*domains.Session, error) {
+	rows, err := r.db.Query(ctx,
+		`SELECT id_sessions, id_user, token_hash, created_at, expires_at, revoked_at
+		 FROM sessions
+		 ORDER BY created_at DESC, id_sessions DESC`)
+	if err != nil {
+		return nil, fmt.Errorf("list all sessions: %w", err)
+	}
+	defer rows.Close()
+
+	sessions := make([]*domains.Session, 0)
+	for rows.Next() {
+		var session domains.Session
+		if err := rows.Scan(
+			&session.ID,
+			&session.UserID,
+			&session.TokenHash,
+			&session.CreatedAt,
+			&session.ExpiresAt,
+			&session.RevokedAt,
+		); err != nil {
+			return nil, fmt.Errorf("scan session: %w", err)
+		}
+		sessions = append(sessions, &session)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate sessions: %w", err)
+	}
+	return sessions, nil
+}
+
 func (r *SessionRepository) Close(
 	ctx context.Context,
 	sessionID int64,
