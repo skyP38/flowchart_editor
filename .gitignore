@@ -21,6 +21,6 @@ frontend/web
 *cover.out
 graph.svg
 *golangci*
-*test.go
-*test.dart
 *backup
+backend/main
+backend/internal/storage*
