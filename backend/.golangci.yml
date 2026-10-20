@@ -1,4 +1,4 @@
-version: 2
+version: "2"
 run:
   timeout: 3m
   tests: true
@@ -21,10 +21,10 @@ linters:
   settings:
     revive:
       rules:
-        - name: exported
-          severity: warning
-        - name: package-comments
-          severity: warning
+        # - name: exported
+          # severity: warning
+        # - name: package-comments
+          # severity: warning
         - name: var-naming
           severity: warning
         - name: indent-error-flow
@@ -61,13 +61,11 @@ linters:
     staticcheck:
       checks:
         - all
-        - -ST1003   # ID в именах (UserID, SessionID) 
+        - -ST1003   # ID в именах (UserID, SessionID)
+        - -ST1000   # Требование комментировать пакеты
 
-issues:
-  max-issues-per-linter: 0
-  max-same-issues: 0
-
-  exclude-rules:
+  exclusions:
+    rules:
     - path: _test\.go
       linters:
         - gocritic

@@ -72,7 +72,7 @@ type authResponse struct {
 // Register обрабатывает POST /api/auth/register
 // Возвращает 201 Created при успехе, иначе 400 invalid_input
 func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
-	defer r.Body.Close()
+	defer func() { _ = r.Body.Close() }()
 
 	var req registerRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -95,7 +95,7 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 // Login обрабатывает POST /api/auth/login
 // Возвращает 200 OK при успехе, иначе 400 invalid_input
 func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
-	defer r.Body.Close()
+	defer func() { _ = r.Body.Close() }()
 	var req loginRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		transport.WriteError(w, http.StatusBadRequest, transport.CodeInvalidInput, "wrong JSON body")
@@ -146,7 +146,7 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 // Refresh обрабатывает POST /api/auth/refresh
 // Возвращает 200 OK при успехе, иначе 400 invalid_input
 func (h *AuthHandler) Refresh(w http.ResponseWriter, r *http.Request) {
-	defer r.Body.Close()
+	defer func() { _ = r.Body.Close() }()
 	var req refreshRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		transport.WriteError(w, http.StatusBadRequest, transport.CodeInvalidInput, "wrong JSON body")
@@ -164,7 +164,7 @@ func (h *AuthHandler) Refresh(w http.ResponseWriter, r *http.Request) {
 // Logout обрабатывает POST /api/auth/refresh
 // Возвращает 200 OK при успехе, иначе 400 invalid_input
 func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) {
-	defer r.Body.Close()
+	defer func() { _ = r.Body.Close() }()
 	var req refreshRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		transport.WriteError(w, http.StatusBadRequest, transport.CodeInvalidInput, "wrong JSON body")
