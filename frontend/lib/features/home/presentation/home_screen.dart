@@ -4,7 +4,6 @@ import 'package:provider/provider.dart';
 import '../../auth/data/models/user.dart';
 import '../../auth/domain/auth_repository.dart';
 
-
 // Заглушка
 class HomeScreen extends StatelessWidget {
   final User user;

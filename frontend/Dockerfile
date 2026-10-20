@@ -1,4 +1,11 @@
-FROM instrumentisto/flutter:3.41 AS build
+FROM ubuntu AS build
+
+RUN apt-get update
+RUN apt-get install -y curl git unzip
+
+RUN git clone https://github.com/flutter/flutter.git 
+
+ENV PATH="/flutter/bin:${PATH}"
 
 WORKDIR /app
 
