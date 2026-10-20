@@ -13,6 +13,8 @@ abstract final class ApiPaths {
 
   // Administration
   static const adminUsers = '/api/admin/users';
+  static const adminSessions = '/api/admin/sessions';
+  static String adminSession(int id) => '/api/admin/sessions/$id';
   static const adminStats = '/api/admin/stats';
 
   // Projects

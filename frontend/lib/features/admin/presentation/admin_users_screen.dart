@@ -8,7 +8,8 @@ import '../models/admin_user.dart';
 
 class AdminUsersScreen extends StatefulWidget {
   final VoidCallback onOpenEditor;
-  const AdminUsersScreen({super.key, required this.onOpenEditor});
+  final VoidCallback onOpenSessions;
+  const AdminUsersScreen({super.key, required this.onOpenEditor, required this.onOpenSessions});
 
   @override
   State<AdminUsersScreen> createState() => _AdminUsersScreenState();
@@ -41,6 +42,7 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
 
   Future<void> _sessions() async {
     //TODO
+    widget.onOpenSessions();
   }
 
   Future<void> _logs() async {
@@ -124,7 +126,13 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
         ),
         backgroundColor: Colors.white,
         surfaceTintColor: Colors.transparent,
-        elevation: 1,
+        elevation: 0,
+        shape: const Border(
+          bottom: BorderSide(
+            color: Color(0xFFD9D9D9),
+            width: 1,
+          ),
+        ),
         actions: [
           TextButton.icon(
             onPressed: widget.onOpenEditor,

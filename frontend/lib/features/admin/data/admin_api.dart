@@ -1,6 +1,7 @@
 import '../../../core/network/api_client.dart';
 import '../../../core/network/api_paths.dart';
 import '../models/admin_user.dart';
+import '../models/admin_session.dart';
 
 class AdminApi {
   final ApiClient _client;
@@ -31,5 +32,19 @@ class AdminApi {
       },
     );
     return AdminUser.fromJson(response['user'] as Map<String, dynamic>);
+  }
+
+  Future<List<AdminSession>> listSessions() async {
+    final response = await _client.get<Map<String, dynamic>>(
+      ApiPaths.adminSessions,
+    );
+    final sessions = response['sessions'] as List<dynamic>? ?? const <dynamic>[];
+    return sessions
+        .map((value) => AdminSession.fromJson(value as Map<String, dynamic>))
+        .toList(growable: false);
+  }
+
+  Future<void> revokeSession(int id) async {
+    await _client.delete<void>(ApiPaths.adminSession(id));
   }
 }
