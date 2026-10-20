@@ -106,6 +106,7 @@ func main() {
 
 	projectHandler.RegisterRoutes(mux, authMW)
 	flowchartHandler.RegisterRoutes(mux, authMW)
+	api.NewAdminHandler(sessionRepo, userRepo, cfg.PasswordPepper).RegisterRoutes(mux, authMW)
 
 	staticFiles := http.FileServer(http.Dir(cfg.StaticDir))
 	mux.Handle("/", staticFiles)

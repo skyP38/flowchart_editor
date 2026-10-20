@@ -169,3 +169,18 @@ func (r *SessionRepository) RemoveExpired(ctx context.Context, retention time.Du
 	}
 	return int(res.RowsAffected()), nil
 }
+
+func (r *SessionRepository) Stats(ctx context.Context) (domains.SessionStats, error) {
+	var stats domains.SessionStats
+	err := r.db.QueryRow(ctx, `
+		SELECT
+			COUNT(*)::int,
+			COUNT(*) FILTER (WHERE revoked_at IS NULL AND expires_at > NOW())::int,
+			COUNT(*) FILTER (WHERE revoked_at IS NOT NULL)::int,
+			COUNT(*) FILTER (WHERE revoked_at IS NULL AND expires_at <= NOW())::int
+		FROM sessions`).Scan(&stats.Total, &stats.Active, &stats.Revoked, &stats.Expired)
+	if err != nil {
+		return domains.SessionStats{}, fmt.Errorf("session stats: %w", err)
+	}
+	return stats, nil
+}
