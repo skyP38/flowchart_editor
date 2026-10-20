@@ -16,7 +16,7 @@ backend/bin/
 package.json
 package-lock.json
 
-frontend/web
+# frontend/web
 *coverage.out
 *cover.out
 graph.svg
