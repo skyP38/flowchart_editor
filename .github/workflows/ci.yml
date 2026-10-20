@@ -22,7 +22,7 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version: 1.26
-          cache-dependency-path: go.mod
+          cache-dependency-path: backend/go.sum
 
       - name: Verify dependencies
         run: go mod verify
@@ -35,6 +35,7 @@ jobs:
         with:
             version: v2.1.6
             install-mode: goinstall
+            working-directory: ./backend
 
       - name: Tests
         run: go test -v -race ./...
