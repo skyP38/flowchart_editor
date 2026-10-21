@@ -20,8 +20,9 @@ class AuthLogoHeader extends StatelessWidget {
             borderRadius: BorderRadius.circular(AuthDimensions.radiusSm),
           ),
           child: const Icon(
-            Icons.close_rounded, // TODO: заменить на логотип
+            Icons.schema,
             size: AuthDimensions.iconMd,
+            color: Colors.white,
           ),
         ),
         const SizedBox(width: 12),

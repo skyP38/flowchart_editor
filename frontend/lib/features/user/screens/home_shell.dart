@@ -7,7 +7,9 @@ import 'sessions.dart';
 import 'project_screen.dart';
 
 class HomeShell extends StatefulWidget {
-  const HomeShell({super.key});
+  final VoidCallback? onReturnToAdmin;
+
+  const HomeShell({super.key, this.onReturnToAdmin});
   @override
   State<HomeShell> createState() => _HomeShellState();
 }
@@ -79,16 +81,40 @@ class _HomeShellState extends State<HomeShell> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Row(
+      body: Column(
         children: [
-          Sidebar(currentIndex: _tab, onSelect: _selectTab),
+          if (widget.onReturnToAdmin != null)
+            Container(
+              height: 52,
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                border: Border(bottom: BorderSide(color: Color(0xFFE5E7EB))),
+              ),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: TextButton.icon(
+                  onPressed: widget.onReturnToAdmin,
+                  icon: const Icon(Icons.arrow_back, size: 18),
+                  label: const Text('Admin panel'),
+                ),
+              ),
+            ),
           Expanded(
-            child: _drillDownActive
-                ? const SizedBox.shrink()
-                : IndexedStack(
-                    index: _tab,
-                    children: const [ProjectsContent(), SessionScreen()],
-                  ),
+            child: Row(
+              children: [
+                Sidebar(currentIndex: _tab, onSelect: _selectTab),
+                Expanded(
+                  child: _drillDownActive
+                      ? const SizedBox.shrink()
+                      : IndexedStack(
+                          index: _tab,
+                          children: const [ProjectsContent(), SessionScreen()],
+                        ),
+                ),
+              ],
+            ),
           ),
         ],
       ),

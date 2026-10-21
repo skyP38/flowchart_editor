@@ -11,6 +11,12 @@ abstract final class ApiPaths {
   static const sessions = '/api/sessions';
   static String session(int id) => '/api/sessions/$id';
 
+  // Administration
+  static const adminUsers = '/api/admin/users';
+  static const adminSessions = '/api/admin/sessions';
+  static String adminSession(int id) => '/api/admin/sessions/$id';
+  static const adminStats = '/api/admin/stats';
+
   // Projects
   static const projects = '/api/projects';
   static String project(int id) => '/api/projects/$id';
@@ -29,4 +35,8 @@ abstract final class ApiPaths {
 
   static bool isPublic(String path) =>
       _publicAuth.any((p) => path == p || path.startsWith('$p/'));
+
+  static const adminLogs = '/api/admin/logs';
+
+  static String adminUser(int id) => '/api/admin/users/$id';
 }

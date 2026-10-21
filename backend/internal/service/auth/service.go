@@ -159,6 +159,14 @@ func (s *Service) Login(ctx context.Context, in LoginInput) (*AuthResult, error)
 		return nil, ErrInvalidCredentials
 	}
 
+	// Updating last-login time is informational: a logging failure should not
+	// prevent an otherwise valid sign-in. SQL repositories implement this hook.
+	if recorder, ok := s.users.(interface {
+		UpdateLastLogin(context.Context, int64, time.Time) error
+	}); ok {
+		_ = recorder.UpdateLastLogin(ctx, u.ID, time.Now().UTC())
+	}
+
 	return s.issueTokens(ctx, u)
 }
 

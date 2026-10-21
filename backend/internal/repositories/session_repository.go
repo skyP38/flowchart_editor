@@ -69,6 +69,37 @@ func (r *SessionRepository) ListByUserID(
 	return sessions, rows.Err()
 }
 
+func (r *SessionRepository) ListAll(ctx context.Context) ([]*domains.Session, error) {
+	rows, err := r.db.Query(ctx,
+		`SELECT id_sessions, id_user, token_hash, created_at, expires_at, revoked_at
+		 FROM sessions
+		 ORDER BY created_at DESC, id_sessions DESC`)
+	if err != nil {
+		return nil, fmt.Errorf("list all sessions: %w", err)
+	}
+	defer rows.Close()
+
+	sessions := make([]*domains.Session, 0)
+	for rows.Next() {
+		var session domains.Session
+		if err := rows.Scan(
+			&session.ID,
+			&session.UserID,
+			&session.TokenHash,
+			&session.CreatedAt,
+			&session.ExpiresAt,
+			&session.RevokedAt,
+		); err != nil {
+			return nil, fmt.Errorf("scan session: %w", err)
+		}
+		sessions = append(sessions, &session)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate sessions: %w", err)
+	}
+	return sessions, nil
+}
+
 func (r *SessionRepository) Close(
 	ctx context.Context,
 	sessionID int64,
@@ -168,4 +199,19 @@ func (r *SessionRepository) RemoveExpired(ctx context.Context, retention time.Du
 		return 0, err
 	}
 	return int(res.RowsAffected()), nil
+}
+
+func (r *SessionRepository) Stats(ctx context.Context) (domains.SessionStats, error) {
+	var stats domains.SessionStats
+	err := r.db.QueryRow(ctx, `
+		SELECT
+			COUNT(*)::int,
+			COUNT(*) FILTER (WHERE revoked_at IS NULL AND expires_at > NOW())::int,
+			COUNT(*) FILTER (WHERE revoked_at IS NOT NULL)::int,
+			COUNT(*) FILTER (WHERE revoked_at IS NULL AND expires_at <= NOW())::int
+		FROM sessions`).Scan(&stats.Total, &stats.Active, &stats.Revoked, &stats.Expired)
+	if err != nil {
+		return domains.SessionStats{}, fmt.Errorf("session stats: %w", err)
+	}
+	return stats, nil
 }
