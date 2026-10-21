@@ -160,10 +160,6 @@ class FlowController extends ChangeNotifier {
     if (_nodeSize == s) return;
     _pushHistory();
     _nodeSize = s;
-    // _layoutEngine = LayoutEngine(
-    //   nodeSize: s,
-    //   spacing: LayoutSpacing(stepX: s.width + 70, stepY: s.height + 40),
-    // );
     _graph = _relayout(_graph);
     notifyListeners();
   }
@@ -218,12 +214,12 @@ class FlowController extends ChangeNotifier {
 
   // загрузка
   void fromSnapshot(EditorSnapshot s) {
-    _pushHistory(); // загрузку тоже можно отменить
+    _pushHistory(); // загрузку можно отменить
     final restored = GraphMapper.fromSnapshot(s);
 
     _nodeSize = restored.nodeSize;
 
-    _graph = _relayout(restored.graph); // пересчитываем раскладку из данных
+    _graph = _relayout(restored.graph); // пересчет раскладки из данных
     _showGrid = restored.showGrid;
     _scale = restored.scale;
     _isToolbarVisible = restored.isToolbarVisible;
@@ -261,8 +257,14 @@ class FlowController extends ChangeNotifier {
 
     final toRemove = <String>{name};
     if (isLogic) {
+      final yesConn = outgoing.firstWhereOrNull((c) => c.sourcePort == 'yes');
       final noConn = outgoing.firstWhereOrNull((c) => c.sourcePort == 'no');
-      if (noConn != null) {
+      final isTrivialRejoin =
+          yesConn != null &&
+          noConn != null &&
+          yesConn.targetNodeName == noConn.targetNodeName;
+
+      if (!isTrivialRejoin && noConn != null) {
         toRemove.addAll(_collectSubtree(g, noConn.targetNodeName));
       }
     } else if (isFor) {
@@ -284,7 +286,6 @@ class FlowController extends ChangeNotifier {
         )
         .toList();
 
-    // final inConn = incoming.isNotEmpty ? incoming.first : null;
     final inConn = incoming.firstWhereOrNull(
       (c) => !toRemove.contains(c.sourceNodeName),
     );
@@ -357,6 +358,17 @@ class FlowController extends ChangeNotifier {
   // Очищает undo/redo
   void clearHistory() {
     _history.clear();
+    notifyListeners();
+  }
+
+  void insertAfterLogicMerge(
+    String yesConnId,
+    String? noConnId,
+    GostNodeData proto,
+  ) {
+    _pushHistory();
+    final res = _insertion.insertAfterMerge(_graph, yesConnId, noConnId, proto);
+    _graph = _relayout(res.graph);
     notifyListeners();
   }
 }

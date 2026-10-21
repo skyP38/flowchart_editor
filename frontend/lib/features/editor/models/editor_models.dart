@@ -50,5 +50,14 @@ class InsertionPoint {
   final Offset position;
   // Связь, в разрыв которой будет вставлен блок
   final ConnectionData connection;
-  InsertionPoint(this.position, this.connection);
+  // Флаг для логического блока - для создания доп плюса
+  final bool isAfterMerge;
+  // Для логического блока возможно перенаправление
+  final String? mergeOtherConnId;
+  InsertionPoint(
+    this.position,
+    this.connection, {
+    this.isAfterMerge = false,
+    this.mergeOtherConnId,
+  });
 }

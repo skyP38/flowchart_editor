@@ -60,8 +60,7 @@ class LayoutEngine {
       for (final c in outs) {
         if (c.sourcePort != 'no' || c.targetPort == 'loopback') continue;
 
-        // rejoin: yes/out и no одного родителя ведут в один узел.
-        // Такая no - не отдельная ветка, а @двойная связь" LogicBlock.
+        // rejoin: yes/out и no одного родителя ведут в один узел
         final sameTargetYes = outs.any(
           (o) =>
               (o.sourcePort == 'yes' || o.sourcePort == 'out') &&
@@ -82,8 +81,8 @@ class LayoutEngine {
     }
 
     // 2c. Сортируем по nodeLevel (min-уровень от main),
-    // внутри уровня - по убыванию rStart: глубокие нижние ветки "застолбляют" колонки
-    // первыми, верхние подстраиваются под них.
+    // внутри уровня - по убыванию rStart: глубокие нижние ветки занимают колонки
+    // первыми, верхние подстраиваются под них
     branches.sort((a, b) {
       final la = nodeLevel[a.branchName] ?? 0;
       final lb = nodeLevel[b.branchName] ?? 0;
@@ -116,10 +115,9 @@ class LayoutEngine {
         isRoot: true,
       );
     }
-    //
-    // Финальный проход: rejoin-узлы, у которых walk не установил колонку,
-    // берут max колонки своих источников. Если среди источников есть main
-    // (col 0) - узел остается на col 0.
+
+    // rejoin-узлы, у которых walk не установил колонку, берут max колонки source
+    // Если среди источников есть main (col 0) - узел остается на col 0
     for (final name in g.nodes.keys) {
       if (cols.containsKey(name)) continue;
       if (g.isEnd(name)) continue;
@@ -128,6 +126,27 @@ class LayoutEngine {
           .where((c) => c.targetPort != 'loopback')
           .toList();
       if (incoming.isEmpty) continue;
+
+      final isLoopbackSource = (g.outgoing[name] ?? const []).any(
+        (c) => c.targetPort == 'loopback',
+      );
+      if (isLoopbackSource) {
+        final mainIncoming = incoming
+            .where(
+              (c) =>
+                  c.sourcePort == 'yes' ||
+                  c.sourcePort == 'out' ||
+                  c.sourcePort == 'body' ||
+                  c.sourcePort == 'in',
+            )
+            .toList();
+        if (mainIncoming.isNotEmpty) {
+          cols[name] = mainIncoming
+              .map((c) => cols[c.sourceNodeName] ?? 0)
+              .reduce((a, b) => a < b ? a : b);
+          continue;
+        }
+      }
 
       final sourceCols = incoming
           .map((c) => cols[c.sourceNodeName] ?? 0)
@@ -145,9 +164,6 @@ class LayoutEngine {
     // Сдвиг для центровки блоков в ячейках сетки
     final shiftX = (spacing.stepX - nodeSize.width) / 2;
     final shiftY = (spacing.stepY - nodeSize.height) / 2;
-    // Фиксированная база — не зависит от start.position,
-    // иначе сдвиг накапливается при каждом relayout.
-    //
     final depth = maxForDepth(g);
     final insetOuter = spacing.stepX / 12.0 * (depth + 1);
     const leftMargin = 20.0;
@@ -166,7 +182,7 @@ class LayoutEngine {
     return result;
   }
 
-  // Проходит поддерево ветки, ставит всем "чистым" потомкам ту же колонку.
+  // Проходит поддерево ветки, ставит всем потомкам ту же колонку
   // Останавливается на:
   // - End (всегда col 0);
   // - rejoin-узлах (несколько входов - принадлежат main);
@@ -187,8 +203,8 @@ class LayoutEngine {
         .where((c) => c.targetPort != 'loopback')
         .toList();
 
-    // Rejoin = входы из разных узлов.
-    // Если это yes и no от одного и того же родителя - узел все еще "наш", просто к нему сходятся две линии.
+    // Rejoin = входы из разных узлов
+    // Если это yes и no от одного и того же родителя - узел все еще "наш", просто к нему сходятся две линии
     final distinctSources = incoming.map((c) => c.sourceNodeName).toSet();
     if (!isRoot && distinctSources.length > 1) return;
 
@@ -317,7 +333,7 @@ class LayoutEngine {
     }
   }
 
-  // Идем по цепочке out-рёбер от branch до тех пор, пока не упремся в End  или не вернемся в main (узел с уже размеченной col 0).
+  // Идем по цепочке out от branch до тех пор, пока не упремся в End  или не вернемся в main (узел с уже размеченной col 0)
   // Возвращаем  максимальный rank, который эта линия займет - он нужен как правый
   // край интервала [rStart, rEnd] для проверки пересечений по колонке.
   int _exitRankOf(

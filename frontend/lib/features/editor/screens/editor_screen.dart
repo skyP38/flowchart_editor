@@ -79,7 +79,6 @@ class _EditorScreenState extends State<EditorScreen> {
     } else {
       _controller.initDefaultDiagram();
     }
-    // _controller.initDefaultDiagram();
     _rebuildRouter();
     _insertionPoints = _insertionPointsService.compute(_controller.graph);
     _controller.addListener(_onControllerChanged);
@@ -303,24 +302,43 @@ class _EditorScreenState extends State<EditorScreen> {
     final localPos = details.localPosition;
 
     // Проверка точки вставки
-    for (final point in _insertionPoints) {
-      if ((localPos - point.position).distance <= 12.0) {
-        if (_selectedPrototype != null) {
+    InsertionPoint? point;
+    double bestDist = 12.0;
+    for (final pnt in _insertionPoints) {
+      final d = (localPos - pnt.position).distance;
+      if (d < bestDist) {
+        bestDist = d;
+        point = pnt;
+      }
+    }
+    if (point != null) {
+      debugPrint(
+        '[tap+] pos=${point.position} '
+        'afterMerge=${point.isAfterMerge} '
+        'connId=${point.connection.id}',
+      );
+      if (_selectedPrototype != null) {
+        if (point.isAfterMerge) {
+          _controller.insertAfterLogicMerge(
+            point.connection.id!,
+            point.mergeOtherConnId,
+            _selectedPrototype!,
+          );
+        } else {
           _controller.insertNodeOnConnection(
             point.connection.id!,
             _selectedPrototype!,
           );
-          setState(() => _selectedPrototype = null);
-        } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Выберите тип блока на панели слева')),
-          );
         }
-        _isSelectingFromEmpty = false;
-        return;
+        setState(() => _selectedPrototype = null);
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Выберите тип блока на панели слева')),
+        );
       }
+      _isSelectingFromEmpty = false;
+      return;
     }
-
     ConnectionData? tappedConnection;
     double minDistance = 15.0;
 
@@ -806,20 +824,12 @@ class _EditorScreenState extends State<EditorScreen> {
       if (startNodeEntry != null) {
         gridWidget = GridWithLabels(
           canvasSize: contentSize,
-          columnWidth: _controller.spacing.stepX, // ← вот это ключевое
+          columnWidth: _controller.spacing.stepX,
           rowHeight: _controller.spacing.stepY,
           nodeWidth: _controller.nodeSize.width,
           nodeHeight: _controller.nodeSize.height,
           startPosition: startNodeEntry.value.position,
         );
-        // gridWidget = GridWithLabels(
-        //   canvasSize: contentSize,
-        //   stepX: _controller.spacing.stepX - GridConstants.stepXExtra,
-        //   stepY: _controller.spacing.stepY - GridConstants.stepYExtra,
-        //   // stepX: nodeSize.width,
-        //   // stepY: nodeSize.height,
-        //   startPosition: startNodeEntry.value.position,
-        // );
       }
     }
 
@@ -1060,35 +1070,6 @@ class _EditorScreenState extends State<EditorScreen> {
     );
   }
 }
-
-/// Виджет с подписями сетки (буквы строк и цифры столбцов).
-// class GridWithLabels extends StatelessWidget {
-//   final Size canvasSize;
-//   final double stepX;
-//   final double stepY;
-//   final Offset? startPosition;
-
-//   const GridWithLabels({
-//     super.key,
-//     required this.canvasSize,
-//     required this.stepX,
-//     required this.stepY,
-//     required this.startPosition,
-//   });
-
-//   @override
-//   Widget build(BuildContext context) {
-//     if (startPosition == null) return const SizedBox.shrink();
-//     return CustomPaint(
-//       size: canvasSize,
-//       painter: GridLabelsPainter(
-//         stepX: stepX,
-//         stepY: stepY,
-//         startPosition: startPosition!,
-//       ),
-//     );
-//   }
-// }
 
 class GridWithLabels extends StatelessWidget {
   final Size canvasSize;
