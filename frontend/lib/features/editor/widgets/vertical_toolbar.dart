@@ -35,6 +35,8 @@ class VerticalToolbar extends StatelessWidget {
 
   final bool canSave;
 
+  final VoidCallback onClear;
+
   const VerticalToolbar({
     super.key,
     required this.selectedPrototype,
@@ -50,6 +52,7 @@ class VerticalToolbar extends StatelessWidget {
     required this.onLoad,
     this.isSaving = false,
     this.canSave = true,
+    required this.onClear,
   });
 
   @override
@@ -159,6 +162,13 @@ class VerticalToolbar extends StatelessWidget {
                     : const Text('Сохранить'),
               ),
             ],
+
+            const SizedBox(height: 8),
+            ElevatedButton(
+              onPressed: onClear,
+              style: ElevatedButton.styleFrom(foregroundColor: Colors.red),
+              child: const Text('Очистить схему'),
+            ),
           ],
         ),
       ),

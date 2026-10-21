@@ -533,6 +533,31 @@ class _EditorScreenState extends State<EditorScreen> {
     debugPrint('─────────────────────────');
   }
 
+  Future<void> _confirmClear() async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Очистить схему?'),
+        content: const Text(
+          'Все несохраненные изменения будут удалены. Это действие можно отменить (Ctrl+Z).',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Отмена'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Очистить', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+    if (ok == true) {
+      _controller.clearDiagram();
+    }
+  }
+
   Future<void> _saveToDb() async {
     _dumpLayout();
     final onSave = widget.onSave;
@@ -830,6 +855,7 @@ class _EditorScreenState extends State<EditorScreen> {
                     onLoad: _loadFromFile,
                     // onClear: _controller.resetToDefault,
                     isSaving: _isSaving,
+                    onClear: _confirmClear,
                   ),
                 ),
               ),

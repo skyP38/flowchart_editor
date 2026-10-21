@@ -69,6 +69,12 @@ class FlowController extends ChangeNotifier {
     );
   }
 
+  // Сброс схемы до дефолтного состояния с сохранением в истории
+  void clearDiagram() {
+    _pushHistory();
+    initDefaultDiagram();
+  }
+
   FlowchartGraph get graph => _graph;
   Map<String, NodeModel> get nodes => _graph.nodes;
   List<ConnectionData> get connections => _graph.connections;
