@@ -5,11 +5,15 @@ import '../../../core/navigation/last_route_storage.dart';
 import '../../auth/domain/auth_repository.dart';
 import '../data/admin_api.dart';
 import '../models/admin_user.dart';
+import '../../../core/network/api_error.dart';
 
 class AdminUsersScreen extends StatefulWidget {
   final VoidCallback onOpenEditor;
   final VoidCallback onOpenSessions;
-  const AdminUsersScreen({super.key, required this.onOpenEditor, required this.onOpenSessions});
+  final VoidCallback onOpenLogs;
+  const AdminUsersScreen({super.key, required this.onOpenEditor, required this.onOpenSessions,
+    required this.onOpenLogs,
+});
 
   @override
   State<AdminUsersScreen> createState() => _AdminUsersScreenState();
@@ -41,12 +45,11 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
   }
 
   Future<void> _sessions() async {
-    //TODO
     widget.onOpenSessions();
   }
 
   Future<void> _logs() async {
-    //TODO
+    widget.onOpenLogs();
   }
 
   Future<void> _showAddUserDialog() async {
@@ -310,6 +313,7 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
         status: const _HeaderCell('STATUS'),
         created: const _HeaderCell('CREATED'),
         lastSeen: const _HeaderCell('LAST SEEN'),
+        actions: const _HeaderCell('ACTIONS'),
       ),
     );
   }
@@ -347,6 +351,14 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
           overflow: TextOverflow.ellipsis,
           style: const TextStyle(fontSize: 14, color: Color(0xFF4B5563)),
         ),
+        actions: IconButton(
+          tooltip: 'Delete user',
+          onPressed: () => _confirmDeleteUser(user),
+          icon: const Icon(
+            Icons.delete_outline,
+            color: Color(0xFFDC2626),
+          ),
+        ),
       ),
     );
   }
@@ -358,6 +370,7 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
     required Widget status,
     required Widget created,
     required Widget lastSeen,
+    Widget? actions,
   }) {
     return Row(
       children: [
@@ -372,6 +385,16 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
         Expanded(flex: 2, child: created),
         const SizedBox(width: 12),
         Expanded(flex: 2, child: lastSeen),
+        if (actions != null) ...[
+          const SizedBox(width: 12),
+          SizedBox(
+            width: 72,
+            child: Align(
+              alignment: Alignment.centerRight,
+              child: actions,
+            ),
+          ),
+        ],
       ],
     );
   }
@@ -402,6 +425,61 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
         ],
       ),
     );
+  }
+
+  Future<void> _confirmDeleteUser(AdminUser user) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Delete user?'),
+        content: Text('Are you sure you want to delete "${user.login}"? '),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: const Color(0xFFDC2626),
+            ),
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true || !mounted) return;
+
+    try {
+      await _api.deleteUser(user.id);
+
+      if (!mounted) return;
+
+      _reload();
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('User "${user.login}" deleted'),
+        ),
+      );
+    } on ApiError catch (e) {
+      if (!mounted) return;
+      final message = e.code == 'last_admin' ? 'You cannot delete the last admin' : e.message;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(message),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Failed to delete user'),
+          backgroundColor: Color(0xFFDC2626),
+        ),
+      );
+    }
   }
 }
 

@@ -35,4 +35,8 @@ abstract final class ApiPaths {
 
   static bool isPublic(String path) =>
       _publicAuth.any((p) => path == p || path.startsWith('$p/'));
+
+  static const adminLogs = '/api/admin/logs';
+
+  static String adminUser(int id) => '/api/admin/users/$id';
 }

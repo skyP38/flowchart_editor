@@ -2,6 +2,7 @@ import '../../../core/network/api_client.dart';
 import '../../../core/network/api_paths.dart';
 import '../models/admin_user.dart';
 import '../models/admin_session.dart';
+import '../models/admin_log.dart';
 
 class AdminApi {
   final ApiClient _client;
@@ -47,4 +48,25 @@ class AdminApi {
   Future<void> revokeSession(int id) async {
     await _client.delete<void>(ApiPaths.adminSession(id));
   }
+
+  Future<AdminLogPage> listLogs({
+    int limit = 10,
+    int offset = 0,
+  }) async {
+    final response = await _client.get<Map<String, dynamic>>(
+      ApiPaths.adminLogs,
+      queryParameters: {
+        'limit': limit,
+        'offset': offset,
+      },
+    );
+    return AdminLogPage.fromJson(response);
+  }
+
+  Future<void> deleteUser(int id) async {
+    await _client.delete<void>(
+      ApiPaths.adminUser(id),
+    );
+  }
+
 }

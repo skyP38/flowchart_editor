@@ -9,11 +9,13 @@ import '../models/admin_session.dart';
 class AdminSessionsScreen extends StatefulWidget {
   final VoidCallback onOpenUsers;
   final VoidCallback onOpenEditor;
+  final VoidCallback onOpenLogs;
 
   const AdminSessionsScreen({
     super.key,
     required this.onOpenUsers,
     required this.onOpenEditor,
+    required this.onOpenLogs,
   });
 
   @override
@@ -40,10 +42,6 @@ class _AdminSessionsScreenState extends State<AdminSessionsScreen> {
   Future<void> _logout() async {
     await context.read<AuthRepository>().logout();
     await LastRouteStorage.instance.clear();
-  }
-
-  Future<void> _logs() async {
-    // TODO
   }
 
   Future<void> _terminate(AdminSession session) async {
@@ -140,7 +138,7 @@ class _AdminSessionsScreenState extends State<AdminSessionsScreen> {
             ),
           ),
           TextButton.icon(
-            onPressed: _logs,
+            onPressed: widget.onOpenLogs,
             label: const Text('Logs',
               style: TextStyle(color: Color(0xFF1E1E1E)),
             ),
