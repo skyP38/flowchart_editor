@@ -256,23 +256,29 @@ class FlowController extends ChangeNotifier {
     final isFor = node.data is ForBlock;
 
     final toRemove = <String>{name};
-    if (isLogic) {
-      final yesConn = outgoing.firstWhereOrNull((c) => c.sourcePort == 'yes');
-      final noConn = outgoing.firstWhereOrNull((c) => c.sourcePort == 'no');
-      final isTrivialRejoin =
-          yesConn != null &&
-          noConn != null &&
-          yesConn.targetNodeName == noConn.targetNodeName;
-
-      if (!isTrivialRejoin && noConn != null) {
-        toRemove.addAll(_collectSubtree(g, noConn.targetNodeName));
-      }
-    } else if (isFor) {
+    if (isFor) {
       final bodyConn = outgoing.firstWhereOrNull((c) => c.sourcePort == 'body');
       if (bodyConn != null) {
         toRemove.addAll(_collectSubtree(g, bodyConn.targetNodeName));
       }
     }
+    // if (isLogic) {
+    //   final yesConn = outgoing.firstWhereOrNull((c) => c.sourcePort == 'yes');
+    //   final noConn = outgoing.firstWhereOrNull((c) => c.sourcePort == 'no');
+    //   final isTrivialRejoin =
+    //       yesConn != null &&
+    //       noConn != null &&
+    //       yesConn.targetNodeName == noConn.targetNodeName;
+
+    //   if (!isTrivialRejoin && noConn != null) {
+    //     toRemove.addAll(_collectSubtree(g, noConn.targetNodeName));
+    //   }
+    // } else if (isFor) {
+    //   final bodyConn = outgoing.firstWhereOrNull((c) => c.sourcePort == 'body');
+    //   if (bodyConn != null) {
+    //     toRemove.addAll(_collectSubtree(g, bodyConn.targetNodeName));
+    //   }
+    // }
     toRemove.removeWhere(g.isEnd);
 
     final newNodes = Map<String, NodeModel>.from(g.nodes)
@@ -333,7 +339,50 @@ class FlowController extends ChangeNotifier {
     }
     if (bridge != null) newConns.add(bridge);
 
-    return FlowchartGraph(nodes: newNodes, connections: newConns);
+    return _pruneUnreachable(
+      FlowchartGraph(nodes: newNodes, connections: newConns),
+    );
+  }
+
+  /// Удаляет узлы, недостижимые от Start по обычным рёбрам (loopback
+  /// не расширяет достижимость вперёд). Start и End сохраняются всегда.
+  FlowchartGraph _pruneUnreachable(FlowchartGraph g) {
+    final start = g.findStart();
+    if (start == null) return g;
+
+    final reachable = <String>{};
+    final queue = <String>[start.name];
+    while (queue.isNotEmpty) {
+      final cur = queue.removeAt(0);
+      if (!reachable.add(cur)) continue;
+      for (final c in g.outgoing[cur] ?? const <ConnectionData>[]) {
+        if (c.targetPort == 'loopback') continue;
+        queue.add(c.targetNodeName);
+      }
+    }
+
+    // Start и End не удаляем никогда
+    for (final e in g.nodes.entries) {
+      if (e.value.data is TerminalBlock &&
+          (e.value.data.text == 'Start' || e.value.data.text == 'End')) {
+        reachable.add(e.key);
+      }
+    }
+
+    final removed = g.nodes.keys.where((k) => !reachable.contains(k)).toSet();
+    if (removed.isEmpty) return g;
+
+    final keptNodes = Map<String, NodeModel>.from(g.nodes)
+      ..removeWhere((k, _) => removed.contains(k));
+    final keptConns = g.connections
+        .where(
+          (c) =>
+              !removed.contains(c.sourceNodeName) &&
+              !removed.contains(c.targetNodeName),
+        )
+        .toList();
+
+    return FlowchartGraph(nodes: keptNodes, connections: keptConns);
   }
 
   Set<String> _collectSubtree(FlowchartGraph g, String start) {
