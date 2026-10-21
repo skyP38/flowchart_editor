@@ -45,7 +45,7 @@ class Sidebar extends StatelessWidget {
                       borderRadius: BorderRadius.circular(6),
                     ),
                     child: const Icon(
-                      Icons.close,
+                      Icons.schema,
                       color: Colors.white,
                       size: 18,
                     ),

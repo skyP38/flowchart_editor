@@ -59,11 +59,11 @@ class _SessionScreenState extends State<SessionScreen> {
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Text('Ошибка: ${snapshot.error}'),
+                        Text('Error: ${snapshot.error}'),
                         const SizedBox(height: 16),
                         ElevatedButton(
                           onPressed: _reload,
-                          child: const Text('Повторить'),
+                          child: const Text('Repeat'),
                         ),
                       ],
                     ),

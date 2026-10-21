@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"strconv"
 	"time"
+	"context"
 
 	"github.com/skyP38/flowchart_editor/backend/internal/domains"
 	"github.com/skyP38/flowchart_editor/backend/internal/service/auth"
@@ -19,10 +20,15 @@ import (
 type AuthHandler struct {
 	svc     *auth.Service
 	limiter ratelimit.Limiter
+	audit domains.AuditLogRepository
 }
 
-func NewAuthHandler(svc *auth.Service, limiter ratelimit.Limiter) *AuthHandler {
-	return &AuthHandler{svc: svc, limiter: limiter}
+func NewAuthHandler(svc *auth.Service, limiter ratelimit.Limiter, audits ...domains.AuditLogRepository) *AuthHandler {
+	h := &AuthHandler{svc: svc, limiter: limiter}
+	if len(audits) > 0 {
+		h.audit = audits[0]
+	}
+	return h
 }
 
 // RegisterRoutes регистрирует маршруты обработчика в mux
@@ -104,6 +110,7 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 
 	login := domains.NormalizeLogin(req.Login)
 	if login == "" || req.Password == "" {
+		h.writeAudit(r.Context(), nil, login, "login.failed", "Fail")
 		writeAuthError(w, auth.ErrInvalidCredentials)
 		return
 	}
@@ -120,6 +127,7 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Retry-After", strconv.Itoa(retrySeconds))
 		log.Printf("ratelimit: blocked; keys=%v blocked_by=%s retry_after=%s", keys, d.BlockedBy, d.RetryAfter)
 		transport.WriteError(w, http.StatusTooManyRequests, transport.CodeTooManyRequests, "too many attempts, try again later")
+		h.writeAudit(r.Context(), nil, login, "login.failed", "Fail")
 		return
 	}
 
@@ -133,6 +141,7 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 				log.Printf("ratelimit: record failure: %v; keys=%v", rerr, keys)
 			}
 		}
+		h.writeAudit(r.Context(), nil, login, "login.failed", "Fail")
 		writeAuthError(w, err)
 		return
 	}
@@ -140,6 +149,8 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 	if rerr := h.limiter.RecordSuccess(r.Context(), keys); rerr != nil {
 		log.Printf("ratelimit: record success: %v; keys=%v", rerr, keys)
 	}
+	userID := res.User.ID
+	h.writeAudit(r.Context(), &userID, login, "login.success", "Success")
 	transport.WriteJSON(w, http.StatusOK, toDTO(res))
 }
 
@@ -231,5 +242,30 @@ func writeAuthError(w http.ResponseWriter, err error) {
 		transport.WriteError(w, http.StatusUnauthorized, transport.CodeInvalidRefreshToken, "refresh token is invalid or expired")
 	default:
 		transport.WriteError(w, http.StatusInternalServerError, transport.CodeInternal, "internal server error")
+	}
+}
+
+// запись события авторизации
+func (h *AuthHandler) writeAudit(
+	ctx context.Context,
+	userID *int64,
+	login string,
+	action string,
+	status string,
+) {
+	if h.audit == nil {
+		return
+	}
+
+	entry := &domains.AuditLog{
+		UserID:  userID,
+		Login:   domains.NormalizeLogin(login),
+		Action:  action,
+		Entity:  "session",
+		Status:  status,
+	}
+
+	if err := h.audit.CreateLog(ctx, entry); err != nil {
+		log.Printf("audit authentication: %v", err)
 	}
 }
