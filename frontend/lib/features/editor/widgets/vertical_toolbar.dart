@@ -161,14 +161,14 @@ class VerticalToolbar extends StatelessWidget {
                       )
                     : const Text('Сохранить'),
               ),
-            ],
 
-            const SizedBox(height: 8),
-            ElevatedButton(
-              onPressed: onClear,
-              style: ElevatedButton.styleFrom(foregroundColor: Colors.red),
-              child: const Text('Очистить схему'),
-            ),
+              const SizedBox(height: 8),
+              ElevatedButton(
+                onPressed: onClear,
+                style: ElevatedButton.styleFrom(foregroundColor: Colors.red),
+                child: const Text('Очистить схему'),
+              ),
+            ],
           ],
         ),
       ),
