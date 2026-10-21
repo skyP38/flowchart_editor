@@ -49,6 +49,7 @@ func main() {
 	sessionRepo := repositories.NewSessionRepository(db)
 	projectRepo := repositories.NewProjectRepository(db)
 	flowchartRepo := repositories.NewFlowchartRepository(db)
+	logRepo := repositories.NewLogRepository(db)
 
 	if err := seed.Admin(context.Background(), userRepo,
 		cfg.AdminLogin, cfg.AdminPassword, cfg.PasswordPepper); err != nil {
@@ -91,7 +92,7 @@ func main() {
 	flowchartHandler := api.NewFlowchartHandler(flowchartSvc)
 
 	// middleware аутентификации
-	authMW := api.Auth(accessMgr, sessionRepo)
+	authMW := api.Auth(accessMgr, sessionRepo, logRepo)
 
 	mux := http.NewServeMux()
 
@@ -101,12 +102,12 @@ func main() {
 	})
 
 	// регистрация маршрутов обработчиков
-	api.NewAuthHandler(authSvc, limiter).RegisterRoutes(mux, authMW)
+	api.NewAuthHandler(authSvc, limiter, logRepo).RegisterRoutes(mux, authMW)
 	api.NewSessionHandler(authSvc).RegisterRoutes(mux, authMW)
 
 	projectHandler.RegisterRoutes(mux, authMW)
 	flowchartHandler.RegisterRoutes(mux, authMW)
-	api.NewAdminHandler(sessionRepo, userRepo, cfg.PasswordPepper).RegisterRoutes(mux, authMW)
+	api.NewAdminHandler(sessionRepo, userRepo, cfg.PasswordPepper, logRepo).RegisterRoutes(mux, authMW)
 
 	staticFiles := http.FileServer(http.Dir(cfg.StaticDir))
 	mux.Handle("/", staticFiles)

@@ -113,3 +113,71 @@ func (r *UserRepository) UpdateLastLogin(ctx context.Context, userID int64, at t
 	}
 	return nil
 }
+
+func (r *UserRepository) DeleteWithData(
+    ctx context.Context,
+    id int64,
+) error {
+    tx, err := r.db.Begin(ctx)
+    if err != nil {
+        return fmt.Errorf("begin delete user transaction: %w", err)
+    }
+    defer func() {
+        _ = tx.Rollback(ctx)
+    }()
+
+    var role string
+    err = tx.QueryRow(ctx,
+        `SELECT role FROM users WHERE id_user = $1 FOR UPDATE`,
+        id,
+    ).Scan(&role)
+
+    if errors.Is(err, pgx.ErrNoRows) {
+        return domains.ErrNotFound
+    }
+    if err != nil {
+        return fmt.Errorf("get user for deletion: %w", err)
+    }
+
+    if role == domains.RoleAdmin {
+        var adminCount int
+
+        err = tx.QueryRow(ctx,
+            `SELECT COUNT(*) FROM users WHERE role = $1`,
+            domains.RoleAdmin,
+        ).Scan(&adminCount)
+
+        if err != nil {
+            return fmt.Errorf("count administrators: %w", err)
+        }
+
+        if adminCount <= 1 {
+            return domains.ErrLastAdmin
+        }
+    }
+
+    if _, err := tx.Exec(ctx,
+        `DELETE FROM projects WHERE owner_id = $1`,
+        id,
+    ); err != nil {
+        return fmt.Errorf("delete user projects: %w", err)
+    }
+
+    result, err := tx.Exec(ctx,
+        `DELETE FROM users WHERE id_user = $1`,
+        id,
+    )
+    if err != nil {
+        return fmt.Errorf("delete user: %w", err)
+    }
+
+    if result.RowsAffected() == 0 {
+        return domains.ErrNotFound
+    }
+
+    if err := tx.Commit(ctx); err != nil {
+        return fmt.Errorf("delete user: %w", err)
+    }
+
+    return nil
+}

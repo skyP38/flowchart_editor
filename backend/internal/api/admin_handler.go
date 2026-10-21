@@ -18,15 +18,14 @@ import (
 	"github.com/skyP38/flowchart_editor/backend/internal/transport"
 )
 
-// SessionStatsProvider provides session statistics.
 type SessionStatsProvider interface {
 	Stats(ctx context.Context) (domains.SessionStats, error)
 }
 
-// AdminUserRepository is the subset of the user repository used by admin routes.
 type AdminUserRepository interface {
 	domains.UserRepository
 	ListAll(ctx context.Context) ([]*domains.User, error)
+	DeleteWithData(ctx context.Context, id int64) error
 }
 
 type AdminSessionRepository interface {
@@ -35,15 +34,19 @@ type AdminSessionRepository interface {
 	Revoke(ctx context.Context, id int64, at time.Time) error
 }
 
-// AdminHandler handles administrator-only API routes.
 type AdminHandler struct {
 	sessions AdminSessionRepository
 	users    AdminUserRepository
 	pepper   string
+	logs     domains.AuditLogRepository
 }
 
-func NewAdminHandler(s AdminSessionRepository, users AdminUserRepository, pepper string) *AdminHandler {
-	return &AdminHandler{sessions: s, users: users, pepper: pepper}
+func NewAdminHandler(s AdminSessionRepository, users AdminUserRepository, pepper string, logs ...domains.AuditLogRepository) *AdminHandler {
+	h := &AdminHandler{sessions: s, users: users, pepper: pepper}
+	if len(logs) > 0 {
+		h.logs = logs[0]
+	}
+	return h
 }
 
 // RegisterRoutes registers administrator-only endpoints.
@@ -56,6 +59,8 @@ func (h *AdminHandler) RegisterRoutes(mux *http.ServeMux, authMW AuthMW) {
 	mux.Handle("POST /api/admin/users", adminMW(http.HandlerFunc(h.CreateUser)))
 	mux.Handle("GET /api/admin/sessions", adminMW(http.HandlerFunc(h.ListSessions)))
 	mux.Handle("DELETE /api/admin/sessions/{id}", adminMW(http.HandlerFunc(h.RevokeSession)))
+	mux.Handle("GET /api/admin/logs", adminMW(http.HandlerFunc(h.ListLogs)))
+	mux.Handle("DELETE /api/admin/users/{id}", adminMW(http.HandlerFunc(h.DeleteUser)))
 }
 
 // Stats handles GET /api/admin/stats.
@@ -245,4 +250,146 @@ func (h *AdminHandler) RevokeSession(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
+}
+
+func (h *AdminHandler) ListLogs(
+	w http.ResponseWriter,
+	r *http.Request,
+) {
+	if h.logs == nil {
+		transport.WriteError(
+			w,
+			http.StatusInternalServerError,
+			transport.CodeInternal,
+			"logging repository is unavailable",
+		)
+		return
+	}
+
+	limit := 10
+	offset := 0
+
+	if value := r.URL.Query().Get("limit"); value != "" {
+		parsed, err := strconv.Atoi(value)
+		if err != nil || parsed < 1 {
+			transport.WriteError(
+				w,
+				http.StatusBadRequest,
+				transport.CodeInvalidInput,
+				"invalid limit",
+			)
+			return
+		}
+		limit = parsed
+	}
+
+	if limit > 100 {
+		limit = 100
+	}
+
+	if value := r.URL.Query().Get("offset"); value != "" {
+		parsed, err := strconv.Atoi(value)
+		if err != nil || parsed < 0 {
+			transport.WriteError(
+				w,
+				http.StatusBadRequest,
+				transport.CodeInvalidInput,
+				"invalid offset",
+			)
+			return
+		}
+		offset = parsed
+	}
+
+	logs, total, err := h.logs.ListLogs(
+		r.Context(),
+		limit,
+		offset,
+	)
+	if err != nil {
+		log.Printf("admin list logs: %v", err)
+		transport.WriteError(
+			w,
+			http.StatusInternalServerError,
+			transport.CodeInternal,
+			"internal server error",
+		)
+		return
+	}
+
+	transport.WriteJSON(
+		w,
+		http.StatusOK,
+		map[string]any{
+			"logs":   logs,
+			"total":  total,
+			"limit":  limit,
+			"offset": offset,
+		},
+	)
+}
+
+func (h *AdminHandler) DeleteUser(w http.ResponseWriter, r *http.Request) {
+    id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+    if err != nil || id <= 0 {
+        transport.WriteError(
+            w,
+            http.StatusBadRequest,
+            transport.CodeInvalidInput,
+            "invalid user id",
+        )
+        return
+    }
+
+    if id == UserIDFrom(r.Context()) {
+        transport.WriteError(
+            w,
+            http.StatusForbidden,
+            transport.CodeForbidden,
+            "cannot delete the currently authenticated administrator",
+        )
+        return
+    }
+
+    if err := h.users.DeleteWithData(r.Context(), id); err != nil {
+	if errors.Is(err, domains.ErrLastAdmin) {
+		transport.WriteError(
+			w,
+			http.StatusConflict,
+			transport.CodeLastAdmin,
+			"Cannot delete the last administrator",
+		)
+		return
+	}
+	if errors.Is(err, domains.ErrNotFound) {
+            transport.WriteError(
+                w,
+                http.StatusNotFound,
+                transport.CodeNotFound,
+                "user not found",
+            )
+            return
+        }
+
+        if errors.Is(err, domains.ErrLastAdmin) {
+            transport.WriteError(
+                w,
+                http.StatusConflict,
+                transport.CodeForbidden,
+                "cannot delete the last administrator",
+            )
+            return
+        }
+
+        log.Printf("admin delete user: %v", err)
+        transport.WriteError(
+            w,
+            http.StatusInternalServerError,
+            transport.CodeInternal,
+            "internal server error",
+        )
+        return
+    }
+
+    w.WriteHeader(http.StatusNoContent)
 }
