@@ -284,7 +284,11 @@ class FlowController extends ChangeNotifier {
         )
         .toList();
 
-    final inConn = incoming.isNotEmpty ? incoming.first : null;
+    // final inConn = incoming.isNotEmpty ? incoming.first : null;
+    final inConn = incoming.firstWhereOrNull(
+      (c) => !toRemove.contains(c.sourceNodeName),
+    );
+
     ConnectionData? bridge;
 
     if (isLogic) {
