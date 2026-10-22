@@ -9,7 +9,7 @@ services:
       - "5433:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
-      - ./backend/SQL_scripts/create_tables.sql:/docker-entrypoint-initdb.d/init.sql
+      # - ./backend/SQL_scripts/create_tables.sql:/docker-entrypoint-initdb.d/init.sql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
       interval: 10s
@@ -49,7 +49,7 @@ services:
         condition: service_healthy
         restart: true
       migrate:
-        conditon: service_completed_successfully
+        condition: service_completed_successfully
              
   frontend:
     build:
