@@ -78,6 +78,10 @@ class _FlowchartEditorPageState extends State<FlowchartEditorPage> {
     if (_error != null) {
       return Scaffold(body: Center(child: Text('Error: $_error')));
     }
-    return EditorScreen(initialSnapshot: _initial, onSave: _save);
+    return EditorScreen(
+      initialSnapshot: _initial,
+      onSave: _save,
+      onBack: () => Navigator.of(context).pop(),
+    );
   }
 }

@@ -32,12 +32,14 @@ class EditorScreen extends StatefulWidget {
   final Future<void> Function(EditorSnapshot snapshot)? onSave;
 
   final bool canSave;
+  final VoidCallback? onBack;
 
   const EditorScreen({
     super.key,
     this.initialSnapshot,
     this.onSave,
     this.canSave = true,
+    this.onBack,
   });
   @override
   State<EditorScreen> createState() => _EditorScreenState();
@@ -899,6 +901,7 @@ class _EditorScreenState extends State<EditorScreen> {
                     // onClear: _controller.resetToDefault,
                     isSaving: _isSaving,
                     onClear: _confirmClear,
+                    currentNodeSize: _controller.nodeSize,
                   ),
                 ),
               ),
@@ -1105,6 +1108,16 @@ class _EditorScreenState extends State<EditorScreen> {
               ),
             ],
           ),
+          if (widget.onBack != null)
+            Positioned(
+              top: 18,
+              left: toolbarVisible ? 200 + 16 : 56,
+              child: FloatingActionButton.small(
+                heroTag: null,
+                onPressed: widget.onBack,
+                child: Icon(Icons.arrow_back),
+              ),
+            ),
         ],
       ),
     );

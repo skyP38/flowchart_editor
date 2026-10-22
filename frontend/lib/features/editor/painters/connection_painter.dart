@@ -60,14 +60,13 @@ class ConnectionPainter extends CustomPainter {
 
     // Кружки для вставки блоков
     for (final point in insertionPoints) {
-      final isPointOfHovered = point.connection.id == hoveredConnectionId;
-      final plusColor = hasHover && !isPointOfHovered
-          ? Colors.grey.shade400
-          : Colors.blue;
+      // final isPointOfHovered = point.connection.id == hoveredConnectionId;
+      // final plusColor = hasHover && !isPointOfHovered
+      //     ? Colors.grey.shade400
+      //     : Colors.blue;
       // Заливка кружка
       final fillPaint = Paint()
-        ..color =
-            plusColor //olors.white
+        ..color = Colors.white
         ..style = PaintingStyle.fill;
       canvas.drawCircle(
         point.position,
