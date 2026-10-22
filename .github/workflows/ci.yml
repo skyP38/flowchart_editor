@@ -33,8 +33,8 @@ jobs:
       - name: Lint (golangci-lint)
         uses: golangci/golangci-lint-action@v7
         with:
-            version: v2.1.6
-            install-mode: goinstall
+            version: v2.12.2
+            //install-mode: goinstall
             working-directory: ./backend
 
       - name: Tests

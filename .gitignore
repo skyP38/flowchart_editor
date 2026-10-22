@@ -16,11 +16,9 @@ backend/bin/
 package.json
 package-lock.json
 
-frontend/web
 *coverage.out
 *cover.out
 graph.svg
-*golangci*
-*test.go
-*test.dart
 *backup
+backend/main
+backend/internal/storage*
