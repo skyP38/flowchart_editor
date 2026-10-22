@@ -9,22 +9,42 @@ class ConnectionPainter extends CustomPainter {
   final FlowchartGraph graph;
   final ConnectionRouter router;
   final String? selectedConnectionId;
+  final String? hoveredConnectionId;
   final List<InsertionPoint> insertionPoints;
 
   ConnectionPainter({
     required this.graph,
     required this.router,
     this.selectedConnectionId,
+    this.hoveredConnectionId,
     required this.insertionPoints,
   });
 
   @override
   void paint(Canvas canvas, Size size) {
+    final hasHover = hoveredConnectionId != null;
     for (final conn in graph.connections) {
+      final isHovered = conn.id == hoveredConnectionId;
+      final isDimmed = hasHover && !isHovered;
+
       final isSelected = conn.id != null && conn.id == selectedConnectionId;
+
+      final color = isHovered
+          ? Colors.blue
+          : isDimmed
+          ? Colors.grey.shade800.withOpacity(0.5)
+          : isSelected
+          ? Colors.blue
+          : Colors.black;
+      final width = isHovered || isSelected
+          ? 4.0
+          // : isDimmed
+          // ? 1.0
+          : 2.0;
+
       final paint = Paint()
-        ..color = isSelected ? Colors.blue : Colors.black
-        ..strokeWidth = isSelected ? 4 : 2
+        ..color = color
+        ..strokeWidth = width
         ..style = PaintingStyle.stroke;
       final path = router.build(conn, graph);
       canvas.drawPath(path, paint);
@@ -40,6 +60,10 @@ class ConnectionPainter extends CustomPainter {
 
     // Кружки для вставки блоков
     for (final point in insertionPoints) {
+      final isPointOfHovered = point.connection.id == hoveredConnectionId;
+      final plusColor = hasHover && !isPointOfHovered
+          ? Colors.grey.shade400
+          : Colors.blue;
       // Заливка кружка
       final fillPaint = Paint()
         ..color = Colors.white
