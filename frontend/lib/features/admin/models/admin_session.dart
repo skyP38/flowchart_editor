@@ -20,17 +20,17 @@ class AdminSession {
   });
 
   factory AdminSession.fromJson(Map<String, dynamic> json) => AdminSession(
-        id: (json['id'] as num).toInt(),
-        userId: (json['userId'] as num).toInt(),
-        login: json['login'] as String? ?? '',
-        name: json['uname'] as String? ?? '',
-        createdAt: DateTime.parse(json['createdAt'] as String).toLocal(),
-        expiresAt: DateTime.parse(json['expiresAt'] as String).toLocal(),
-        revokedAt: json['revokedAt'] == null
-            ? null
-            : DateTime.parse(json['revokedAt'] as String).toLocal(),
-        active: json['active'] as bool? ?? false,
-      );
+    id: (json['id'] as num).toInt(),
+    userId: (json['userId'] as num).toInt(),
+    login: json['login'] as String? ?? '',
+    name: json['uname'] as String? ?? '',
+    createdAt: DateTime.parse(json['createdAt'] as String).toLocal(),
+    expiresAt: DateTime.parse(json['expiresAt'] as String).toLocal(),
+    revokedAt: json['revokedAt'] == null
+        ? null
+        : DateTime.parse(json['revokedAt'] as String).toLocal(),
+    active: json['active'] as bool? ?? false,
+  );
 
   String get statusLabel => active ? 'Active session' : 'Inactive session';
 

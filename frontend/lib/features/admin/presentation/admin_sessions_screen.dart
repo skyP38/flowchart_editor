@@ -57,7 +57,9 @@ class _AdminSessionsScreenState extends State<AdminSessionsScreen> {
           ),
           FilledButton(
             onPressed: () => Navigator.of(dialogContext).pop(true),
-            style: FilledButton.styleFrom(backgroundColor: const Color(0xFFDC2626)),
+            style: FilledButton.styleFrom(
+              backgroundColor: const Color(0xFFDC2626),
+            ),
             child: const Text('End session'),
           ),
         ],
@@ -69,14 +71,14 @@ class _AdminSessionsScreenState extends State<AdminSessionsScreen> {
       await _api.revokeSession(session.id);
       if (!mounted) return;
       _reload();
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Session ended')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Session ended')));
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Could not end session: $error')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Could not end session: $error')));
     }
   }
 
@@ -94,11 +96,7 @@ class _AdminSessionsScreenState extends State<AdminSessionsScreen> {
                 color: const Color(0xFF6750A4),
                 borderRadius: BorderRadius.circular(6),
               ),
-              child: const Icon(
-                Icons.schema,
-                color: Colors.white,
-                size: 18,
-              ),
+              child: const Icon(Icons.schema, color: Colors.white, size: 18),
             ),
             const SizedBox(width: 8),
             const Text('FlowChart Editor'),
@@ -113,49 +111,48 @@ class _AdminSessionsScreenState extends State<AdminSessionsScreen> {
         surfaceTintColor: Colors.transparent,
         elevation: 0,
         shape: const Border(
-          bottom: BorderSide(
-            color: Color(0xFFD9D9D9),
-            width: 1,
-          ),
+          bottom: BorderSide(color: Color(0xFFD9D9D9), width: 1),
         ),
         actions: [
           TextButton.icon(
             onPressed: widget.onOpenEditor,
-            label: const Text('Flowchart editor',
+            label: const Text(
+              'Flowchart editor',
               style: TextStyle(color: Color(0xFF1E1E1E)),
             ),
           ),
           TextButton.icon(
             onPressed: widget.onOpenUsers,
-            label: const Text('Users',
+            label: const Text(
+              'Users',
               style: TextStyle(color: Color(0xFF1E1E1E)),
             ),
           ),
           TextButton.icon(
             onPressed: _reload,
-            label: const Text('Sessions',
+            label: const Text(
+              'Sessions',
               style: TextStyle(color: Color(0xFF1E1E1E)),
             ),
           ),
           TextButton.icon(
             onPressed: widget.onOpenLogs,
-            label: const Text('Logs',
+            label: const Text(
+              'Logs',
               style: TextStyle(color: Color(0xFF1E1E1E)),
             ),
           ),
           TextButton.icon(
             onPressed: _logout,
-            label: const Text('Log out',
+            label: const Text(
+              'Log out',
               style: TextStyle(color: Color(0xFF1E1E1E)),
             ),
             style: TextButton.styleFrom(
               backgroundColor: const Color(0xFFE3E3E3),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(8),
-                side: const BorderSide(
-                  color: Color(0xFF767676),
-                  width: 1,
-                ),
+                side: const BorderSide(color: Color(0xFF767676), width: 1),
               ),
             ),
           ),
@@ -191,9 +188,7 @@ class _AdminSessionsScreenState extends State<AdminSessionsScreen> {
           ),
           decoration: const BoxDecoration(
             color: Colors.white,
-            border: Border(
-              bottom: BorderSide(color: Color(0xFFE5E7EB)),
-            ),
+            border: Border(bottom: BorderSide(color: Color(0xFFE5E7EB))),
           ),
           child: const Text(
             'Sessions',
@@ -263,7 +258,10 @@ class _AdminSessionsScreenState extends State<AdminSessionsScreen> {
                   children: [
                     Text(
                       '${sessions.length} session${sessions.length == 1 ? '' : 's'}',
-                      style: const TextStyle(fontSize: 13, color: Color(0xFF6B7280)),
+                      style: const TextStyle(
+                        fontSize: 13,
+                        color: Color(0xFF6B7280),
+                      ),
                     ),
                     const Spacer(),
                     IconButton(
@@ -416,10 +414,7 @@ class _AdminSessionsScreenState extends State<AdminSessionsScreen> {
                   child: const Text(
                     'End session',
                     maxLines: 1,
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                    ),
+                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
                   ),
                 )
               : const Text('—', style: TextStyle(color: Color(0xFF6B7280))),
