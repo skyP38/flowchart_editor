@@ -1,5 +1,6 @@
 import 'package:uuid/uuid.dart';
 import 'package:flutter/material.dart';
+import 'package:collection/collection.dart';
 import '../factories/node_factory.dart';
 import '../models/editor_models.dart';
 import '../models/flow_models.dart';
@@ -109,4 +110,433 @@ class InsertionService {
 
     return InsertionResult(next, newNode.name);
   }
+
+  InsertionResult insertAfterMerge(
+    FlowchartGraph g,
+    String mainConnId,
+    List<String> otherConnIds,
+    GostNodeData prototype,
+  ) {
+    final mainConn = g.connections.firstWhere((c) => c.id == mainConnId);
+
+    final otherConns = <ConnectionData>[];
+    for (final id in otherConnIds) {
+      final c = g.connections.firstWhereOrNull((x) => x.id == id);
+      if (c != null && c.targetNodeName == mainConn.targetNodeName) {
+        otherConns.add(c);
+      }
+    }
+
+    final newNode = NodeFactory.createNode(
+      id: _uuid.v4(),
+      data: prototype,
+      position: Offset.zero,
+    );
+
+    var next = g.withNode(newNode).withoutConnection(mainConnId);
+    for (final c in otherConns) {
+      if (c.id != null) next = next.withoutConnection(c.id!);
+    }
+
+    for (final c in [mainConn, ...otherConns]) {
+      next = next.withConnection(
+        ConnectionData(
+          id: _uuid.v4(),
+          sourceNodeName: c.sourceNodeName,
+          sourcePort: c.sourcePort,
+          targetNodeName: newNode.name,
+          targetPort: 'in',
+        ),
+      );
+    }
+
+    final targetName = mainConn.targetNodeName;
+    final targetPort = mainConn.targetPort;
+
+    if (prototype is LogicBlock) {
+      next = next
+          .withConnection(
+            ConnectionData(
+              id: _uuid.v4(),
+              sourceNodeName: newNode.name,
+              sourcePort: 'yes',
+              targetNodeName: targetName,
+              targetPort: targetPort,
+            ),
+          )
+          .withConnection(
+            ConnectionData(
+              id: _uuid.v4(),
+              sourceNodeName: newNode.name,
+              sourcePort: 'no',
+              targetNodeName: targetName,
+              targetPort: targetPort,
+            ),
+          );
+    } else if (prototype is ForBlock) {
+      final body = NodeFactory.createNode(
+        id: _uuid.v4(),
+        data: const ProcessBlock('Тело цикла'),
+        position: Offset.zero,
+      );
+      next = next
+          .withNode(body)
+          .withConnection(
+            ConnectionData(
+              id: _uuid.v4(),
+              sourceNodeName: newNode.name,
+              sourcePort: 'exit',
+              targetNodeName: targetName,
+              targetPort: targetPort,
+            ),
+          )
+          .withConnection(
+            ConnectionData(
+              id: _uuid.v4(),
+              sourceNodeName: newNode.name,
+              sourcePort: 'body',
+              targetNodeName: body.name,
+              targetPort: 'in',
+            ),
+          )
+          .withConnection(
+            ConnectionData(
+              id: _uuid.v4(),
+              sourceNodeName: body.name,
+              sourcePort: 'out',
+              targetNodeName: newNode.name,
+              targetPort: 'loopback',
+            ),
+          );
+    } else {
+      next = next.withConnection(
+        ConnectionData(
+          id: _uuid.v4(),
+          sourceNodeName: newNode.name,
+          sourcePort: 'out',
+          targetNodeName: targetName,
+          targetPort: targetPort,
+        ),
+      );
+    }
+
+    return InsertionResult(next, newNode.name);
+  }
+
+  /// Вставка последовательно после LogicBlock
+  // InsertionResult insertAfterMerge(
+  //   FlowchartGraph g,
+  //   String mainConnId,
+  //   String? noConnId,
+  //   GostNodeData prototype,
+  // ) {
+  //   final mainConn = g.connections.firstWhere((c) => c.id == mainConnId);
+  //   final noConn = noConnId != null
+  //       ? g.connections.firstWhere((c) => c.id == noConnId)
+  //       : g.connections.firstWhere(
+  //           (c) =>
+  //               c.sourceNodeName == mainConn.sourceNodeName &&
+  //               c.sourcePort == 'no' &&
+  //               c.targetNodeName == mainConn.targetNodeName,
+  //         );
+
+  //   final newNode = NodeFactory.createNode(
+  //     id: _uuid.v4(),
+  //     data: prototype,
+  //     position: Offset.zero,
+  //   );
+
+  //   var next = g.withNode(newNode).withoutConnection(mainConnId);
+  //   for (final c in otherConns) {
+  //     if (c.id != null) next = next.withoutConnection(c.id!);
+  //   }
+
+  //   for (final c in [mainConn, ...otherConns]) {
+  //     next = next.withConnection(
+  //       ConnectionData(
+  //         id: _uuid.v4(),
+  //         sourceNodeName: c.sourceNodeName,
+  //         sourcePort: c.sourcePort,
+  //         targetNodeName: newNode.name,
+  //         targetPort: 'in',
+  //       ),
+  //     );
+  //   }
+
+  //   final targetName = mainConn.targetNodeName;
+  //   final targetPort = mainConn.targetPort;
+
+  //   if (prototype is LogicBlock) {
+  //     next = next
+  //         .withConnection(
+  //           ConnectionData(
+  //             id: _uuid.v4(),
+  //             sourceNodeName: newNode.name,
+  //             sourcePort: 'yes',
+  //             targetNodeName: targetName,
+  //             targetPort: targetPort,
+  //           ),
+  //         )
+  //         .withConnection(
+  //           ConnectionData(
+  //             id: _uuid.v4(),
+  //             sourceNodeName: newNode.name,
+  //             sourcePort: 'no',
+  //             targetNodeName: targetName,
+  //             targetPort: targetPort,
+  //           ),
+  //         );
+  //   } else if (prototype is ForBlock) {
+  //     final body = NodeFactory.createNode(
+  //       id: _uuid.v4(),
+  //       data: const ProcessBlock('Тело цикла'),
+  //       position: Offset.zero,
+  //     );
+  //     next = next
+  //         .withNode(body)
+  //         .withConnection(
+  //           ConnectionData(
+  //             id: _uuid.v4(),
+  //             sourceNodeName: newNode.name,
+  //             sourcePort: 'exit',
+  //             targetNodeName: targetName,
+  //             targetPort: targetPort,
+  //           ),
+  //         )
+  //         .withConnection(
+  //           ConnectionData(
+  //             id: _uuid.v4(),
+  //             sourceNodeName: newNode.name,
+  //             sourcePort: 'body',
+  //             targetNodeName: body.name,
+  //             targetPort: 'in',
+  //           ),
+  //         )
+  //         .withConnection(
+  //           ConnectionData(
+  //             id: _uuid.v4(),
+  //             sourceNodeName: body.name,
+  //             sourcePort: 'out',
+  //             targetNodeName: newNode.name,
+  //             targetPort: 'loopback',
+  //           ),
+  //         );
+  //   } else {
+  //     next = next.withConnection(
+  //       ConnectionData(
+  //         id: _uuid.v4(),
+  //         sourceNodeName: newNode.name,
+  //         sourcePort: 'out',
+  //         targetNodeName: targetName,
+  //         targetPort: targetPort,
+  //       ),
+  //     );
+  //   }
+
+  //   return InsertionResult(next, newNode.name);
+  // }
+
+  // final toRedirect = <ConnectionData>[mainConn, noConn];
+
+  // for (final c in [mainConn, noConn]) {
+  //   final src = g.nodes[c.sourceNodeName];
+  //   if (src == null || src.data is! LogicBlock) continue;
+  //   final siblingPort = c.sourcePort == 'yes' ? 'no' : 'yes';
+  //   final sibling = (g.outgoing[c.sourceNodeName] ?? const [])
+  //       .firstWhereOrNull(
+  //         (x) =>
+  //             x.sourcePort == siblingPort &&
+  //             x.targetNodeName == c.targetNodeName,
+  //       );
+  //   if (sibling != null && !toRedirect.any((x) => x.id == sibling.id)) {
+  //     toRedirect.add(sibling);
+  //   }
+  // }
+
+  // var next = g.withNode(newNode);
+  // for (final c in toRedirect) {
+  //   if (c.id != null) next = next.withoutConnection(c.id!);
+  //   next = next.withConnection(
+  //     ConnectionData(
+  //       id: _uuid.v4(),
+  //       sourceNodeName: c.sourceNodeName,
+  //       sourcePort: c.sourcePort,
+  //       targetNodeName: newNode.name,
+  //       targetPort: 'in',
+  //     ),
+  //   );
+  // }
+
+  //   final targetName = mainConn.targetNodeName;
+  //   final targetPort = mainConn.targetPort;
+
+  //   if (prototype is LogicBlock) {
+  //     next = next
+  //         .withConnection(
+  //           ConnectionData(
+  //             id: _uuid.v4(),
+  //             sourceNodeName: newNode.name,
+  //             sourcePort: 'yes',
+  //             targetNodeName: targetName,
+  //             targetPort: targetPort,
+  //           ),
+  //         )
+  //         .withConnection(
+  //           ConnectionData(
+  //             id: _uuid.v4(),
+  //             sourceNodeName: newNode.name,
+  //             sourcePort: 'no',
+  //             targetNodeName: targetName,
+  //             targetPort: targetPort,
+  //           ),
+  //         );
+  //   } else if (prototype is ForBlock) {
+  //     final body = NodeFactory.createNode(
+  //       id: _uuid.v4(),
+  //       data: const ProcessBlock('Тело цикла'),
+  //       position: Offset.zero,
+  //     );
+  //     next = next
+  //         .withNode(body)
+  //         .withConnection(
+  //           ConnectionData(
+  //             id: _uuid.v4(),
+  //             sourceNodeName: newNode.name,
+  //             sourcePort: 'exit',
+  //             targetNodeName: targetName,
+  //             targetPort: targetPort,
+  //           ),
+  //         )
+  //         .withConnection(
+  //           ConnectionData(
+  //             id: _uuid.v4(),
+  //             sourceNodeName: newNode.name,
+  //             sourcePort: 'body',
+  //             targetNodeName: body.name,
+  //             targetPort: 'in',
+  //           ),
+  //         )
+  //         .withConnection(
+  //           ConnectionData(
+  //             id: _uuid.v4(),
+  //             sourceNodeName: body.name,
+  //             sourcePort: 'out',
+  //             targetNodeName: newNode.name,
+  //             targetPort: 'loopback',
+  //           ),
+  //         );
+  //   } else {
+  //     next = next.withConnection(
+  //       ConnectionData(
+  //         id: _uuid.v4(),
+  //         sourceNodeName: newNode.name,
+  //         sourcePort: 'out',
+  //         targetNodeName: targetName,
+  //         targetPort: targetPort,
+  //       ),
+  //     );
+  //   }
+
+  //   return InsertionResult(next, newNode.name);
+  // }
+
+  //     var next = g
+  //         .withNode(newNode)
+  //         .withoutConnection(mainConnId)
+  //         .withoutConnection(noConn.id!);
+
+  //     // обе ветки -> новый блок
+  //     next = next
+  //         .withConnection(
+  //           ConnectionData(
+  //             id: _uuid.v4(),
+  //             sourceNodeName: mainConn.sourceNodeName,
+  //             sourcePort: mainConn.sourcePort,
+  //             targetNodeName: newNode.name,
+  //             targetPort: 'in',
+  //           ),
+  //         )
+  //         .withConnection(
+  //           ConnectionData(
+  //             id: _uuid.v4(),
+  //             sourceNodeName: noConn.sourceNodeName,
+  //             sourcePort: 'no',
+  //             targetNodeName: newNode.name,
+  //             targetPort: 'in',
+  //           ),
+  //         );
+
+  //     final targetName = mainConn.targetNodeName;
+  //     final targetPort = mainConn.targetPort;
+
+  //     if (prototype is LogicBlock) {
+  //       next = next
+  //           .withConnection(
+  //             ConnectionData(
+  //               id: _uuid.v4(),
+  //               sourceNodeName: newNode.name,
+  //               sourcePort: 'yes',
+  //               targetNodeName: targetName,
+  //               targetPort: targetPort,
+  //             ),
+  //           )
+  //           .withConnection(
+  //             ConnectionData(
+  //               id: _uuid.v4(),
+  //               sourceNodeName: newNode.name,
+  //               sourcePort: 'no',
+  //               targetNodeName: targetName,
+  //               targetPort: targetPort,
+  //             ),
+  //           );
+  //     } else if (prototype is ForBlock) {
+  //       final body = NodeFactory.createNode(
+  //         id: _uuid.v4(),
+  //         data: const ProcessBlock('Тело цикла'),
+  //         position: Offset.zero,
+  //       );
+  //       next = next
+  //           .withNode(body)
+  //           .withConnection(
+  //             ConnectionData(
+  //               id: _uuid.v4(),
+  //               sourceNodeName: newNode.name,
+  //               sourcePort: 'exit',
+  //               targetNodeName: targetName,
+  //               targetPort: targetPort,
+  //             ),
+  //           )
+  //           .withConnection(
+  //             ConnectionData(
+  //               id: _uuid.v4(),
+  //               sourceNodeName: newNode.name,
+  //               sourcePort: 'body',
+  //               targetNodeName: body.name,
+  //               targetPort: 'in',
+  //             ),
+  //           )
+  //           .withConnection(
+  //             ConnectionData(
+  //               id: _uuid.v4(),
+  //               sourceNodeName: body.name,
+  //               sourcePort: 'out',
+  //               targetNodeName: newNode.name,
+  //               targetPort: 'loopback',
+  //             ),
+  //           );
+  //     } else {
+  //       next = next.withConnection(
+  //         ConnectionData(
+  //           id: _uuid.v4(),
+  //           sourceNodeName: newNode.name,
+  //           sourcePort: 'out',
+  //           targetNodeName: targetName,
+  //           targetPort: targetPort,
+  //         ),
+  //       );
+  //     }
+
+  //     return InsertionResult(next, newNode.name);
+  //   }
+  // }
 }

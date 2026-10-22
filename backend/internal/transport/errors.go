@@ -36,6 +36,7 @@ const (
 
 	// 409
 	CodeLoginTaken = "login_taken"
+	CodeLastAdmin = "last_admin"
 
 	// 429
 	CodeTooManyRequests = "too_many_requests"

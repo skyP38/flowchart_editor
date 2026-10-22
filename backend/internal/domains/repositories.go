@@ -40,3 +40,13 @@ type SessionCleaner interface {
 	// Возвращает количество удаленных
 	RemoveExpired(ctx context.Context, retention time.Duration) (int, error)
 }
+
+// AuditLogRepository - интерфейс, который позволяет обработчикам записывать события и административному API получать записи постранично
+type AuditLogRepository interface {
+	CreateLog(ctx context.Context, entry *AuditLog) error
+	ListLogs(
+		ctx context.Context,
+		limit int,
+		offset int,
+	) ([]*AuditLog, int, error)
+}

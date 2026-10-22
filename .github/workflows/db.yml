@@ -1,0 +1,25 @@
+name: DB Migration
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'backend/db/**'
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install migrate CLI
+        run: |
+          curl -L https://github.com/golang-migrate/migrate/releases/download/v4.19.1/migrate.linux-amd64.tar.gz | tar xvz
+          sudo mv migrate /usr/local/bin/migrate
+
+      - name: Run Migrations
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          migrate -path ./backend/db -database "$DATABASE_URL" up

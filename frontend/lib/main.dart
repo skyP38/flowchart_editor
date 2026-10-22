@@ -6,6 +6,7 @@ import 'core/network/api_service.dart';
 import 'core/navigation/last_route_storage.dart';
 // import 'core/navigation/route_observer.dart';
 import 'features/auth/data/api/auth_api.dart';
+import 'features/admin/data/admin_api.dart';
 import 'features/auth/data/storage/secure_token_storage.dart';
 import 'features/auth/domain/auth_repository.dart';
 import 'features/auth/presentation/auth_gate.dart';
@@ -33,6 +34,7 @@ Future<void> main() async {
   );
 
   final authApi = AuthApi(apiClient);
+  final adminApi = AdminApi(apiClient);
   final apiService = ApiService(apiClient);
 
   authRepository = AuthRepository(api: authApi, storage: tokenStorage);
@@ -43,12 +45,12 @@ Future<void> main() async {
     MultiProvider(
       providers: [
         Provider<AuthApi>.value(value: authApi),
+        Provider<AdminApi>.value(value: adminApi),
         Provider<ApiService>.value(value: apiService),
         ChangeNotifierProvider<AuthRepository>.value(value: authRepository),
         ChangeNotifierProvider<LastRouteStorage>.value(
           value: LastRouteStorage.instance,
         ),
-        Provider<ApiService>.value(value: apiService),
       ],
       child: const MyApp(),
     ),

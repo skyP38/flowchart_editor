@@ -1,0 +1,77 @@
+version: "2"
+run:
+  timeout: 3m
+  tests: true
+
+linters:
+  default: none
+  enable:
+    - govet         # встроенный анализатор
+    - revive        # комментарии, именование, стиль
+    - staticcheck   # глубокий анализ (ST1000, ST1005)
+    - errcheck      # непроверенные ошибки
+    - gocritic      # стилистика и логика
+    - ineffassign   # неэффективные присваивания
+    - unused        # неиспользуемый код
+    - gosec         # безопасность
+    - misspell      # опечатки в комментариях
+    - unconvert     # лишние конверсии типов
+    - whitespace    # лишние пустые строки
+
+  settings:
+    revive:
+      rules:
+        # - name: exported
+          # severity: warning
+        # - name: package-comments
+          # severity: warning
+        - name: var-naming
+          severity: warning
+        - name: indent-error-flow
+          severity: warning
+        - name: errorf
+          severity: warning
+        - name: error-return
+          severity: warning
+        - name: error-strings
+          severity: warning
+        - name: error-naming
+          severity: warning
+        - name: if-return
+          severity: warning
+        - name: increment-decrement
+          severity: warning
+        - name: range
+          severity: warning
+        - name: receiver-naming
+          severity: warning
+        - name: time-naming
+          severity: warning
+        - name: unexported-return
+          severity: warning
+        - name: unused-parameter
+          severity: warning
+        - name: unreachable-code
+          severity: warning
+        - name: context-as-argument
+          severity: warning
+        - name: context-keys-type
+          severity: warning
+
+    staticcheck:
+      checks:
+        - all
+        - -ST1003   # ID в именах (UserID, SessionID)
+        - -ST1000   # Требование комментировать пакеты
+
+  exclusions:
+    rules:
+    - path: _test\.go
+      linters:
+        - gocritic
+        - gosec
+        - revive
+    - path: internal/transport/errors.go
+      linters:
+        - gosec
+      text: "G101"

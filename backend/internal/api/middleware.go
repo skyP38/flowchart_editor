@@ -29,7 +29,11 @@ const (
 type AuthMW func(http.Handler) http.Handler
 
 // Auth парсит access-токен, проверяет активность сессии и кладёт userID/sessionID/role в контекст
-func Auth(mgr *token.AccessTokenManager, sessions domains.SessionRepository) AuthMW {
+func Auth(mgr *token.AccessTokenManager, sessions domains.SessionRepository, audits ...domains.AuditLogRepository) AuthMW {
+	var auditRepo domains.AuditLogRepository
+	if len(audits) > 0 {
+		auditRepo = audits[0]
+	}
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			header := r.Header.Get("Authorization")
@@ -74,7 +78,37 @@ func Auth(mgr *token.AccessTokenManager, sessions domains.SessionRepository) Aut
 			ctx := context.WithValue(r.Context(), ctxUserID, uid)
 			ctx = context.WithValue(ctx, ctxSessionID, sid)
 			ctx = context.WithValue(ctx, ctxUserRole, claims.Role)
-			next.ServeHTTP(w, r.WithContext(ctx))
+			
+			recorder := &auditResponseWriter {
+				ResponseWriter: w,
+				status: http.StatusOK,
+			}
+			authedRequest := r.WithContext(ctx)
+			next.ServeHTTP(recorder, authedRequest)
+
+			if auditRepo == nil {
+				return
+			}
+
+			action, entity, entityID, ok := auditAction(authedRequest)
+			if !ok {
+				return
+			}
+			status := "Success"
+			if recorder.status >= http.StatusBadRequest {
+				status = "Fail"
+			}
+			userID := uid
+			entry := &domains.AuditLog {
+				UserID: &userID,
+				Action: action,
+				Entity: entity,
+				EntityID: entityID,
+				Status: status,
+			}
+			if err := auditRepo.CreateLog(r.Context(), entry); err != nil {
+				log.Printf("audit request: %v", err)
+			}
 		})
 	}
 }
@@ -122,4 +156,73 @@ func SessionIDFrom(ctx context.Context) int64 {
 func RoleFrom(ctx context.Context) string {
 	v, _ := ctx.Value(ctxUserRole).(string)
 	return v
+}
+
+type auditResponseWriter struct {
+	http.ResponseWriter
+	status      int
+	wroteHeader bool
+}
+
+func (w *auditResponseWriter) WriteHeader(status int) {
+	if w.wroteHeader {
+		return
+	}
+
+	w.status = status
+	w.wroteHeader = true
+	w.ResponseWriter.WriteHeader(status)
+}
+
+func (w *auditResponseWriter) Write(data []byte) (int, error) {
+	if !w.wroteHeader {
+		w.WriteHeader(http.StatusOK)
+	}
+	return w.ResponseWriter.Write(data)
+}
+
+func auditID(value string) *int64 {
+	id, err := strconv.ParseInt(value, 10, 64)
+	if err != nil {
+		return nil
+	}
+	return &id
+}
+
+func auditAction(r *http.Request) (string, string, *int64, bool) {
+	path := r.URL.Path
+
+	switch {
+	case r.Method == http.MethodPost && path == "/api/projects":
+		return "project.create", "project", nil, true
+
+	case r.Method == http.MethodPatch && r.PathValue("projectId") != "":
+		return "project.update", "project", auditID(r.PathValue("projectId")), true
+
+	case r.Method == http.MethodDelete && r.PathValue("flowchartId") != "":
+		return "block_scheme.delete", "block_scheme", auditID(r.PathValue("flowchartId")), true
+
+	case r.Method == http.MethodPut && strings.HasSuffix(path, "/content"):
+		return "block_scheme.update", "block_scheme", auditID(r.PathValue("flowchartId")), true
+
+	case r.Method == http.MethodPost &&
+		strings.HasPrefix(path, "/api/projects/") &&
+		strings.HasSuffix(path, "/flowcharts"):
+		return "block_scheme.create", "project", auditID(r.PathValue("projectId")), true
+
+	case r.Method == http.MethodDelete && r.PathValue("projectId") != "":
+		return "project.delete", "project", auditID(r.PathValue("projectId")), true
+
+	case r.Method == http.MethodPost && path == "/api/admin/users":
+		return "user.create", "user", nil, true
+
+	case r.Method == http.MethodDelete && r.PathValue("id") != "" &&
+		strings.HasPrefix(path, "/api/sessions/"):
+		return "session.revoke", "session", auditID(r.PathValue("id")), true
+
+	case r.Method == http.MethodDelete && path == "/api/sessions":
+		return "session.revoke_all", "session", nil, true
+	}
+
+	return "", "", nil, false
 }

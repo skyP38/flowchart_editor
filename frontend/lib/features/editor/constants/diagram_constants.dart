@@ -15,7 +15,7 @@ class NodeConstants {
 class LayoutConstants {
   LayoutConstants._();
   static const double stepXExtra = 70;
-  static const double stepYExtra = 40;
+  static const double stepYExtra = 48;
   // Дополнительный горизонтальный шаг на каждый уровень вложенности For.
   static const double loopbackChannelWidth = 15;
   // Дополнительный вертикальный шаг на каждый уровень вложенности For.

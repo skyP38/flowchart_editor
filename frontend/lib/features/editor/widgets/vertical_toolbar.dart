@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../models/flow_models.dart';
+import '../constants/diagram_constants.dart';
 
 // Левая панель инструментов редактора
 // Содержит:
@@ -35,6 +36,10 @@ class VerticalToolbar extends StatelessWidget {
 
   final bool canSave;
 
+  final VoidCallback onClear;
+
+  final Size currentNodeSize;
+
   const VerticalToolbar({
     super.key,
     required this.selectedPrototype,
@@ -50,6 +55,8 @@ class VerticalToolbar extends StatelessWidget {
     required this.onLoad,
     this.isSaving = false,
     this.canSave = true,
+    required this.onClear,
+    required this.currentNodeSize,
   });
 
   @override
@@ -158,6 +165,13 @@ class VerticalToolbar extends StatelessWidget {
                       )
                     : const Text('Сохранить'),
               ),
+
+              const SizedBox(height: 8),
+              ElevatedButton(
+                onPressed: onClear,
+                style: ElevatedButton.styleFrom(foregroundColor: Colors.red),
+                child: const Text('Очистить схему'),
+              ),
             ],
           ],
         ),
@@ -167,9 +181,13 @@ class VerticalToolbar extends StatelessWidget {
 
   // Показывает диалог для задания единого размера блоков
   void _showSetSizeDialog(BuildContext context) async {
-    final widthController = TextEditingController(text: '160');
-    final heightController = TextEditingController(text: '80');
-    await showDialog(
+    final widthController = TextEditingController(
+      text: currentNodeSize.width.toStringAsFixed(0),
+    );
+    final heightController = TextEditingController(
+      text: currentNodeSize.height.toStringAsFixed(0),
+    );
+    final result = await showDialog<Size?>(
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Задать размер блоков'),
@@ -195,9 +213,32 @@ class VerticalToolbar extends StatelessWidget {
           ),
           TextButton(
             onPressed: () {
-              final width = double.tryParse(widthController.text) ?? 160;
-              final height = double.tryParse(heightController.text) ?? 80;
-              Navigator.pop(ctx);
+              Navigator.pop(
+                ctx,
+                const Size(
+                  NodeConstants.defaultWidth,
+                  NodeConstants.defaultHeight,
+                ),
+              );
+            },
+
+            child: const Text('Сбросить'),
+          ),
+
+          TextButton(
+            onPressed: () {
+              final width = double.tryParse(widthController.text);
+              final height = double.tryParse(heightController.text);
+              if (width == null ||
+                  height == null ||
+                  width <= 0 ||
+                  height <= 0) {
+                ScaffoldMessenger.of(ctx).showSnackBar(
+                  const SnackBar(content: Text('Невалидные значения')),
+                );
+                return;
+              }
+
               onSetNodeSize(Size(width, height));
             },
             child: const Text('Применить'),
@@ -205,6 +246,9 @@ class VerticalToolbar extends StatelessWidget {
         ],
       ),
     );
+    if (result != null) {
+      onSetNodeSize(result);
+    }
   }
 
   // Строит кнопку выбора прототипа блока

@@ -3,6 +3,7 @@ import 'package:collection/collection.dart';
 import '../models/flow_models.dart';
 import 'flowchart_graph.dart';
 import 'dart:math' as math;
+import '../models/editor_models.dart';
 
 class LayoutSpacing {
   final double stepX;
@@ -29,9 +30,12 @@ class LayoutEngine {
 
     // Выход каждого For должен лежать ниже всего его тела
     _adjustForExitRanks(g, ranks);
+    _pushMergeNodesForSpace(g, ranks);
 
     // End - на самом низком ранге
     _pushEndToBottom(g, ranks);
+    _pushEndFeedersDown(g, ranks);
+    _pushEndForMergeSpace(g, ranks);
 
     // 2. Колонки (X)
     final cols = <String, int>{};
@@ -60,14 +64,23 @@ class LayoutEngine {
       for (final c in outs) {
         if (c.sourcePort != 'no' || c.targetPort == 'loopback') continue;
 
-        // rejoin: yes/out и no одного родителя ведут в один узел.
-        // Такая no - не отдельная ветка, а @двойная связь" LogicBlock.
+        // rejoin: yes/out и no одного родителя ведут в один узел
         final sameTargetYes = outs.any(
           (o) =>
               (o.sourcePort == 'yes' || o.sourcePort == 'out') &&
               o.targetNodeName == c.targetNodeName,
         );
         if (sameTargetYes) continue;
+        bool reachableFromYes = false;
+        for (final o in outs) {
+          if (o.sourcePort == 'yes' || o.sourcePort == 'out') {
+            if (_reachableViaYesOut(g, o.targetNodeName, c.targetNodeName)) {
+              reachableFromYes = true;
+              break;
+            }
+          }
+        }
+        if (reachableFromYes) continue;
 
         final rEnd = _exitRankOf(g, c.targetNodeName, ranks, cols);
         branches.add(
@@ -82,8 +95,8 @@ class LayoutEngine {
     }
 
     // 2c. Сортируем по nodeLevel (min-уровень от main),
-    // внутри уровня - по убыванию rStart: глубокие нижние ветки "застолбляют" колонки
-    // первыми, верхние подстраиваются под них.
+    // внутри уровня - по убыванию rStart: глубокие нижние ветки занимают колонки
+    // первыми, верхние подстраиваются под них
     branches.sort((a, b) {
       final la = nodeLevel[a.branchName] ?? 0;
       final lb = nodeLevel[b.branchName] ?? 0;
@@ -116,10 +129,9 @@ class LayoutEngine {
         isRoot: true,
       );
     }
-    //
-    // Финальный проход: rejoin-узлы, у которых walk не установил колонку,
-    // берут max колонки своих источников. Если среди источников есть main
-    // (col 0) - узел остается на col 0.
+
+    // rejoin-узлы, у которых walk не установил колонку, берут max колонки source
+    // Если среди источников есть main (col 0) - узел остается на col 0
     for (final name in g.nodes.keys) {
       if (cols.containsKey(name)) continue;
       if (g.isEnd(name)) continue;
@@ -129,15 +141,54 @@ class LayoutEngine {
           .toList();
       if (incoming.isEmpty) continue;
 
-      final sourceCols = incoming
-          .map((c) => cols[c.sourceNodeName] ?? 0)
+      // final isLoopbackSource = (g.outgoing[name] ?? const []).any(
+      //   (c) => c.targetPort == 'loopback',
+      // );
+      // if (isLoopbackSource) {
+      //   final mainIncoming = incoming
+      //       .where(
+      //         (c) =>
+      //             c.sourcePort == 'yes' ||
+      //             c.sourcePort == 'out' ||
+      //             c.sourcePort == 'body' ||
+      //             c.sourcePort == 'in',
+      //       )
+      //       .toList();
+      //   if (mainIncoming.isNotEmpty) {
+      //     cols[name] = mainIncoming
+      //         .map((c) => cols[c.sourceNodeName] ?? 0)
+      //         .reduce((a, b) => a < b ? a : b);
+      //     continue;
+      //   }
+      // }
+      final mainIncoming = incoming
+          .where(
+            (c) =>
+                c.sourcePort == 'yes' ||
+                c.sourcePort == 'out' ||
+                c.sourcePort == 'body' ||
+                c.sourcePort == 'in',
+          )
           .toList();
 
-      if (sourceCols.contains(0)) {
-        cols[name] = 0;
+      if (mainIncoming.isNotEmpty) {
+        cols[name] = mainIncoming
+            .map((c) => cols[c.sourceNodeName] ?? 0)
+            .reduce((a, b) => a < b ? a : b);
       } else {
-        cols[name] = sourceCols.reduce((a, b) => a > b ? a : b);
+        cols[name] = incoming
+            .map((c) => cols[c.sourceNodeName] ?? 0)
+            .reduce((a, b) => a > b ? a : b);
       }
+      //   final sourceCols = incoming
+      //       .map((c) => cols[c.sourceNodeName] ?? 0)
+      //       .toList();
+
+      //   if (sourceCols.contains(0)) {
+      //     cols[name] = 0;
+      //   } else {
+      //     cols[name] = sourceCols.reduce((a, b) => a > b ? a : b);
+      //   }
     }
 
     // 3. Сборка
@@ -145,9 +196,6 @@ class LayoutEngine {
     // Сдвиг для центровки блоков в ячейках сетки
     final shiftX = (spacing.stepX - nodeSize.width) / 2;
     final shiftY = (spacing.stepY - nodeSize.height) / 2;
-    // Фиксированная база — не зависит от start.position,
-    // иначе сдвиг накапливается при каждом relayout.
-    //
     final depth = maxForDepth(g);
     final insetOuter = spacing.stepX / 12.0 * (depth + 1);
     const leftMargin = 20.0;
@@ -166,7 +214,98 @@ class LayoutEngine {
     return result;
   }
 
-  // Проходит поддерево ветки, ставит всем "чистым" потомкам ту же колонку.
+  void _pushMergeNodesForSpace(FlowchartGraph g, Map<String, int> ranks) {
+    bool changed = true;
+    int iterations = 0;
+    while (changed && iterations < 20) {
+      changed = false;
+      iterations++;
+      final names = g.nodes.keys.toList()
+        ..sort((a, b) => (ranks[a] ?? 0).compareTo(ranks[b] ?? 0));
+
+      for (final name in names) {
+        if (g.isEnd(name)) continue;
+        final incoming = (g.incoming[name] ?? const <ConnectionData>[])
+            .where((c) => c.targetPort != 'loopback')
+            .toList();
+        if (incoming.length < 2) continue;
+
+        final sources = incoming.map((c) => c.sourceNodeName).toSet();
+        final isOnlyTrivialRejoin =
+            sources.length == 1 &&
+            incoming.every(
+              (c) => c.sourcePort == 'yes' || c.sourcePort == 'no',
+            );
+        if (isOnlyTrivialRejoin) continue;
+
+        final sourceRanks =
+            incoming.map((c) => ranks[c.sourceNodeName] ?? 0).toList()
+              ..sort((a, b) => b.compareTo(a));
+        // final maxPredRank = sourceRanks.first;
+        // final secondMaxPredRank = sourceRanks.length > 1
+        //     ? sourceRanks[1]
+        //     : maxPredRank;
+
+        final maxPredRank = sourceRanks.first;
+        final minPredRank = sourceRanks.last;
+        if (maxPredRank - minPredRank < 2) continue;
+        // if (maxPredRank - secondMaxPredRank < 2) continue;
+
+        final desired = maxPredRank + 2;
+        final current = ranks[name] ?? 0;
+        if (current < desired) {
+          final delta = desired - current;
+          ranks[name] = desired;
+          _pushDescendantsForSpace(g, name, delta, ranks);
+          changed = true;
+        }
+      }
+    }
+  }
+
+  /// Сдвигает всех потомков [name] на [delta] рангов вниз.
+  /// Используется вместе с _pushMergeNodesForSpace, чтобы после переноса
+  /// merge-точки её подграф остался ниже её новой позиции.
+  void _pushDescendantsForSpace(
+    FlowchartGraph g,
+    String name,
+    int delta,
+    Map<String, int> ranks,
+  ) {
+    final visited = <String>{name};
+    final queue = <String>[];
+    for (final c in g.outgoing[name] ?? const <ConnectionData>[]) {
+      if (c.targetPort == 'loopback') continue;
+      queue.add(c.targetNodeName);
+    }
+    while (queue.isNotEmpty) {
+      final cur = queue.removeAt(0);
+      if (!visited.add(cur)) continue;
+      ranks[cur] = (ranks[cur] ?? 0) + delta;
+      for (final c in g.outgoing[cur] ?? const <ConnectionData>[]) {
+        if (c.targetPort == 'loopback') continue;
+        queue.add(c.targetNodeName);
+      }
+    }
+  }
+
+  // Достижим ли to из from по цепочке yes/out
+  bool _reachableViaYesOut(FlowchartGraph g, String from, String to) {
+    if (from == to) return true;
+    final visited = <String>{from};
+    final queue = <String>[from];
+    while (queue.isNotEmpty) {
+      final cur = queue.removeAt(0);
+      for (final c in g.outgoing[cur] ?? const []) {
+        if (c.sourcePort != 'yes' && c.sourcePort != 'out') continue;
+        if (c.targetNodeName == to) return true;
+        if (visited.add(c.targetNodeName)) queue.add(c.targetNodeName);
+      }
+    }
+    return false;
+  }
+
+  // Проходит поддерево ветки, ставит всем потомкам ту же колонку
   // Останавливается на:
   // - End (всегда col 0);
   // - rejoin-узлах (несколько входов - принадлежат main);
@@ -187,8 +326,8 @@ class LayoutEngine {
         .where((c) => c.targetPort != 'loopback')
         .toList();
 
-    // Rejoin = входы из разных узлов.
-    // Если это yes и no от одного и того же родителя - узел все еще "наш", просто к нему сходятся две линии.
+    // Rejoin = входы из разных узлов
+    // Если это yes и no от одного и того же родителя - узел все еще "наш", просто к нему сходятся две линии
     final distinctSources = incoming.map((c) => c.sourceNodeName).toSet();
     if (!isRoot && distinctSources.length > 1) return;
 
@@ -286,6 +425,86 @@ class LayoutEngine {
     ranks[endName] = maxOther + 1;
   }
 
+  // Подтягивает merge-точки, идущие напрямую в End, к rank[End] - 1
+  void _pushEndFeedersDown(FlowchartGraph g, Map<String, int> ranks) {
+    String? endName;
+    for (final e in g.nodes.entries) {
+      if (g.isEnd(e.key)) {
+        endName = e.key;
+        break;
+      }
+    }
+    if (endName == null) return;
+
+    // 1. Найти все merge-точки, которые напрямую идут в End
+    final mergeSources = <String>{};
+    for (final c in g.connections) {
+      if (c.targetNodeName != endName) continue;
+      if (c.targetPort == 'loopback') continue;
+      final sources = (g.incoming[c.sourceNodeName] ?? const <ConnectionData>[])
+          .where((x) => x.targetPort != 'loopback')
+          .map((x) => x.sourceNodeName)
+          .toSet();
+      if (sources.length >= 2) {
+        mergeSources.add(c.sourceNodeName);
+      }
+    }
+    if (mergeSources.isEmpty) return;
+
+    // 2. Самый глубокий rank среди обычных узлов
+    int maxOther = 0;
+    for (final e in ranks.entries) {
+      if (e.key == endName) continue;
+      if (mergeSources.contains(e.key)) continue;
+      if (e.value > maxOther) maxOther = e.value;
+    }
+
+    final desiredMergeRank = maxOther + 1;
+    for (final s in mergeSources) {
+      if ((ranks[s] ?? 0) < desiredMergeRank) {
+        debugPrint(
+          '[layout] pull-down $s: rank ${ranks[s]} → $desiredMergeRank',
+        );
+        ranks[s] = desiredMergeRank;
+      }
+    }
+    final desiredEndRank = desiredMergeRank + 1;
+    if ((ranks[endName] ?? 0) < desiredEndRank) {
+      debugPrint('[layout] push-end ${ranks[endName]} → $desiredEndRank');
+      ranks[endName] = desiredEndRank;
+    }
+  }
+
+  /// Если End имеет ≥2 входящих non-loopback рёбер, отодвигаем его на
+  /// дополнительный ранг, чтобы между точкой слияния и End был запас
+  /// по вертикали под плюс «после слияния».
+  void _pushEndForMergeSpace(FlowchartGraph g, Map<String, int> ranks) {
+    String? endName;
+    for (final e in g.nodes.entries) {
+      if (g.isEnd(e.key)) {
+        endName = e.key;
+        break;
+      }
+    }
+    if (endName == null) return;
+
+    final incoming = (g.incoming[endName] ?? const <ConnectionData>[])
+        .where((c) => c.targetPort != 'loopback')
+        .toList();
+    if (incoming.length < 2) return;
+
+    int maxPredRank = 0;
+    for (final c in incoming) {
+      final r = ranks[c.sourceNodeName] ?? 0;
+      if (r > maxPredRank) maxPredRank = r;
+    }
+
+    final desired = maxPredRank + 2;
+    if ((ranks[endName] ?? 0) < desired) {
+      ranks[endName] = desired;
+    }
+  }
+
   Set<String> _subtreeNodes(FlowchartGraph g, String root) {
     final result = <String>{};
     void dfs(String n) {
@@ -317,7 +536,7 @@ class LayoutEngine {
     }
   }
 
-  // Идем по цепочке out-рёбер от branch до тех пор, пока не упремся в End  или не вернемся в main (узел с уже размеченной col 0).
+  // Идем по цепочке out от branch до тех пор, пока не упремся в End  или не вернемся в main (узел с уже размеченной col 0)
   // Возвращаем  максимальный rank, который эта линия займет - он нужен как правый
   // край интервала [rStart, rEnd] для проверки пересечений по колонке.
   int _exitRankOf(

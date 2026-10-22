@@ -7,6 +7,7 @@ import '../painters/grid_labels_painter.dart';
 import '../domain/connection_router.dart';
 import '../domain/flowchart_graph.dart';
 import 'node_shape_geometry.dart';
+import 'dart:math' as math;
 
 class SvgExporter {
   SvgExporter._();
@@ -56,6 +57,9 @@ class SvgExporter {
         buffer.writeln(
           '<path d="$d" stroke="black" stroke-width="2" fill="none" />',
         );
+        buffer.write(
+          _buildArrowsSvg(path, isLoopback: conn.targetPort == 'loopback'),
+        );
       }
     }
 
@@ -87,6 +91,93 @@ class SvgExporter {
       }
     }
     return parts.join(' ');
+  }
+
+  static String _buildArrowsSvg(Path path, {required bool isLoopback}) {
+    final segments = _extractSegments(path);
+    if (segments.isEmpty) return '';
+
+    final buffer = StringBuffer();
+
+    for (int i = 0; i < segments.length; i++) {
+      final s = segments[i];
+      final isLast = i == segments.length - 1;
+      final isHorizontal = s.dirY.abs() < 0.1;
+      final goesLeft = s.dirX < -0.5;
+      final segLen = (s.end - s.start).distance;
+      if (segLen < 12) continue;
+
+      if (isLast && (isLoopback || goesLeft)) {
+        buffer.write(_arrowHeadSvg(s.end, s.dirX, s.dirY));
+      }
+
+      if (!isLast && isHorizontal && goesLeft && segLen > 30) {
+        final mid = Offset(
+          s.start.dx + (s.end.dx - s.start.dx) * 0.25,
+          s.start.dy + (s.end.dy - s.start.dy) * 0.25,
+        );
+        buffer.write(_arrowHeadSvg(mid, s.dirX, s.dirY));
+      }
+    }
+
+    return buffer.toString();
+  }
+
+  static String _arrowHeadSvg(Offset tip, double dirX, double dirY) {
+    const arrowLen = 11.0;
+    const halfWidth = 5.0;
+
+    final len = math.sqrt(dirX * dirX + dirY * dirY);
+    if (len < 1e-4) return '';
+
+    final ux = dirX / len;
+    final uy = dirY / len;
+
+    final baseX = tip.dx - ux * arrowLen;
+    final baseY = tip.dy - uy * arrowLen;
+    final px = -uy * halfWidth;
+    final py = ux * halfWidth;
+
+    final x1 = baseX + px;
+    final y1 = baseY + py;
+    final x2 = baseX - px;
+    final y2 = baseY - py;
+
+    return '<polygon points="${tip.dx},${tip.dy} '
+        '$x1,$y1 $x2,$y2" fill="black" />\n';
+  }
+
+  static List<_Seg> _extractSegments(Path path) {
+    final result = <_Seg>[];
+    for (final metric in path.computeMetrics()) {
+      _Seg? cur;
+      for (double d = 0; d < metric.length; d += 2.0) {
+        final t = metric.getTangentForOffset(d);
+        if (t == null) continue;
+        final v = t.vector;
+        final vl = v.distance;
+        if (vl < 1e-4) continue;
+        final nx = v.dx / vl;
+        final ny = v.dy / vl;
+
+        if (cur == null) {
+          cur = _Seg(start: t.position, end: t.position, dirX: nx, dirY: ny);
+          result.add(cur);
+        } else if ((cur.dirX - nx).abs() > 0.05 ||
+            (cur.dirY - ny).abs() > 0.05) {
+          cur.end = t.position;
+          cur = _Seg(start: t.position, end: t.position, dirX: nx, dirY: ny);
+          result.add(cur);
+        } else {
+          cur.end = t.position;
+        }
+      }
+      if (metric.length > 0 && cur != null) {
+        final tEnd = metric.getTangentForOffset(metric.length);
+        if (tEnd != null) cur.end = tEnd.position;
+      }
+    }
+    return result;
   }
 
   // Генерирует SVG для одного блока: фигура + текст
@@ -183,4 +274,17 @@ class SvgExporter {
 
     return buffer.toString();
   }
+}
+
+class _Seg {
+  final Offset start;
+  Offset end;
+  final double dirX;
+  final double dirY;
+  _Seg({
+    required this.start,
+    required this.end,
+    required this.dirX,
+    required this.dirY,
+  });
 }
