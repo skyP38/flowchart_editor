@@ -45,19 +45,13 @@ class _AdminLogsScreenState extends State<AdminLogsScreen> {
 
     setState(() {
       _offset = offset;
-      _logsFuture = _api.listLogs(
-        limit: _pageSize,
-        offset: offset,
-      );
+      _logsFuture = _api.listLogs(limit: _pageSize, offset: offset);
     });
   }
 
   void _reload() {
     setState(() {
-      _logsFuture = _api.listLogs(
-        limit: _pageSize,
-        offset: _offset,
-      );
+      _logsFuture = _api.listLogs(limit: _pageSize, offset: _offset);
     });
   }
 
@@ -83,11 +77,7 @@ class _AdminLogsScreenState extends State<AdminLogsScreen> {
                 color: const Color(0xFF6750A4),
                 borderRadius: BorderRadius.circular(6),
               ),
-              child: const Icon(
-                Icons.schema,
-                color: Colors.white,
-                size: 18,
-              ),
+              child: const Icon(Icons.schema, color: Colors.white, size: 18),
             ),
             const SizedBox(width: 8),
             const Text('FlowChart Editor'),
@@ -102,49 +92,48 @@ class _AdminLogsScreenState extends State<AdminLogsScreen> {
         surfaceTintColor: Colors.transparent,
         elevation: 0,
         shape: const Border(
-          bottom: BorderSide(
-            color: Color(0xFFD9D9D9),
-            width: 1,
-          ),
+          bottom: BorderSide(color: Color(0xFFD9D9D9), width: 1),
         ),
         actions: [
           TextButton.icon(
             onPressed: widget.onOpenEditor,
-            label: const Text('Flowchart editor',
+            label: const Text(
+              'Flowchart editor',
               style: TextStyle(color: Color(0xFF1E1E1E)),
             ),
           ),
           TextButton.icon(
             onPressed: widget.onOpenUsers,
-            label: const Text('Users',
+            label: const Text(
+              'Users',
               style: TextStyle(color: Color(0xFF1E1E1E)),
             ),
           ),
           TextButton.icon(
             onPressed: widget.onOpenSessions,
-            label: const Text('Sessions',
+            label: const Text(
+              'Sessions',
               style: TextStyle(color: Color(0xFF1E1E1E)),
             ),
           ),
           TextButton.icon(
             onPressed: _reload,
-            label: const Text('Logs',
+            label: const Text(
+              'Logs',
               style: TextStyle(color: Color(0xFF1E1E1E)),
             ),
           ),
           TextButton.icon(
             onPressed: _logout,
-            label: const Text('Log out',
+            label: const Text(
+              'Log out',
               style: TextStyle(color: Color(0xFF1E1E1E)),
             ),
             style: TextButton.styleFrom(
               backgroundColor: const Color(0xFFE3E3E3),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(8),
-                side: const BorderSide(
-                  color: Color(0xFF767676),
-                  width: 1,
-                ),
+                side: const BorderSide(color: Color(0xFF767676), width: 1),
               ),
             ),
           ),
@@ -165,9 +154,7 @@ class _AdminLogsScreenState extends State<AdminLogsScreen> {
                   future: _logsFuture,
                   builder: (context, snapshot) {
                     if (snapshot.connectionState == ConnectionState.waiting) {
-                      return const Center(
-                        child: CircularProgressIndicator(),
-                      );
+                      return const Center(child: CircularProgressIndicator());
                     }
 
                     if (snapshot.hasError) {
@@ -216,7 +203,6 @@ class _AdminLogsScreenState extends State<AdminLogsScreen> {
     );
   }
 
-  // ─── ЗАГОЛОВОК СТРАНИЦЫ ────────────────────────────────────────────
   Widget _buildPageHeader() {
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -229,9 +215,7 @@ class _AdminLogsScreenState extends State<AdminLogsScreen> {
           ),
           decoration: const BoxDecoration(
             color: Colors.white,
-            border: Border(
-              bottom: BorderSide(color: Color(0xFFE5E7EB)),
-            ),
+            border: Border(bottom: BorderSide(color: Color(0xFFE5E7EB))),
           ),
           child: const Text(
             'Logs',
@@ -246,14 +230,10 @@ class _AdminLogsScreenState extends State<AdminLogsScreen> {
     );
   }
 
-  // ─── ТАБЛИЦА (БЕЗ ИЗМЕНЕНИЙ ЛОГИКИ) ────────────────────────────────
   Widget _buildTable(AdminLogPage page) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final tableWidth = math.max(
-          constraints.maxWidth,
-          1120.0,
-        );
+        final tableWidth = math.max(constraints.maxWidth, 1120.0);
 
         return SingleChildScrollView(
           scrollDirection: Axis.horizontal,
@@ -299,14 +279,9 @@ class _AdminLogsScreenState extends State<AdminLogsScreen> {
     return Container(
       decoration: const BoxDecoration(
         color: Color(0xFFF9FAFB),
-        border: Border(
-          bottom: BorderSide(color: Color(0xFFE5E7EB)),
-        ),
+        border: Border(bottom: BorderSide(color: Color(0xFFE5E7EB))),
       ),
-      padding: const EdgeInsets.symmetric(
-        horizontal: 24,
-        vertical: 14,
-      ),
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
       child: Row(
         children: [
           _headerCell('TIME', 146),
@@ -326,15 +301,10 @@ class _AdminLogsScreenState extends State<AdminLogsScreen> {
       children: [
         Container(
           constraints: const BoxConstraints(minHeight: 60),
-          padding: const EdgeInsets.symmetric(
-            horizontal: 24,
-            vertical: 12,
-          ),
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
           decoration: const BoxDecoration(
             color: Colors.white,
-            border: Border(
-              bottom: BorderSide(color: Color(0xFFE5E7EB)),
-            ),
+            border: Border(bottom: BorderSide(color: Color(0xFFE5E7EB))),
           ),
           child: Row(
             children: [
@@ -344,11 +314,7 @@ class _AdminLogsScreenState extends State<AdminLogsScreen> {
                 color: const Color(0xFF4B5563),
                 twoLines: true,
               ),
-              _bodyCell(
-                entry.login,
-                177,
-                bold: true,
-              ),
+              _bodyCell(entry.login, 177, bold: true),
               _bodyCell(entry.action, 180),
               _bodyCell(entry.objectLabel, 180),
               SizedBox(
@@ -365,10 +331,7 @@ class _AdminLogsScreenState extends State<AdminLogsScreen> {
           Container(
             width: double.infinity,
             color: const Color(0xFFF9FAFB),
-            padding: const EdgeInsets.symmetric(
-              horizontal: 24,
-              vertical: 16,
-            ),
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
           ),
       ],
     );
@@ -418,22 +381,15 @@ class _AdminLogsScreenState extends State<AdminLogsScreen> {
     final success = status.toLowerCase() == 'success';
 
     return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: 12,
-        vertical: 7,
-      ),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
       decoration: BoxDecoration(
-        color: success
-            ? const Color(0xFFE6F4EA)
-            : const Color(0xFFFEE2E2),
+        color: success ? const Color(0xFFE6F4EA) : const Color(0xFFFEE2E2),
         borderRadius: BorderRadius.circular(10),
       ),
       child: Text(
         status,
         style: TextStyle(
-          color: success
-              ? const Color(0xFF137333)
-              : const Color(0xFFEF4444),
+          color: success ? const Color(0xFF137333) : const Color(0xFFEF4444),
           fontSize: 13,
           fontWeight: FontWeight.w600,
         ),

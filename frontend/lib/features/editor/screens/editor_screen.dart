@@ -321,7 +321,7 @@ class _EditorScreenState extends State<EditorScreen> {
         if (point.isAfterMerge) {
           _controller.insertAfterLogicMerge(
             point.connection.id!,
-            point.mergeOtherConnId,
+            point.mergeOtherConnIds,
             _selectedPrototype!,
           );
         } else {

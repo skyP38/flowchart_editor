@@ -146,6 +146,7 @@ class ConnectionRouter {
 
     // Нижняя граница - только по блокам, реально стоящим на пути канала
     double maxBottom = start.dy;
+    // int bypassedCount = 0;
     for (final e in g.nodes.entries) {
       if (e.key == c.targetNodeName) continue;
       final n = e.value;
@@ -157,9 +158,54 @@ class ConnectionRouter {
       if (bottom > maxBottom) maxBottom = bottom;
     }
 
-    final channelY = maxBottom + spacing.stepY / 4;
+    // final depthOffset = bypassedCount > 1
+    //     ? (bypassedCount - 1) * spacing.stepY / 8
+    //     : 0.0;
+    // final desired = maxBottom + spacing.stepY / 2 + depthOffset;
+    // final cap = end.dy - spacing.stepY / 8;
+    // final channelY = desired < cap ? desired : cap;
+
+    // final stepXExtra = spacing.stepX - nodeSize.width;
+    // final xOffset = bypassedCount > 1
+    //     ? (bypassedCount - 1) * stepXExtra / 4
+    //     : 0.0;
+    // final rightX = start.dx + stepXExtra / 2 + xOffset;
+
+    // final channelY = maxBottom + spacing.stepY / 4;
     final stepXExtra = spacing.stepX - nodeSize.width;
-    final rightX = start.dx + stepXExtra / 2;
+
+    final rankSpan = (end.dy - start.dy) / spacing.stepY;
+    final depthXOffset = rankSpan > 1
+        ? ((rankSpan - 1).clamp(0.0, 4.0)) * spacing.stepX / 10
+        : 0.0;
+
+    final desired = maxBottom + spacing.stepY / 2;
+    final cap = end.dy - spacing.stepY / 8;
+    double channelY = desired < cap ? desired : cap;
+
+    double rightX = start.dx + stepXExtra / 2 + depthXOffset;
+
+    // final rightX = start.dx + stepXExtra / 2;
+    //
+    for (final e in g.nodes.entries) {
+      final n = e.value;
+      final blockLeft = n.position.dx;
+      final blockRight = n.position.dx + nodeSize.width;
+      final blockTop = n.position.dy;
+      final blockBottom = n.position.dy + nodeSize.height;
+
+      if (blockLeft <= start.dx + 1.0) continue; // не справа
+      if (blockBottom < start.dy || blockTop > channelY) continue; // не на пути
+
+      if (rightX > blockLeft - 10 && rightX < blockRight) {
+        // Попадаем внутрь блока по X — прижимаем коридор к его левой границе
+        rightX = blockRight + 10;
+        final newChannelY = blockBottom + spacing.stepY / 2;
+        if (newChannelY > channelY) {
+          channelY = newChannelY < cap ? newChannelY : cap;
+        }
+      }
+    }
     path
       ..lineTo(rightX, start.dy) // вправо в зазор
       ..lineTo(rightX, channelY) // вниз в канал

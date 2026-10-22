@@ -18,6 +18,23 @@ class LastRouteStorage extends ChangeNotifier {
   bool _isGuest = false;
   bool _initialized = false;
 
+  static const adminUsersScreen = 'admin.users';
+  static const adminEditorScreen = 'admin.editor';
+  static const adminSessionsScreen = 'admin.sessions';
+  static const adminLogsScreen = 'admin.logs';
+
+  static const _adminScreenKey = 'admin.screen';
+
+  String _adminScreen = adminUsersScreen;
+  String get adminScreen => _adminScreen;
+
+  static const _adminScreenValues = {
+    adminUsersScreen,
+    adminEditorScreen,
+    adminSessionsScreen,
+    adminLogsScreen,
+  };
+
   Future<void> init() async {
     if (_initialized) return;
     final prefs = await SharedPreferences.getInstance();
@@ -31,6 +48,12 @@ class LastRouteStorage extends ChangeNotifier {
         _isGuest = (m['isGuest'] as bool?) ?? false;
       } catch (_) {}
     }
+
+    final savedAdminScreen = prefs.getString(_adminScreenKey);
+    if (savedAdminScreen != null &&
+        _adminScreenValues.contains(savedAdminScreen)) {
+      _adminScreen = savedAdminScreen;
+    }
     _initialized = true;
     notifyListeners();
   }
@@ -39,6 +62,16 @@ class LastRouteStorage extends ChangeNotifier {
   int? get projectId => _projectId;
   int? get flowchartId => _flowchartId;
   bool get isGuest => _isGuest;
+
+  Future<void> setAdminScreen(String screen) async {
+    if (_adminScreen == screen) return;
+    _adminScreen = screen;
+    notifyListeners();
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_adminScreenKey, screen);
+    } catch (_) {}
+  }
 
   Future<void> setTab(String tab) async {
     if (_tab == tab) return;

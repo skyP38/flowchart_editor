@@ -6,14 +6,18 @@ import '../../auth/domain/auth_repository.dart';
 import '../data/admin_api.dart';
 import '../models/admin_user.dart';
 import '../../../core/network/api_error.dart';
+import '../data/admin_route_storage.dart';
 
 class AdminUsersScreen extends StatefulWidget {
   final VoidCallback onOpenEditor;
   final VoidCallback onOpenSessions;
   final VoidCallback onOpenLogs;
-  const AdminUsersScreen({super.key, required this.onOpenEditor, required this.onOpenSessions,
+  const AdminUsersScreen({
+    super.key,
+    required this.onOpenEditor,
+    required this.onOpenSessions,
     required this.onOpenLogs,
-});
+  });
 
   @override
   State<AdminUsersScreen> createState() => _AdminUsersScreenState();
@@ -74,16 +78,17 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
       );
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Could not create user: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Could not create user: $e')));
     }
   }
 
   List<AdminUser> _filterUsers(List<AdminUser> users) {
     final needle = _search.trim().toLowerCase();
     return users.where((user) {
-      final matchesSearch = needle.isEmpty ||
+      final matchesSearch =
+          needle.isEmpty ||
           user.login.toLowerCase().contains(needle) ||
           user.name.toLowerCase().contains(needle) ||
           user.role.toLowerCase().contains(needle);
@@ -112,11 +117,7 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
                 color: const Color(0xFF6750A4),
                 borderRadius: BorderRadius.circular(6),
               ),
-              child: const Icon(
-                Icons.schema,
-                color: Colors.white,
-                size: 18,
-              ),
+              child: const Icon(Icons.schema, color: Colors.white, size: 18),
             ),
             const SizedBox(width: 8),
             const Text('FlowChart Editor'),
@@ -131,49 +132,48 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
         surfaceTintColor: Colors.transparent,
         elevation: 0,
         shape: const Border(
-          bottom: BorderSide(
-            color: Color(0xFFD9D9D9),
-            width: 1,
-          ),
+          bottom: BorderSide(color: Color(0xFFD9D9D9), width: 1),
         ),
         actions: [
           TextButton.icon(
             onPressed: widget.onOpenEditor,
-            label: const Text('Flowchart editor',
+            label: const Text(
+              'Flowchart editor',
               style: TextStyle(color: const Color(0xFF1E1E1E)),
             ),
           ),
           TextButton.icon(
             onPressed: _reload,
-            label: const Text('Users',
+            label: const Text(
+              'Users',
               style: TextStyle(color: const Color(0xFF1E1E1E)),
             ),
           ),
           TextButton.icon(
             onPressed: _sessions,
-            label: const Text('Sessions',
+            label: const Text(
+              'Sessions',
               style: TextStyle(color: const Color(0xFF1E1E1E)),
             ),
           ),
           TextButton.icon(
             onPressed: _logs,
-            label: const Text('Logs',
+            label: const Text(
+              'Logs',
               style: TextStyle(color: const Color(0xFF1E1E1E)),
             ),
           ),
           TextButton.icon(
             onPressed: _logout,
-            label: const Text('Log out',
+            label: const Text(
+              'Log out',
               style: TextStyle(color: const Color(0xFF1E1E1E)),
             ),
             style: TextButton.styleFrom(
               backgroundColor: const Color(0xFFE3E3E3),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(8),
-                side: const BorderSide(
-                  color: Color(0xFF767676),            
-                  width: 1,
-                ),
+                side: const BorderSide(color: Color(0xFF767676), width: 1),
               ),
             ),
           ),
@@ -194,13 +194,19 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
                   children: [
                     const Text(
                       'Admin users',
-                      style: TextStyle(fontSize: 24, fontWeight: FontWeight.w700, color: Color(0xFF1E1E1E)),
+                      style: TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF1E1E1E),
+                      ),
                     ),
                     FilledButton.icon(
                       onPressed: _showAddUserDialog,
                       icon: const Icon(Icons.add),
                       label: const Text('Add user'),
-                      style: FilledButton.styleFrom(backgroundColor: const Color(0xFF6750A4)),
+                      style: FilledButton.styleFrom(
+                        backgroundColor: const Color(0xFF6750A4),
+                      ),
                     ),
                   ],
                 ),
@@ -214,11 +220,26 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
                           onChanged: (v) => setState(() => _search = v),
                           decoration: InputDecoration(
                             hintText: 'Search by login, name or role...',
-                            hintStyle: const TextStyle(fontSize: 14, color: Color(0xFF9CA3AF)),
+                            hintStyle: const TextStyle(
+                              fontSize: 14,
+                              color: Color(0xFF9CA3AF),
+                            ),
                             prefixIcon: const Icon(Icons.search, size: 18),
-                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(6), borderSide: const BorderSide(color: Color(0xFFD9D9D9))),
-                            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(6), borderSide: const BorderSide(color: Color(0xFFD9D9D9))),
-                            contentPadding: const EdgeInsets.symmetric(vertical: 0),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(6),
+                              borderSide: const BorderSide(
+                                color: Color(0xFFD9D9D9),
+                              ),
+                            ),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(6),
+                              borderSide: const BorderSide(
+                                color: Color(0xFFD9D9D9),
+                              ),
+                            ),
+                            contentPadding: const EdgeInsets.symmetric(
+                              vertical: 0,
+                            ),
                           ),
                         ),
                       ),
@@ -230,10 +251,16 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
                         child: DropdownButton<String>(
                           value: _statusFilter,
                           items: ['All statuses', 'Active', 'Inactive']
-                              .map((e) => DropdownMenuItem(value: e, child: Text(e)))
+                              .map(
+                                (e) =>
+                                    DropdownMenuItem(value: e, child: Text(e)),
+                              )
                               .toList(),
                           onChanged: (v) => setState(() => _statusFilter = v!),
-                          style: const TextStyle(fontSize: 14, color: Color(0xFF1E1E1E)),
+                          style: const TextStyle(
+                            fontSize: 14,
+                            color: Color(0xFF1E1E1E),
+                          ),
                         ),
                       ),
                     ),
@@ -258,7 +285,10 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
                         children: [
                           Text('Error: ${snapshot.error}'),
                           const SizedBox(height: 16),
-                          ElevatedButton(onPressed: _reload, child: const Text('Reload')),
+                          ElevatedButton(
+                            onPressed: _reload,
+                            child: const Text('Reload'),
+                          ),
                         ],
                       ),
                     );
@@ -274,7 +304,7 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
       ),
     );
   }
- 
+
   Widget _buildTable(List<AdminUser> users) {
     return Container(
       decoration: BoxDecoration(
@@ -322,14 +352,20 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
       decoration: BoxDecoration(
-        border: isLast ? null : const Border(bottom: BorderSide(color: Color(0xFFF3F4F6))),
+        border: isLast
+            ? null
+            : const Border(bottom: BorderSide(color: Color(0xFFF3F4F6))),
       ),
       child: _columns(
         login: Text(
           user.login,
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
-          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Color(0xFF111827)),
+          style: const TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+            color: Color(0xFF111827),
+          ),
         ),
         name: Text(
           user.name,
@@ -354,10 +390,7 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
         actions: IconButton(
           tooltip: 'Delete user',
           onPressed: () => _confirmDeleteUser(user),
-          icon: const Icon(
-            Icons.delete_outline,
-            color: Color(0xFFDC2626),
-          ),
+          icon: const Icon(Icons.delete_outline, color: Color(0xFFDC2626)),
         ),
       ),
     );
@@ -389,10 +422,7 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
           const SizedBox(width: 12),
           SizedBox(
             width: 72,
-            child: Align(
-              alignment: Alignment.centerRight,
-              child: actions,
-            ),
+            child: Align(alignment: Alignment.centerRight, child: actions),
           ),
         ],
       ],
@@ -417,11 +447,16 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
             Text('Role: ${user.role}'),
             Text('Status: ${user.isActive ? "Active" : "Inactive"}'),
             Text('Created: ${_formatDate(user.createdAt)}'),
-            Text('Last seen: ${user.lastLogin == null ? "—" : _formatDate(user.lastLogin!)}'),
+            Text(
+              'Last seen: ${user.lastLogin == null ? "—" : _formatDate(user.lastLogin!)}',
+            ),
           ],
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Close')),
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Close'),
+          ),
         ],
       ),
     );
@@ -458,19 +493,17 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
 
       _reload();
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('User "${user.login}" deleted'),
-        ),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('User "${user.login}" deleted')));
     } on ApiError catch (e) {
       if (!mounted) return;
-      final message = e.code == 'last_admin' ? 'You cannot delete the last admin' : e.message;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(message),
-        ),
-      );
+      final message = e.code == 'last_admin'
+          ? 'You cannot delete the last admin'
+          : e.message;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(message)));
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -493,7 +526,11 @@ class _HeaderCell extends StatelessWidget {
     return Text(
       text,
       textAlign: align,
-      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF4B5563)),
+      style: const TextStyle(
+        fontSize: 12,
+        fontWeight: FontWeight.w600,
+        color: Color(0xFF4B5563),
+      ),
     );
   }
 }
@@ -594,21 +631,33 @@ class _AddUserDialogState extends State<_AddUserDialog> {
             children: [
               TextFormField(
                 controller: _login,
-                decoration: const InputDecoration(labelText: 'Login', hintText: '3–32 letters/digits/_'),
-                validator: (v) => RegExp(r'^[a-zA-Z0-9_]{3,32}$').hasMatch(v?.trim() ?? '') ? null : 'Invalid login',
+                decoration: const InputDecoration(
+                  labelText: 'Login',
+                  hintText: '3–32 letters/digits/_',
+                ),
+                validator: (v) =>
+                    RegExp(r'^[a-zA-Z0-9_]{3,32}$').hasMatch(v?.trim() ?? '')
+                    ? null
+                    : 'Invalid login',
               ),
               const SizedBox(height: 12),
               TextFormField(
                 controller: _name,
                 decoration: const InputDecoration(labelText: 'Name'),
-                validator: (v) => (v?.trim().isEmpty ?? true) ? 'Enter a name' : null,
+                validator: (v) =>
+                    (v?.trim().isEmpty ?? true) ? 'Enter a name' : null,
               ),
               const SizedBox(height: 12),
               TextFormField(
                 controller: _password,
                 obscureText: true,
                 decoration: const InputDecoration(labelText: 'Password'),
-                validator: (v) => RegExp(r'^(?=.*[A-Za-z])(?=.*[0-9]).{8,}$').hasMatch(v ?? '') ? null : 'Min 8 chars, 1 letter, 1 digit',
+                validator: (v) =>
+                    RegExp(
+                      r'^(?=.*[A-Za-z])(?=.*[0-9]).{8,}$',
+                    ).hasMatch(v ?? '')
+                    ? null
+                    : 'Min 8 chars, 1 letter, 1 digit',
               ),
               const SizedBox(height: 12),
               DropdownButtonFormField<String>(
@@ -616,7 +665,10 @@ class _AddUserDialogState extends State<_AddUserDialog> {
                 decoration: const InputDecoration(labelText: 'Role'),
                 items: const [
                   DropdownMenuItem(value: 'user', child: Text('User')),
-                  DropdownMenuItem(value: 'admin', child: Text('Administrator')),
+                  DropdownMenuItem(
+                    value: 'admin',
+                    child: Text('Administrator'),
+                  ),
                 ],
                 onChanged: (v) => setState(() => _role = v!),
               ),
@@ -631,7 +683,9 @@ class _AddUserDialogState extends State<_AddUserDialog> {
         ),
         FilledButton(
           onPressed: _submit,
-          style: FilledButton.styleFrom(backgroundColor: const Color(0xFF6750A4)),
+          style: FilledButton.styleFrom(
+            backgroundColor: const Color(0xFF6750A4),
+          ),
           child: const Text('Create user'),
         ),
       ],

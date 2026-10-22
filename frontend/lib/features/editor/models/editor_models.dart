@@ -53,11 +53,11 @@ class InsertionPoint {
   // Флаг для логического блока - для создания доп плюса
   final bool isAfterMerge;
   // Для логического блока возможно перенаправление
-  final String? mergeOtherConnId;
+  final List<String> mergeOtherConnIds;
   InsertionPoint(
     this.position,
     this.connection, {
     this.isAfterMerge = false,
-    this.mergeOtherConnId,
+    this.mergeOtherConnIds = const [],
   });
 }
