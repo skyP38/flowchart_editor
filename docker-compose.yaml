@@ -16,6 +16,21 @@ services:
       retries: 5
       start_period: 30s
       timeout: 10s
+
+  migrate:
+    image: migrate/migrate:v4.17.0
+    volumes:
+      - ./backend/db:/db
+    command:
+      - "-path"
+      - "/db"
+      - "-database"
+      - "postgres://postgres:password@db:5432/flowchart_db?sslmode=disable"
+      - "up"
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: "no"
     
   backend:
     build:
@@ -33,6 +48,8 @@ services:
       db:
         condition: service_healthy
         restart: true
+      migrate:
+        conditon: service_completed_successfully
              
   frontend:
     build:
