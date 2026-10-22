@@ -40,7 +40,9 @@ class _AuthGateState extends State<AuthGate> {
             : const WelcomeScreen(),
 
       AuthAuthenticated(:final user) =>
-        user.role?.toLowerCase() == 'admin' ? const AdminShell() : const HomeShell(), // _screenForRoute(
+        user.role?.toLowerCase() == 'admin'
+            ? const AdminShell()
+            : const HomeShell(), // _screenForRoute(
       // _lastRoute,
       // ), //const ProjectsScreen(),
       //AuthUnauthenticated() => LoginScreen(onLoggedIn: () {}),

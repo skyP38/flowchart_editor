@@ -1,6 +1,6 @@
 import 'dart:math' as math;
 
-import 'package:collection/collection.dart';
+// import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 
 import '../factories/node_factory.dart';
@@ -83,8 +83,7 @@ class InsertionPointsService {
     return points;
   }
 
-  // --- Merge-информация ---------------------------------------------------
-
+  //  Merge-информация
   _MergeInfo? _computeMergeInfo(
     FlowchartGraph g,
     List<ConnectionData> incoming,
@@ -106,8 +105,7 @@ class InsertionPointsService {
     }
     if (maxLandingY == null || deepestEdge == null) return null;
 
-    // Небольшой запас, чтобы "+" не наезжал на контур блока.
-    // Порог снижен с 20 до 5 — иначе близкие merge-точки терялись.
+    // Небольшой запас, чтобы "+" не наезжал на контур блока
     final gap = targetTop - maxLandingY;
     if (gap < 5) return null;
 
@@ -131,15 +129,14 @@ class InsertionPointsService {
     return best;
   }
 
-  // "Before": точка на ветке до Y слияния.
+  //  точка на ветке до Y слияния
   Offset? _midpointBefore(Path path, double y) {
     final samples = _samplePath(path).where((p) => p.dy < y - 0.5).toList();
     if (samples.isEmpty) return null;
     return samples[samples.length ~/ 2];
   }
 
-  // --- exit ---------------------------------------------------------------
-
+  //  exit
   Offset? _exitPlusPositionAtX(Path path, double? targetX) {
     if (targetX == null) return null;
     final segs = _extractSegments(path);
@@ -161,8 +158,7 @@ class InsertionPointsService {
     return Offset(targetX, lastHorz.start.dy);
   }
 
-  // --- Общие хелперы ------------------------------------------------------
-
+  //  Общие хелперы
   List<Offset> _samplePath(Path path) {
     final out = <Offset>[];
     for (final metric in path.computeMetrics()) {

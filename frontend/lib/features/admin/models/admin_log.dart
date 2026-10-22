@@ -27,9 +27,7 @@ class AdminLog {
       userId: (json['userId'] as num?)?.toInt(),
       login: json['login'] as String? ?? 'system',
       action: json['action'] as String? ?? '',
-      createdAt: DateTime.parse(
-        json['createdAt'] as String,
-      ).toLocal(),
+      createdAt: DateTime.parse(json['createdAt'] as String).toLocal(),
       entity: json['entity'] as String? ?? '',
       entityId: (json['entityId'] as num?)?.toInt(),
       status: json['status'] as String? ?? 'Success',
@@ -62,11 +60,7 @@ class AdminLogPage {
 
     return AdminLogPage(
       logs: entries
-          .map(
-            (entry) => AdminLog.fromJson(
-              entry as Map<String, dynamic>,
-            ),
-          )
+          .map((entry) => AdminLog.fromJson(entry as Map<String, dynamic>))
           .toList(growable: false),
       total: (json['total'] as num?)?.toInt() ?? 0,
       limit: (json['limit'] as num?)?.toInt() ?? 10,

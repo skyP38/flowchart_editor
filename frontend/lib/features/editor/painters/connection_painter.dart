@@ -32,7 +32,7 @@ class ConnectionPainter extends CustomPainter {
       final color = isHovered
           ? Colors.blue
           : isDimmed
-          ? Colors.grey.shade800.withOpacity(0.5)
+          ? Colors.grey.shade800.withValues(alpha: 0.5)
           : isSelected
           ? Colors.blue
           : Colors.black;
@@ -66,7 +66,8 @@ class ConnectionPainter extends CustomPainter {
           : Colors.blue;
       // Заливка кружка
       final fillPaint = Paint()
-        ..color = Colors.white
+        ..color =
+            plusColor //olors.white
         ..style = PaintingStyle.fill;
       canvas.drawCircle(
         point.position,

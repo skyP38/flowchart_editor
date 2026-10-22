@@ -60,7 +60,9 @@ class _AdminSessionsScreenState extends State<AdminSessionsScreen> {
           ),
           FilledButton(
             onPressed: () => Navigator.of(dialogContext).pop(true),
-            style: FilledButton.styleFrom(backgroundColor: const Color(0xFFDC2626)),
+            style: FilledButton.styleFrom(
+              backgroundColor: const Color(0xFFDC2626),
+            ),
             child: const Text('End session'),
           ),
         ],
@@ -72,14 +74,14 @@ class _AdminSessionsScreenState extends State<AdminSessionsScreen> {
       await _api.revokeSession(session.id);
       if (!mounted) return;
       _reload();
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Session ended')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Session ended')));
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Could not end session: $error')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Could not end session: $error')));
     }
   }
 
@@ -129,28 +131,16 @@ class _AdminSessionsScreenState extends State<AdminSessionsScreen> {
           ),
           decoration: const BoxDecoration(
             color: Colors.white,
-            border: Border(
-              bottom: BorderSide(color: Color(0xFFD9D9D9)),
-            ),
+            border: Border(bottom: BorderSide(color: Color(0xFFD9D9D9))),
           ),
           child: compact
               ? Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    _brand(),
-                    const SizedBox(height: 10),
-                    actions,
-                  ],
+                  children: [_brand(), const SizedBox(height: 10), actions],
                 )
               : SizedBox(
                   height: 96,
-                  child: Row(
-                    children: [
-                      _brand(),
-                      const Spacer(),
-                      actions,
-                    ],
-                  ),
+                  child: Row(children: [_brand(), const Spacer(), actions]),
                 ),
         );
       },
@@ -168,11 +158,7 @@ class _AdminSessionsScreenState extends State<AdminSessionsScreen> {
             color: _purple,
             borderRadius: BorderRadius.circular(7),
           ),
-          child: const Icon(
-            Icons.schema,
-            color: Colors.white,
-            size: 18,
-          ),
+          child: const Icon(Icons.schema, color: Colors.white, size: 18),
         ),
         const SizedBox(width: 12),
         const Text(
@@ -200,8 +186,8 @@ class _AdminSessionsScreenState extends State<AdminSessionsScreen> {
         backgroundColor: logout
             ? const Color(0xFFE3E3E3)
             : active
-                ? const Color(0xFFF3F4F6)
-                : Colors.transparent,
+            ? const Color(0xFFF3F4F6)
+            : Colors.transparent,
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(8),
@@ -226,9 +212,7 @@ class _AdminSessionsScreenState extends State<AdminSessionsScreen> {
           ),
           decoration: const BoxDecoration(
             color: Colors.white,
-            border: Border(
-              bottom: BorderSide(color: _border),
-            ),
+            border: Border(bottom: BorderSide(color: _border)),
           ),
           child: const Text(
             'Sessions',
@@ -451,10 +435,7 @@ class _AdminSessionsScreenState extends State<AdminSessionsScreen> {
                   child: const Text(
                     'End session',
                     maxLines: 1,
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                    ),
+                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
                   ),
                 )
               : const Text('—', style: TextStyle(color: _muted)),
@@ -509,6 +490,7 @@ class _HeaderCell extends StatelessWidget {
     );
   }
 }
+
 /*import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 

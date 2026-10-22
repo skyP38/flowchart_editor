@@ -6,7 +6,7 @@ import '../../auth/domain/auth_repository.dart';
 import '../data/admin_api.dart';
 import '../models/admin_user.dart';
 import '../../../core/network/api_error.dart';
-import '../data/admin_route_storage.dart';
+// import '../data/admin_route_storage.dart';
 
 class AdminUsersScreen extends StatefulWidget {
   final VoidCallback onOpenEditor;
@@ -139,35 +139,35 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
             onPressed: widget.onOpenEditor,
             label: const Text(
               'Flowchart editor',
-              style: TextStyle(color: const Color(0xFF1E1E1E)),
+              style: TextStyle(color: Color(0xFF1E1E1E)),
             ),
           ),
           TextButton.icon(
             onPressed: _reload,
             label: const Text(
               'Users',
-              style: TextStyle(color: const Color(0xFF1E1E1E)),
+              style: TextStyle(color: Color(0xFF1E1E1E)),
             ),
           ),
           TextButton.icon(
             onPressed: _sessions,
             label: const Text(
               'Sessions',
-              style: TextStyle(color: const Color(0xFF1E1E1E)),
+              style: TextStyle(color: Color(0xFF1E1E1E)),
             ),
           ),
           TextButton.icon(
             onPressed: _logs,
             label: const Text(
               'Logs',
-              style: TextStyle(color: const Color(0xFF1E1E1E)),
+              style: TextStyle(color: Color(0xFF1E1E1E)),
             ),
           ),
           TextButton.icon(
             onPressed: _logout,
             label: const Text(
               'Log out',
-              style: TextStyle(color: const Color(0xFF1E1E1E)),
+              style: TextStyle(color: Color(0xFF1E1E1E)),
             ),
             style: TextButton.styleFrom(
               backgroundColor: const Color(0xFFE3E3E3),
@@ -434,33 +434,33 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
     return '${two(date.day)}.${two(date.month)}.${date.year.toString().substring(2)}';
   }
 
-  Future<void> _showUserDetails(AdminUser user) async {
-    await showDialog<void>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(user.name.isEmpty ? user.login : user.name),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Login: ${user.login}'),
-            Text('Role: ${user.role}'),
-            Text('Status: ${user.isActive ? "Active" : "Inactive"}'),
-            Text('Created: ${_formatDate(user.createdAt)}'),
-            Text(
-              'Last seen: ${user.lastLogin == null ? "—" : _formatDate(user.lastLogin!)}',
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Close'),
-          ),
-        ],
-      ),
-    );
-  }
+  // Future<void> _showUserDetails(AdminUser user) async {
+  //   await showDialog<void>(
+  //     context: context,
+  //     builder: (context) => AlertDialog(
+  //       title: Text(user.name.isEmpty ? user.login : user.name),
+  //       content: Column(
+  //         mainAxisSize: MainAxisSize.min,
+  //         crossAxisAlignment: CrossAxisAlignment.start,
+  //         children: [
+  //           Text('Login: ${user.login}'),
+  //           Text('Role: ${user.role}'),
+  //           Text('Status: ${user.isActive ? "Active" : "Inactive"}'),
+  //           Text('Created: ${_formatDate(user.createdAt)}'),
+  //           Text(
+  //             'Last seen: ${user.lastLogin == null ? "—" : _formatDate(user.lastLogin!)}',
+  //           ),
+  //         ],
+  //       ),
+  //       actions: [
+  //         TextButton(
+  //           onPressed: () => Navigator.pop(context),
+  //           child: const Text('Close'),
+  //         ),
+  //       ],
+  //     ),
+  //   );
+  // }
 
   Future<void> _confirmDeleteUser(AdminUser user) async {
     final confirmed = await showDialog<bool>(
@@ -518,14 +518,14 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
 
 class _HeaderCell extends StatelessWidget {
   final String text;
-  final TextAlign align;
-  const _HeaderCell(this.text, {this.align = TextAlign.left});
+  // final TextAlign align;
+  const _HeaderCell(this.text);
 
   @override
   Widget build(BuildContext context) {
     return Text(
       text,
-      textAlign: align,
+      // textAlign: align,
       style: const TextStyle(
         fontSize: 12,
         fontWeight: FontWeight.w600,
@@ -661,7 +661,7 @@ class _AddUserDialogState extends State<_AddUserDialog> {
               ),
               const SizedBox(height: 12),
               DropdownButtonFormField<String>(
-                value: _role,
+                initialValue: _role,
                 decoration: const InputDecoration(labelText: 'Role'),
                 items: const [
                   DropdownMenuItem(value: 'user', child: Text('User')),

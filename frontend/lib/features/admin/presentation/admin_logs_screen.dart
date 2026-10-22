@@ -30,7 +30,7 @@ class _AdminLogsScreenState extends State<AdminLogsScreen> {
   late final AdminApi _api;
   late Future<AdminLogPage> _logsFuture;
 
-  int _offset = 0;
+  final _offset = 0;
   final Set<int> _expandedIds = {};
 
   @override
@@ -40,14 +40,14 @@ class _AdminLogsScreenState extends State<AdminLogsScreen> {
     _logsFuture = _api.listLogs(limit: _pageSize, offset: 0);
   }
 
-  void _loadPage(int page) {
-    final offset = page * _pageSize;
+  // void _loadPage(int page) {
+  //   final offset = page * _pageSize;
 
-    setState(() {
-      _offset = offset;
-      _logsFuture = _api.listLogs(limit: _pageSize, offset: offset);
-    });
-  }
+  //   setState(() {
+  //     _offset = offset;
+  //     _logsFuture = _api.listLogs(limit: _pageSize, offset: offset);
+  //   });
+  // }
 
   void _reload() {
     setState(() {
