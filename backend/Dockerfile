@@ -20,7 +20,7 @@ WORKDIR /app
 
 # копирование исполняемого файла
 COPY --from=build /app/server .
-COPY --from=build /app/SQL_scripts ./SQL_scripts
+# COPY --from=build /app/SQL_scripts ./SQL_scripts
 
 EXPOSE 8080
 CMD ["./server"] 

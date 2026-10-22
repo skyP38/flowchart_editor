@@ -70,6 +70,9 @@ class _EditorScreenState extends State<EditorScreen> {
   Timer? _saveDebounce;
   bool _autoSaveEnabled = false;
 
+  String? _hoveredConnectionId;
+  InsertionPoint? _hoveredPoint;
+
   @override
   void initState() {
     super.initState();
@@ -79,7 +82,6 @@ class _EditorScreenState extends State<EditorScreen> {
     } else {
       _controller.initDefaultDiagram();
     }
-    // _controller.initDefaultDiagram();
     _rebuildRouter();
     _insertionPoints = _insertionPointsService.compute(_controller.graph);
     _controller.addListener(_onControllerChanged);
@@ -111,6 +113,36 @@ class _EditorScreenState extends State<EditorScreen> {
         '[EditorScreen] default done, '
         'nodes=${_controller.nodes.length}',
       );
+    }
+  }
+
+  void _handleCanvasHover(Offset? localPos) {
+    if (localPos == null) {
+      if (_hoveredConnectionId != null || _hoveredPoint != null) {
+        setState(() {
+          _hoveredConnectionId = null;
+          _hoveredPoint = null;
+        });
+      }
+      return;
+    }
+
+    InsertionPoint? best;
+    double bestDist = 20.0;
+    for (final p in _insertionPoints) {
+      final d = (localPos - p.position).distance;
+      if (d < bestDist) {
+        bestDist = d;
+        best = p;
+      }
+    }
+
+    final newId = best?.connection.id;
+    if (newId != _hoveredConnectionId || !identical(best, _hoveredPoint)) {
+      setState(() {
+        _hoveredConnectionId = newId;
+        _hoveredPoint = best;
+      });
     }
   }
 
@@ -303,24 +335,43 @@ class _EditorScreenState extends State<EditorScreen> {
     final localPos = details.localPosition;
 
     // Проверка точки вставки
-    for (final point in _insertionPoints) {
-      if ((localPos - point.position).distance <= 12.0) {
-        if (_selectedPrototype != null) {
+    InsertionPoint? point;
+    double bestDist = 12.0;
+    for (final pnt in _insertionPoints) {
+      final d = (localPos - pnt.position).distance;
+      if (d < bestDist) {
+        bestDist = d;
+        point = pnt;
+      }
+    }
+    if (point != null) {
+      debugPrint(
+        '[tap+] pos=${point.position} '
+        'afterMerge=${point.isAfterMerge} '
+        'connId=${point.connection.id}',
+      );
+      if (_selectedPrototype != null) {
+        if (point.isAfterMerge) {
+          _controller.insertAfterLogicMerge(
+            point.connection.id!,
+            point.mergeOtherConnIds,
+            _selectedPrototype!,
+          );
+        } else {
           _controller.insertNodeOnConnection(
             point.connection.id!,
             _selectedPrototype!,
           );
-          setState(() => _selectedPrototype = null);
-        } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Выберите тип блока на панели слева')),
-          );
         }
-        _isSelectingFromEmpty = false;
-        return;
+        setState(() => _selectedPrototype = null);
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Выберите тип блока на панели слева')),
+        );
       }
+      _isSelectingFromEmpty = false;
+      return;
     }
-
     ConnectionData? tappedConnection;
     double minDistance = 15.0;
 
@@ -531,6 +582,31 @@ class _EditorScreenState extends State<EditorScreen> {
       );
     }
     debugPrint('─────────────────────────');
+  }
+
+  Future<void> _confirmClear() async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Очистить схему?'),
+        content: const Text(
+          'Все несохраненные изменения будут удалены. Это действие можно отменить (Ctrl+Z).',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Отмена'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Очистить', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+    if (ok == true) {
+      _controller.clearDiagram();
+    }
   }
 
   Future<void> _saveToDb() async {
@@ -781,20 +857,12 @@ class _EditorScreenState extends State<EditorScreen> {
       if (startNodeEntry != null) {
         gridWidget = GridWithLabels(
           canvasSize: contentSize,
-          columnWidth: _controller.spacing.stepX, // ← вот это ключевое
+          columnWidth: _controller.spacing.stepX,
           rowHeight: _controller.spacing.stepY,
           nodeWidth: _controller.nodeSize.width,
           nodeHeight: _controller.nodeSize.height,
           startPosition: startNodeEntry.value.position,
         );
-        // gridWidget = GridWithLabels(
-        //   canvasSize: contentSize,
-        //   stepX: _controller.spacing.stepX - GridConstants.stepXExtra,
-        //   stepY: _controller.spacing.stepY - GridConstants.stepYExtra,
-        //   // stepX: nodeSize.width,
-        //   // stepY: nodeSize.height,
-        //   startPosition: startNodeEntry.value.position,
-        // );
       }
     }
 
@@ -830,6 +898,7 @@ class _EditorScreenState extends State<EditorScreen> {
                     onLoad: _loadFromFile,
                     // onClear: _controller.resetToDefault,
                     isSaving: _isSaving,
+                    onClear: _confirmClear,
                   ),
                 ),
               ),
@@ -914,107 +983,114 @@ class _EditorScreenState extends State<EditorScreen> {
                                 scale,
                                 1.0,
                               ),
-                              child: GestureDetector(
-                                // Тап по холсту: выбор точки вставки, линии или сброс выделения
-                                onTapDown: _handleCanvasTapDown,
-                                onTap: () {
-                                  setState(() {
-                                    // _selectedNodeName = null;
-                                    _selectedNodeNames.clear();
-                                    _selectedConnectionId = null;
-                                    _selectionStart = null;
-                                    _selectionEnd = null;
-                                    _isSelecting = false;
-                                  });
-                                  _focusNode.requestFocus();
-                                },
-                                onPanStart: (details) {
-                                  // Начинаем выделение, только если касание было по пустой области
-                                  if (!_isSelectingFromEmpty) return;
-                                  setState(() {
-                                    _isSelecting = true;
-                                    _selectionStart = details.localPosition;
-                                    _selectionEnd = details.localPosition;
-                                  });
-                                },
-                                onPanUpdate: (details) {
-                                  if (!_isSelecting) return;
-                                  setState(() {
-                                    _selectionEnd = details.localPosition;
-                                  });
-                                },
-                                // Завершение выделения - выбрать все блоки, пересекающиеся с рамкой
-                                onPanEnd: (details) {
-                                  if (!_isSelecting) return;
-                                  final rect = Rect.fromPoints(
-                                    _selectionStart!,
-                                    _selectionEnd!,
-                                  );
-                                  // Выделить все блоки, пересекающиеся с rect
-                                  final newSelection = <String>{};
-                                  for (final entry in nodes.entries) {
-                                    final nodePos = entry.value.position;
-                                    final nodeRect = Rect.fromLTWH(
-                                      nodePos.dx,
-                                      nodePos.dy,
-                                      nodeSize.width,
-                                      nodeSize.height,
-                                    );
-                                    if (rect.overlaps(nodeRect)) {
-                                      newSelection.add(entry.key);
-                                    }
-                                  }
-                                  setState(() {
-                                    _selectedNodeNames = newSelection;
-                                    _selectionStart = null;
-                                    _selectionEnd = null;
-                                    _isSelecting = false;
-                                  });
-                                  _focusNode.requestFocus();
-                                },
-                                child: Focus(
-                                  focusNode: _focusNode,
-                                  autofocus: true,
-                                  onKeyEvent: (node, event) {
-                                    _handleKeyEvent(event);
-                                    return KeyEventResult.ignored;
+                              child: MouseRegion(
+                                onHover: (event) =>
+                                    _handleCanvasHover(event.localPosition),
+                                onExit: (_) => _handleCanvasHover(null),
+                                child: GestureDetector(
+                                  // Тап по холсту: выбор точки вставки, линии или сброс выделения
+                                  onTapDown: _handleCanvasTapDown,
+                                  onTap: () {
+                                    setState(() {
+                                      // _selectedNodeName = null;
+                                      _selectedNodeNames.clear();
+                                      _selectedConnectionId = null;
+                                      _selectionStart = null;
+                                      _selectionEnd = null;
+                                      _isSelecting = false;
+                                    });
+                                    _focusNode.requestFocus();
                                   },
-                                  child: CustomPaint(
-                                    child: Stack(
-                                      children: [
-                                        // Сетка
-                                        if (showGrid) gridWidget,
-                                        // Линии соединений
-                                        CustomPaint(
-                                          painter: ConnectionPainter(
-                                            graph: graph,
-                                            router: _router,
-                                            selectedConnectionId:
-                                                _selectedConnectionId,
-                                            insertionPoints: _insertionPoints,
-                                          ),
-                                          child: Stack(
-                                            children: nodes.entries
-                                                .map(
-                                                  (entry) => _buildNodeWidget(
-                                                    entry.key,
-                                                    entry.value,
-                                                  ),
-                                                )
-                                                .toList(),
-                                          ),
-                                        ),
-                                        // Прямоугольник выделения
-                                        if (_isSelecting &&
-                                            _selectionStart != null &&
-                                            _selectionEnd != null)
+                                  onPanStart: (details) {
+                                    // Начинаем выделение, только если касание было по пустой области
+                                    if (!_isSelectingFromEmpty) return;
+                                    setState(() {
+                                      _isSelecting = true;
+                                      _selectionStart = details.localPosition;
+                                      _selectionEnd = details.localPosition;
+                                    });
+                                  },
+                                  onPanUpdate: (details) {
+                                    if (!_isSelecting) return;
+                                    setState(() {
+                                      _selectionEnd = details.localPosition;
+                                    });
+                                  },
+                                  // Завершение выделения - выбрать все блоки, пересекающиеся с рамкой
+                                  onPanEnd: (details) {
+                                    if (!_isSelecting) return;
+                                    final rect = Rect.fromPoints(
+                                      _selectionStart!,
+                                      _selectionEnd!,
+                                    );
+                                    // Выделить все блоки, пересекающиеся с rect
+                                    final newSelection = <String>{};
+                                    for (final entry in nodes.entries) {
+                                      final nodePos = entry.value.position;
+                                      final nodeRect = Rect.fromLTWH(
+                                        nodePos.dx,
+                                        nodePos.dy,
+                                        nodeSize.width,
+                                        nodeSize.height,
+                                      );
+                                      if (rect.overlaps(nodeRect)) {
+                                        newSelection.add(entry.key);
+                                      }
+                                    }
+                                    setState(() {
+                                      _selectedNodeNames = newSelection;
+                                      _selectionStart = null;
+                                      _selectionEnd = null;
+                                      _isSelecting = false;
+                                    });
+                                    _focusNode.requestFocus();
+                                  },
+                                  child: Focus(
+                                    focusNode: _focusNode,
+                                    autofocus: true,
+                                    onKeyEvent: (node, event) {
+                                      _handleKeyEvent(event);
+                                      return KeyEventResult.ignored;
+                                    },
+                                    child: CustomPaint(
+                                      child: Stack(
+                                        children: [
+                                          // Сетка
+                                          if (showGrid) gridWidget,
+                                          // Линии соединений
                                           CustomPaint(
-                                            painter: SelectionRectPainter(
-                                              start: _selectionStart!,
-                                              end: _selectionEnd!,
+                                            painter: ConnectionPainter(
+                                              graph: graph,
+                                              router: _router,
+                                              selectedConnectionId:
+                                                  _selectedConnectionId,
+                                              hoveredConnectionId:
+                                                  _hoveredConnectionId,
+                                              insertionPoints: _insertionPoints,
+                                            ),
+                                            child: Stack(
+                                              children: nodes.entries
+                                                  .map(
+                                                    (entry) => _buildNodeWidget(
+                                                      entry.key,
+                                                      entry.value,
+                                                    ),
+                                                  )
+                                                  .toList(),
                                             ),
                                           ),
-                                      ],
+                                          // Прямоугольник выделения
+                                          if (_isSelecting &&
+                                              _selectionStart != null &&
+                                              _selectionEnd != null)
+                                            CustomPaint(
+                                              painter: SelectionRectPainter(
+                                                start: _selectionStart!,
+                                                end: _selectionEnd!,
+                                              ),
+                                            ),
+                                        ],
+                                      ),
                                     ),
                                   ),
                                 ),
@@ -1034,35 +1110,6 @@ class _EditorScreenState extends State<EditorScreen> {
     );
   }
 }
-
-/// Виджет с подписями сетки (буквы строк и цифры столбцов).
-// class GridWithLabels extends StatelessWidget {
-//   final Size canvasSize;
-//   final double stepX;
-//   final double stepY;
-//   final Offset? startPosition;
-
-//   const GridWithLabels({
-//     super.key,
-//     required this.canvasSize,
-//     required this.stepX,
-//     required this.stepY,
-//     required this.startPosition,
-//   });
-
-//   @override
-//   Widget build(BuildContext context) {
-//     if (startPosition == null) return const SizedBox.shrink();
-//     return CustomPaint(
-//       size: canvasSize,
-//       painter: GridLabelsPainter(
-//         stepX: stepX,
-//         stepY: stepY,
-//         startPosition: startPosition!,
-//       ),
-//     );
-//   }
-// }
 
 class GridWithLabels extends StatelessWidget {
   final Size canvasSize;

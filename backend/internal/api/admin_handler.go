@@ -18,6 +18,8 @@ import (
 	"github.com/skyP38/flowchart_editor/backend/internal/transport"
 )
 
+// SessionStatsProvider предоставляет сводную статистику по сессиям
+// Реализуется хранилищем сессий
 type SessionStatsProvider interface {
 	Stats(ctx context.Context) (domains.SessionStats, error)
 }
@@ -34,6 +36,7 @@ type AdminSessionRepository interface {
 	Revoke(ctx context.Context, id int64, at time.Time) error
 }
 
+// AdminHandler обслуживает административные маршруты
 type AdminHandler struct {
 	sessions AdminSessionRepository
 	users    AdminUserRepository
@@ -330,66 +333,66 @@ func (h *AdminHandler) ListLogs(
 }
 
 func (h *AdminHandler) DeleteUser(w http.ResponseWriter, r *http.Request) {
-    id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
-    if err != nil || id <= 0 {
-        transport.WriteError(
-            w,
-            http.StatusBadRequest,
-            transport.CodeInvalidInput,
-            "invalid user id",
-        )
-        return
-    }
-
-    if id == UserIDFrom(r.Context()) {
-        transport.WriteError(
-            w,
-            http.StatusForbidden,
-            transport.CodeForbidden,
-            "cannot delete the currently authenticated administrator",
-        )
-        return
-    }
-
-    if err := h.users.DeleteWithData(r.Context(), id); err != nil {
-	if errors.Is(err, domains.ErrLastAdmin) {
+	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil || id <= 0 {
 		transport.WriteError(
 			w,
-			http.StatusConflict,
-			transport.CodeLastAdmin,
-			"Cannot delete the last administrator",
+			http.StatusBadRequest,
+			transport.CodeInvalidInput,
+			"invalid user id",
 		)
 		return
 	}
-	if errors.Is(err, domains.ErrNotFound) {
-            transport.WriteError(
-                w,
-                http.StatusNotFound,
-                transport.CodeNotFound,
-                "user not found",
-            )
-            return
-        }
 
-        if errors.Is(err, domains.ErrLastAdmin) {
-            transport.WriteError(
-                w,
-                http.StatusConflict,
-                transport.CodeForbidden,
-                "cannot delete the last administrator",
-            )
-            return
-        }
+	if id == UserIDFrom(r.Context()) {
+		transport.WriteError(
+			w,
+			http.StatusForbidden,
+			transport.CodeForbidden,
+			"cannot delete the currently authenticated administrator",
+		)
+		return
+	}
 
-        log.Printf("admin delete user: %v", err)
-        transport.WriteError(
-            w,
-            http.StatusInternalServerError,
-            transport.CodeInternal,
-            "internal server error",
-        )
-        return
-    }
+	if err := h.users.DeleteWithData(r.Context(), id); err != nil {
+		if errors.Is(err, domains.ErrLastAdmin) {
+			transport.WriteError(
+				w,
+				http.StatusConflict,
+				transport.CodeLastAdmin,
+				"Cannot delete the last administrator",
+			)
+			return
+		}
+		if errors.Is(err, domains.ErrNotFound) {
+			transport.WriteError(
+				w,
+				http.StatusNotFound,
+				transport.CodeNotFound,
+				"user not found",
+			)
+			return
+		}
 
-    w.WriteHeader(http.StatusNoContent)
+		if errors.Is(err, domains.ErrLastAdmin) {
+			transport.WriteError(
+				w,
+				http.StatusConflict,
+				transport.CodeForbidden,
+				"cannot delete the last administrator",
+			)
+			return
+		}
+
+		log.Printf("admin delete user: %v", err)
+		transport.WriteError(
+			w,
+			http.StatusInternalServerError,
+			transport.CodeInternal,
+			"internal server error",
+		)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
 }

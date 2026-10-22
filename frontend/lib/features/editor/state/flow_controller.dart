@@ -69,6 +69,12 @@ class FlowController extends ChangeNotifier {
     );
   }
 
+  // Сброс схемы до дефолтного состояния с сохранением в истории
+  void clearDiagram() {
+    _pushHistory();
+    initDefaultDiagram();
+  }
+
   FlowchartGraph get graph => _graph;
   Map<String, NodeModel> get nodes => _graph.nodes;
   List<ConnectionData> get connections => _graph.connections;
@@ -154,10 +160,6 @@ class FlowController extends ChangeNotifier {
     if (_nodeSize == s) return;
     _pushHistory();
     _nodeSize = s;
-    // _layoutEngine = LayoutEngine(
-    //   nodeSize: s,
-    //   spacing: LayoutSpacing(stepX: s.width + 70, stepY: s.height + 40),
-    // );
     _graph = _relayout(_graph);
     notifyListeners();
   }
@@ -212,12 +214,12 @@ class FlowController extends ChangeNotifier {
 
   // загрузка
   void fromSnapshot(EditorSnapshot s) {
-    _pushHistory(); // загрузку тоже можно отменить
+    _pushHistory(); // загрузку можно отменить
     final restored = GraphMapper.fromSnapshot(s);
 
     _nodeSize = restored.nodeSize;
 
-    _graph = _relayout(restored.graph); // пересчитываем раскладку из данных
+    _graph = _relayout(restored.graph); // пересчет раскладки из данных
     _showGrid = restored.showGrid;
     _scale = restored.scale;
     _isToolbarVisible = restored.isToolbarVisible;
@@ -254,17 +256,29 @@ class FlowController extends ChangeNotifier {
     final isFor = node.data is ForBlock;
 
     final toRemove = <String>{name};
-    if (isLogic) {
-      final noConn = outgoing.firstWhereOrNull((c) => c.sourcePort == 'no');
-      if (noConn != null) {
-        toRemove.addAll(_collectSubtree(g, noConn.targetNodeName));
-      }
-    } else if (isFor) {
+    if (isFor) {
       final bodyConn = outgoing.firstWhereOrNull((c) => c.sourcePort == 'body');
       if (bodyConn != null) {
         toRemove.addAll(_collectSubtree(g, bodyConn.targetNodeName));
       }
     }
+    // if (isLogic) {
+    //   final yesConn = outgoing.firstWhereOrNull((c) => c.sourcePort == 'yes');
+    //   final noConn = outgoing.firstWhereOrNull((c) => c.sourcePort == 'no');
+    //   final isTrivialRejoin =
+    //       yesConn != null &&
+    //       noConn != null &&
+    //       yesConn.targetNodeName == noConn.targetNodeName;
+
+    //   if (!isTrivialRejoin && noConn != null) {
+    //     toRemove.addAll(_collectSubtree(g, noConn.targetNodeName));
+    //   }
+    // } else if (isFor) {
+    //   final bodyConn = outgoing.firstWhereOrNull((c) => c.sourcePort == 'body');
+    //   if (bodyConn != null) {
+    //     toRemove.addAll(_collectSubtree(g, bodyConn.targetNodeName));
+    //   }
+    // }
     toRemove.removeWhere(g.isEnd);
 
     final newNodes = Map<String, NodeModel>.from(g.nodes)
@@ -278,51 +292,151 @@ class FlowController extends ChangeNotifier {
         )
         .toList();
 
-    final inConn = incoming.isNotEmpty ? incoming.first : null;
-    ConnectionData? bridge;
+    final survivingIncoming = incoming
+        .where((c) => !toRemove.contains(c.sourceNodeName))
+        .toList();
+    final survivingOutgoing = outgoing
+        .where((c) => !toRemove.contains(c.targetNodeName))
+        .toList();
 
-    if (isLogic) {
-      final yesConn = outgoing.firstWhereOrNull((c) => c.sourcePort == 'yes');
-      if (inConn != null &&
-          yesConn != null &&
-          newNodes.containsKey(yesConn.targetNodeName)) {
-        bridge = ConnectionData(
-          id: _uuid.v4(),
-          sourceNodeName: inConn.sourceNodeName,
-          sourcePort: inConn.sourcePort,
-          targetNodeName: yesConn.targetNodeName,
-          targetPort: yesConn.targetPort,
-        );
-      }
-    } else if (isFor) {
-      final exitConn = outgoing.firstWhereOrNull((c) => c.sourcePort == 'exit');
-      if (inConn != null &&
-          exitConn != null &&
-          newNodes.containsKey(exitConn.targetNodeName)) {
-        bridge = ConnectionData(
-          id: _uuid.v4(),
-          sourceNodeName: inConn.sourceNodeName,
-          sourcePort: inConn.sourcePort,
-          targetNodeName: exitConn.targetNodeName,
-          targetPort: exitConn.targetPort,
-        );
-      }
-    } else {
-      if (incoming.length == 1 && outgoing.length == 1) {
-        final inC = incoming.first;
-        final outC = outgoing.first;
-        bridge = ConnectionData(
+    void addBridge(ConnectionData inC, ConnectionData outC) {
+      if (!newNodes.containsKey(outC.targetNodeName)) return;
+      newConns.add(
+        ConnectionData(
           id: _uuid.v4(),
           sourceNodeName: inC.sourceNodeName,
           sourcePort: inC.sourcePort,
           targetNodeName: outC.targetNodeName,
           targetPort: outC.targetPort,
-        );
+        ),
+      );
+    }
+
+    if (isLogic) {
+      final yesConn = outgoing.firstWhereOrNull((c) => c.sourcePort == 'yes');
+      final noConn = outgoing.firstWhereOrNull((c) => c.sourcePort == 'no');
+      final primary =
+          yesConn ?? noConn ?? (outgoing.isNotEmpty ? outgoing.first : null);
+      if (primary != null) {
+        for (final inC in survivingIncoming) {
+          addBridge(inC, primary);
+        }
+      }
+      // if (survivingIncoming.isNotEmpty && primary != null) {
+      //   addBridge(survivingIncoming.first, primary);
+      // }
+    } else if (isFor) {
+      final exitConn = outgoing.firstWhereOrNull((c) => c.sourcePort == 'exit');
+      if (exitConn != null) {
+        for (final inC in survivingIncoming) {
+          addBridge(inC, exitConn);
+        }
+      }
+      // if (survivingIncoming.isNotEmpty && exitConn != null) {
+      //   addBridge(survivingIncoming.first, exitConn);
+      // }
+    } else {
+      if (survivingOutgoing.length == 1 && survivingIncoming.isNotEmpty) {
+        for (final inC in survivingIncoming) {
+          addBridge(inC, survivingOutgoing.first);
+        }
+      } else if (survivingIncoming.length == 1 &&
+          survivingOutgoing.isNotEmpty) {
+        addBridge(survivingIncoming.first, survivingOutgoing.first);
       }
     }
-    if (bridge != null) newConns.add(bridge);
 
-    return FlowchartGraph(nodes: newNodes, connections: newConns);
+    // final inConn = incoming.firstWhereOrNull(
+    //   (c) => !toRemove.contains(c.sourceNodeName),
+    // );
+
+    // ConnectionData? bridge;
+
+    // if (isLogic) {
+    //   final yesConn = outgoing.firstWhereOrNull((c) => c.sourcePort == 'yes');
+    //   if (inConn != null &&
+    //       yesConn != null &&
+    //       newNodes.containsKey(yesConn.targetNodeName)) {
+    //     bridge = ConnectionData(
+    //       id: _uuid.v4(),
+    //       sourceNodeName: inConn.sourceNodeName,
+    //       sourcePort: inConn.sourcePort,
+    //       targetNodeName: yesConn.targetNodeName,
+    //       targetPort: yesConn.targetPort,
+    //     );
+    //   }
+    // } else if (isFor) {
+    //   final exitConn = outgoing.firstWhereOrNull((c) => c.sourcePort == 'exit');
+    //   if (inConn != null &&
+    //       exitConn != null &&
+    //       newNodes.containsKey(exitConn.targetNodeName)) {
+    //     bridge = ConnectionData(
+    //       id: _uuid.v4(),
+    //       sourceNodeName: inConn.sourceNodeName,
+    //       sourcePort: inConn.sourcePort,
+    //       targetNodeName: exitConn.targetNodeName,
+    //       targetPort: exitConn.targetPort,
+    //     );
+    //   }
+    // } else {
+    //   if (incoming.length == 1 && outgoing.length == 1) {
+    //     final inC = incoming.first;
+    //     final outC = outgoing.first;
+    //     bridge = ConnectionData(
+    //       id: _uuid.v4(),
+    //       sourceNodeName: inC.sourceNodeName,
+    //       sourcePort: inC.sourcePort,
+    //       targetNodeName: outC.targetNodeName,
+    //       targetPort: outC.targetPort,
+    //     );
+    //   }
+    // }
+    // if (bridge != null) newConns.add(bridge);
+
+    return _pruneUnreachable(
+      FlowchartGraph(nodes: newNodes, connections: newConns),
+    );
+  }
+
+  /// Удаляет узлы, недостижимые от Start по обычным рёбрам (loopback
+  /// не расширяет достижимость вперёд). Start и End сохраняются всегда.
+  FlowchartGraph _pruneUnreachable(FlowchartGraph g) {
+    final start = g.findStart();
+    if (start == null) return g;
+
+    final reachable = <String>{};
+    final queue = <String>[start.name];
+    while (queue.isNotEmpty) {
+      final cur = queue.removeAt(0);
+      if (!reachable.add(cur)) continue;
+      for (final c in g.outgoing[cur] ?? const <ConnectionData>[]) {
+        if (c.targetPort == 'loopback') continue;
+        queue.add(c.targetNodeName);
+      }
+    }
+
+    // Start и End не удаляем никогда
+    for (final e in g.nodes.entries) {
+      if (e.value.data is TerminalBlock &&
+          (e.value.data.text == 'Start' || e.value.data.text == 'End')) {
+        reachable.add(e.key);
+      }
+    }
+
+    final removed = g.nodes.keys.where((k) => !reachable.contains(k)).toSet();
+    if (removed.isEmpty) return g;
+
+    final keptNodes = Map<String, NodeModel>.from(g.nodes)
+      ..removeWhere((k, _) => removed.contains(k));
+    final keptConns = g.connections
+        .where(
+          (c) =>
+              !removed.contains(c.sourceNodeName) &&
+              !removed.contains(c.targetNodeName),
+        )
+        .toList();
+
+    return FlowchartGraph(nodes: keptNodes, connections: keptConns);
   }
 
   Set<String> _collectSubtree(FlowchartGraph g, String start) {
@@ -347,6 +461,22 @@ class FlowController extends ChangeNotifier {
   // Очищает undo/redo
   void clearHistory() {
     _history.clear();
+    notifyListeners();
+  }
+
+  void insertAfterLogicMerge(
+    String yesConnId,
+    List<String> otherConnIds,
+    GostNodeData proto,
+  ) {
+    _pushHistory();
+    final res = _insertion.insertAfterMerge(
+      _graph,
+      yesConnId,
+      otherConnIds,
+      proto,
+    );
+    _graph = _relayout(res.graph);
     notifyListeners();
   }
 }

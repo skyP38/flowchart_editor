@@ -57,15 +57,13 @@ CREATE TABLE sessions (
 CREATE TABLE logs (
     id_log BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     id_user BIGINT,
-    actor_login VARCHAR(100),
     action_log VARCHAR(200) NOT NULL,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    entity VARCHAR(100),
-    entity_id BIGINT,
-    status_log VARCHAR(20) NOT NULL DEFAULT 'Success' CHECK (status_log IN ('Success', 'Fail')),
+    created_at TIMESTAMPTZ NOT NULL,
+    entity VARCHAR(100) NULL,
+    entity_id BIGINT NULL,
     CONSTRAINT fk_logs_user
         FOREIGN KEY (id_user)
-        REFERENCES users (id_user)
+		REFERENCES users (id_user)
         ON DELETE SET NULL
         ON UPDATE CASCADE
 );
