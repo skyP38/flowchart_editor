@@ -120,7 +120,7 @@ type createUserRequest struct {
 var adminLoginPattern = regexp.MustCompile(`^[a-zA-Z0-9_]{3,32}$`)
 
 func (h *AdminHandler) CreateUser(w http.ResponseWriter, r *http.Request) {
-	defer r.Body.Close()
+	defer func() { _ = r.Body.Close() }()
 	var req createUserRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		transport.WriteError(w, http.StatusBadRequest, transport.CodeInvalidInput, "wrong JSON body")
