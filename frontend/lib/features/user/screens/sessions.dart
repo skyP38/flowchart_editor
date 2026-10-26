@@ -98,14 +98,14 @@ class _SessionScreenState extends State<SessionScreen> {
               color: Color(0xFF1E1E1E),
             ),
           ),
-          Container(
+          /*Container(
             width: 8,
             height: 8,
             decoration: const BoxDecoration(
               color: Color(0xFF059669),
               shape: BoxShape.circle,
             ),
-          ),
+          ),*/
         ],
       ),
     );
@@ -158,6 +158,8 @@ class _SessionScreenState extends State<SessionScreen> {
       ),
       child: _columns(
         session: const _HeaderCell('SESSION'),
+        device: const _HeaderCell('DEVICE'),
+        location: const _HeaderCell('LOCATION'),
         created: const _HeaderCell('CREATED'),
         status: const _HeaderCell('STATUS'),
         activity: const _HeaderCell('ACTIVITY'),
@@ -177,7 +179,7 @@ class _SessionScreenState extends State<SessionScreen> {
       child: _columns(
         session: Row(
           children: [
-            Container(
+            /*Container(
               width: 32,
               height: 32,
               decoration: BoxDecoration(
@@ -190,7 +192,7 @@ class _SessionScreenState extends State<SessionScreen> {
                 color: Color(0xFF4B5563),
               ),
             ),
-            const SizedBox(width: 12),
+            const SizedBox(width: 12),*/
             Expanded(
               child: Text(
                 'Session #${s.id}',
@@ -204,6 +206,38 @@ class _SessionScreenState extends State<SessionScreen> {
               ),
             ),
           ],
+        ),
+        device: Row(
+          children: [
+            /*Container(
+              width: 32,
+              height: 32,
+              decoration: BoxDecoration(
+                color: const Color(0xFFF3F4F6),
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: const Icon(
+                Icons.devices_outlined,
+                size: 16,
+                color: Color(0xFF4B5563),
+              ),
+            ),
+            const SizedBox(width: 12),*/
+            Expanded(
+              child: Text(
+                s.deviceName,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontSize: 14, color: Color(0xFF111827)),
+              ),
+            ),
+          ],
+        ),
+        location: Text(
+          s.location,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(fontSize: 14, color: Color(0xFF6B7280)),
         ),
         created: Text(
           s.createdLabel,
@@ -251,6 +285,8 @@ class _SessionScreenState extends State<SessionScreen> {
 
   Widget _columns({
     required Widget session,
+    required Widget device,
+    required Widget location,
     required Widget created,
     required Widget status,
     required Widget activity,
@@ -259,6 +295,10 @@ class _SessionScreenState extends State<SessionScreen> {
     return Row(
       children: [
         Expanded(flex: 4, child: session),
+        const SizedBox(width: 12),
+        Expanded(flex: 3, child: device),
+        const SizedBox(width: 12),
+        Expanded(flex: 2, child: location),
         const SizedBox(width: 12),
         Expanded(flex: 3, child: created),
         const SizedBox(width: 12),

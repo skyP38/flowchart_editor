@@ -5,6 +5,8 @@ class Session {
   final DateTime? revokedAt;
   final bool active;
   final bool current;
+  final String deviceName;
+  final String location;
 
   const Session({
     required this.id,
@@ -13,6 +15,8 @@ class Session {
     this.revokedAt,
     required this.active,
     required this.current,
+    this.deviceName = 'Unknown device',
+    this.location = 'Not recorded',
   });
 
   factory Session.fromJson(Map<String, dynamic> json) => Session(
@@ -24,6 +28,8 @@ class Session {
         : DateTime.parse(json['revoked_at'] as String),
     active: json['active'] as bool? ?? false,
     current: json['current'] as bool? ?? false,
+    deviceName: json['device_name'] as String? ?? 'Unknown device',
+    location: json['location'] as String? ?? 'Not recorded',
   );
 
   bool get isActive => active;

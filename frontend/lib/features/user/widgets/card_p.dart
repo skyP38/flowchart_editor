@@ -37,6 +37,34 @@ class ProjectCard extends StatelessWidget {
               child: Container(
                 width: double.infinity,
                 color: const Color(0xFFF9FAFB),
+                child: Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        project.name,
+                        maxLines: 1,
+                        softWrap: false,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 24,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        '${project.flowcharts.length} flowcharts',
+                        style: const TextStyle(
+                          fontSize: 14,
+                          color: Color(
+                            0xFF6B7280,
+                          ), // Серый цвет, чтобы не отвлекать от названия
+                          fontWeight: FontWeight.w400,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ),
             ),
 
@@ -47,11 +75,11 @@ class ProjectCard extends StatelessWidget {
                   Expanded(
                     // ← ключевое
                     child: Text(
-                      project.name,
+                      'Modified: ${formatMyDate(project.modified)}',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
-                        fontSize: 16,
+                        fontSize: 8,
                         fontWeight: FontWeight.w600,
                       ),
                     ),
@@ -74,51 +102,17 @@ class ProjectCard extends StatelessWidget {
                       ),
                     ),
                   ),
-
-                  // Expanded(
-                  //   flex: 2,
-                  //   child: Padding(
-                  //     padding: const EdgeInsets.all(20),
-                  //     child: Column(
-                  //       children: [
-                  //         Row(
-                  //           mainAxisAlignment:
-                  //               MainAxisAlignment.spaceBetween,
-                  //           children: [
-                  //             Text(
-                  //               project.name,
-                  //               style: const TextStyle(
-                  //                 fontSize: 16,
-                  //                 fontWeight: FontWeight.w600,
-                  //               ),
-                  //             ),
-                  //             const SizedBox(width: 8),
-                  //             InkWell(
-                  //               onTap: onDelete,
-                  //               borderRadius: BorderRadius.circular(6),
-                  //               child: Container(
-                  //                 width: 26,
-                  //                 height: 26,
-                  //                 decoration: BoxDecoration(
-                  //                   color: const Color(0xFFFEE2E2),
-                  //                   borderRadius: BorderRadius.circular(6),
-                  //                 ),
-                  //                 child: const Icon(
-                  //                   Icons.delete_outline,
-                  //                   size: 14,
-                  //                   color: Color(0xFFEF4444),
-                  //                 ),
-                  //               ),
-                  //             ),
-                  //           ],
-                  //         ),
                 ],
               ),
             ),
-            // ),
           ],
         ),
       ),
     );
   }
+}
+
+String formatMyDate(DateTime date) {
+  String two(int n) => n.toString().padLeft(2, '0');
+  return '${two(date.day)}.${two(date.month)}.${date.year} ${two(date.hour)}:${two(date.minute)}';
 }

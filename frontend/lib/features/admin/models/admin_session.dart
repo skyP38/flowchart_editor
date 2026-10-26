@@ -7,6 +7,8 @@ class AdminSession {
   final DateTime expiresAt;
   final DateTime? revokedAt;
   final bool active;
+  final String deviceName;
+  final String location;
 
   const AdminSession({
     required this.id,
@@ -17,6 +19,8 @@ class AdminSession {
     required this.expiresAt,
     required this.active,
     this.revokedAt,
+    this.deviceName = 'Unknown device',
+    this.location = 'Not recorded',
   });
 
   factory AdminSession.fromJson(Map<String, dynamic> json) => AdminSession(
@@ -30,6 +34,8 @@ class AdminSession {
         ? null
         : DateTime.parse(json['revokedAt'] as String).toLocal(),
     active: json['active'] as bool? ?? false,
+    deviceName: json['deviceName'] as String? ?? 'Unknown device',
+    location: json['location'] as String? ?? 'Not recorded',
   );
 
   String get statusLabel => active ? 'Active session' : 'Inactive session';

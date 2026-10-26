@@ -3,6 +3,7 @@ import '../../features/user/models/flowchart.dart';
 // import '../../features/user/models/session.dart';
 import 'api_client.dart';
 import 'api_paths.dart';
+
 // import 'json_keys.dart';
 
 class ApiService {
@@ -12,12 +13,29 @@ class ApiService {
   // static const String baseUrl = 'http://localhost:8080';
 
   Future<List<Project>> listProjects() async {
-    final List<dynamic> data = await _client.get<List<dynamic>>(
-      ApiPaths.projects,
-    );
+    final dynamic response = await _client.get<dynamic>(ApiPaths.projects);
+
+    if (response == null) {
+      return const <Project>[];
+    }
+
+    final List<dynamic> data;
+
+    if (response is List) {
+      data = response;
+    } else if (response is Map && response['projects'] is List) {
+      data = response['projects'] as List<dynamic>;
+    } else {
+      throw const FormatException(
+        'Unexpected response format when loading projects',
+      );
+    }
+
     return data
-        .map((json) => Project.fromJson(json as Map<String, dynamic>))
-        .toList();
+        .map((item) {
+          return Project.fromJson(Map<String, dynamic>.from(item as Map));
+        })
+        .toList(growable: false);
   }
 
   Future<Project> createProject(String name) async {

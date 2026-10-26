@@ -6,6 +6,7 @@ import '../../auth/domain/auth_repository.dart';
 import '../data/admin_api.dart';
 import '../models/admin_user.dart';
 import '../../../core/network/api_error.dart';
+
 // import '../data/admin_route_storage.dart';
 
 class AdminUsersScreen extends StatefulWidget {
@@ -193,7 +194,7 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     const Text(
-                      'Admin users',
+                      'Users',
                       style: TextStyle(
                         fontSize: 24,
                         fontWeight: FontWeight.w700,

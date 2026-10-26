@@ -332,7 +332,7 @@ class _AdminSessionsScreenState extends State<AdminSessionsScreen> {
         ),
         device: Row(
           children: [
-            Container(
+            /*Container(
               width: 32,
               height: 32,
               decoration: BoxDecoration(
@@ -345,10 +345,10 @@ class _AdminSessionsScreenState extends State<AdminSessionsScreen> {
                 color: Color(0xFF4B5563),
               ),
             ),
-            const SizedBox(width: 12),
-            const Expanded(
+            const SizedBox(width: 12),*/
+            Expanded(
               child: Text(
-                'Unknown device',
+                session.deviceName,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(fontSize: 14, color: Color(0xFF111827)),
@@ -356,8 +356,8 @@ class _AdminSessionsScreenState extends State<AdminSessionsScreen> {
             ),
           ],
         ),
-        location: const Text(
-          'Not recorded',
+        location: Text(
+          session.location,
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
           style: TextStyle(fontSize: 14, color: Color(0xFF6B7280)),
