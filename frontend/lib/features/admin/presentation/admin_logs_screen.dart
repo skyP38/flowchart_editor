@@ -33,21 +33,20 @@ class _AdminLogsScreenState extends State<AdminLogsScreen> {
   final _offset = 0;
   final Set<int> _expandedIds = {};
 
+  bool _showFilters = false;
+
+  DateTime? _selectedDate;
+  String? _selectedUser;
+  String? _selectedEvent;
+  String? _selectedObject;
+  String? _selectedStatus;
+
   @override
   void initState() {
     super.initState();
     _api = context.read<AdminApi>();
     _logsFuture = _api.listLogs(limit: _pageSize, offset: 0);
   }
-
-  // void _loadPage(int page) {
-  //   final offset = page * _pageSize;
-
-  //   setState(() {
-  //     _offset = offset;
-  //     _logsFuture = _api.listLogs(limit: _pageSize, offset: offset);
-  //   });
-  // }
 
   void _reload() {
     setState(() {
@@ -61,6 +60,11 @@ class _AdminLogsScreenState extends State<AdminLogsScreen> {
     if (!mounted) return;
 
     await LastRouteStorage.instance.clear();
+  }
+
+  @override
+  void dispose() {
+    super.dispose();
   }
 
   @override
@@ -146,56 +150,64 @@ class _AdminLogsScreenState extends State<AdminLogsScreen> {
           children: [
             _buildPageHeader(),
             Expanded(
-              child: Padding(
-                padding: EdgeInsets.all(
-                  MediaQuery.sizeOf(context).width < 600 ? 16 : 40,
-                ),
-                child: FutureBuilder<AdminLogPage>(
-                  future: _logsFuture,
-                  builder: (context, snapshot) {
-                    if (snapshot.connectionState == ConnectionState.waiting) {
-                      return const Center(child: CircularProgressIndicator());
-                    }
+              child: FutureBuilder<AdminLogPage>(
+                future: _logsFuture,
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
 
-                    if (snapshot.hasError) {
-                      return Center(
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Icon(
-                              Icons.error_outline,
-                              color: Color(0xFFEF4444),
-                              size: 32,
-                            ),
-                            const SizedBox(height: 12),
-                            const Text('Could not load logs'),
-                            const SizedBox(height: 12),
-                            Text(
-                              '${snapshot.error}',
-                              textAlign: TextAlign.center,
-                            ),
-                            const SizedBox(height: 12),
-                            OutlinedButton(
-                              onPressed: _reload,
-                              child: const Text('Retry'),
-                            ),
-                          ],
-                        ),
-                      );
-                    }
-
-                    return _buildTable(
-                      snapshot.data ??
-                          const AdminLogPage(
-                            logs: [],
-                            total: 0,
-                            limit: _pageSize,
-                            offset: 0,
+                  if (snapshot.hasError) {
+                    return Center(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(
+                            Icons.error_outline,
+                            color: Color(0xFFEF4444),
+                            size: 32,
                           ),
+                          const SizedBox(height: 12),
+                          const Text('Could not load logs'),
+                          const SizedBox(height: 12),
+                          Text(
+                            '${snapshot.error}',
+                            textAlign: TextAlign.center,
+                          ),
+                          const SizedBox(height: 12),
+                          OutlinedButton(
+                            onPressed: _reload,
+                            child: const Text('Retry'),
+                          ),
+                        ],
+                      ),
                     );
-                  },
-                ),
+                  }
+
+                  final page =
+                      snapshot.data ??
+                      const AdminLogPage(
+                        logs: [],
+                        total: 0,
+                        limit: _pageSize,
+                        offset: 0,
+                      );
+                  return Column(
+                    children: [
+                      if (_showFilters) _buildFilterPanel(page.logs),
+                      Expanded(
+                        child: Padding(
+                          padding: EdgeInsets.all(
+                            MediaQuery.sizeOf(context).width < 600 ? 16 : 40,
+                          ),
+                          child: _buildTable(page),
+                        ),
+                      ),
+                    ],
+                  );
+                },
               ),
+              //),
             ),
           ],
         ),
@@ -207,6 +219,7 @@ class _AdminLogsScreenState extends State<AdminLogsScreen> {
     return LayoutBuilder(
       builder: (context, constraints) {
         final compact = constraints.maxWidth < 560;
+
         return Container(
           width: double.infinity,
           padding: EdgeInsets.symmetric(
@@ -217,20 +230,205 @@ class _AdminLogsScreenState extends State<AdminLogsScreen> {
             color: Colors.white,
             border: Border(bottom: BorderSide(color: Color(0xFFE5E7EB))),
           ),
-          child: const Text(
-            'Logs',
-            style: TextStyle(
-              fontSize: 28,
-              fontWeight: FontWeight.w700,
-              color: Color(0xFF111827),
-            ),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'Logs',
+                  style: TextStyle(
+                    fontSize: compact ? 24 : 28,
+                    fontWeight: FontWeight.w700,
+                    color: const Color(0xFF111827),
+                  ),
+                ),
+              ),
+              OutlinedButton.icon(
+                onPressed: () {
+                  setState(() {
+                    _showFilters = !_showFilters;
+                  });
+                },
+                label: Text(_showFilters ? 'Hide filters' : 'Filters'),
+              ),
+            ],
           ),
         );
       },
     );
   }
 
+  Widget _buildFilterPanel(List<AdminLog> logs) {
+    List<String> getOptions(String Function(AdminLog) selector) {
+      final options = logs
+          .map((entry) => selector(entry).trim())
+          .where((value) => value.isNotEmpty)
+          .toSet()
+          .toList();
+
+      options.sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+
+      return options;
+    }
+
+    Widget dropdownFilter({
+      required String label,
+      required String? value,
+      required List<String> options,
+      required ValueChanged<String?> onChanged,
+    }) {
+      final selectedValue = options.contains(value) ? value : null;
+
+      return SizedBox(
+        width: 180,
+        child: DropdownButtonFormField<String>(
+          initialValue: selectedValue,
+          isExpanded: true,
+          hint: const Text('All'),
+          decoration: InputDecoration(
+            labelText: label,
+            isDense: true,
+            border: const OutlineInputBorder(),
+            suffixIcon: selectedValue == null
+                ? null
+                : IconButton(
+                    tooltip: 'Clear $label',
+                    icon: const Icon(Icons.close, size: 18),
+                    onPressed: () => onChanged(null),
+                  ),
+          ),
+          items: options.map((option) {
+            return DropdownMenuItem<String>(
+              value: option,
+              child: Text(option, maxLines: 1, overflow: TextOverflow.ellipsis),
+            );
+          }).toList(),
+          onChanged: onChanged,
+        ),
+      );
+    }
+
+    Widget dateFilter() {
+      return SizedBox(
+        width: 180,
+        child: InkWell(
+          onTap: () async {
+            final now = DateTime.now();
+
+            final picked = await showDatePicker(
+              context: context,
+              initialDate: _selectedDate ?? now,
+              firstDate: DateTime(2000),
+              lastDate: DateTime(2100),
+              initialEntryMode: DatePickerEntryMode.calendarOnly,
+            );
+
+            if (picked != null) {
+              setState(() {
+                _selectedDate = DateTime(picked.year, picked.month, picked.day);
+              });
+            }
+          },
+          child: InputDecorator(
+            decoration: InputDecoration(
+              labelText: 'Date',
+              isDense: true,
+              border: const OutlineInputBorder(),
+              suffixIcon: _selectedDate == null
+                  ? const Icon(Icons.calendar_month, size: 18)
+                  : IconButton(
+                      tooltip: 'Clear date',
+                      icon: const Icon(Icons.close, size: 18),
+                      onPressed: () {
+                        setState(() {
+                          _selectedDate = null;
+                        });
+                      },
+                    ),
+            ),
+            child: Text(
+              _selectedDate == null ? 'All dates' : _formatDate(_selectedDate!),
+            ),
+          ),
+        ),
+      );
+    }
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: const BoxDecoration(
+        color: Color(0xFFF9FAFB),
+        border: Border(bottom: BorderSide(color: Color(0xFFE5E7EB))),
+      ),
+      child: Wrap(
+        spacing: 12,
+        runSpacing: 12,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        children: [
+          dateFilter(),
+          dropdownFilter(
+            label: 'User',
+            value: _selectedUser,
+            options: getOptions((entry) => entry.login),
+            onChanged: (value) {
+              setState(() => _selectedUser = value);
+            },
+          ),
+          dropdownFilter(
+            label: 'Event',
+            value: _selectedEvent,
+            options: getOptions((entry) => entry.action),
+            onChanged: (value) {
+              setState(() => _selectedEvent = value);
+            },
+          ),
+          dropdownFilter(
+            label: 'Object',
+            value: _selectedObject,
+            options: getOptions((entry) => entry.objectLabel),
+            onChanged: (value) {
+              setState(() => _selectedObject = value);
+            },
+          ),
+          dropdownFilter(
+            label: 'Status',
+            value: _selectedStatus,
+            options: getOptions((entry) => entry.status),
+            onChanged: (value) {
+              setState(() => _selectedStatus = value);
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  List<AdminLog> _filterLogs(List<AdminLog> logs) {
+    bool matchesSelection(String value, String? selected) {
+      return selected == null || value.toLowerCase() == selected.toLowerCase();
+    }
+
+    return logs
+        .where((entry) {
+          final date = entry.createdAt;
+
+          final matchesDate =
+              _selectedDate == null ||
+              (date.year == _selectedDate!.year &&
+                  date.month == _selectedDate!.month &&
+                  date.day == _selectedDate!.day);
+
+          return matchesDate &&
+              matchesSelection(entry.login, _selectedUser) &&
+              matchesSelection(entry.action, _selectedEvent) &&
+              matchesSelection(entry.objectLabel, _selectedObject) &&
+              matchesSelection(entry.status, _selectedStatus);
+        })
+        .toList(growable: false);
+  }
+
   Widget _buildTable(AdminLogPage page) {
+    final filteredLogs = _filterLogs(page.logs);
     return LayoutBuilder(
       builder: (context, constraints) {
         final tableWidth = math.max(constraints.maxWidth, 1120.0);
@@ -251,21 +449,22 @@ class _AdminLogsScreenState extends State<AdminLogsScreen> {
                 children: [
                   _buildTableHeader(),
                   Expanded(
-                    child: page.logs.isEmpty
-                        ? const Center(
+                    child: filteredLogs.isEmpty
+                        ? Center(
                             child: Text(
-                              'No log entries found',
+                              page.logs.isEmpty
+                                  ? 'No log entries found'
+                                  : 'No logs match the selectes filters',
                               style: TextStyle(color: Color(0xFF4B5563)),
                             ),
                           )
                         : ListView.builder(
-                            itemCount: page.logs.length,
+                            itemCount: filteredLogs.length,
                             itemBuilder: (context, index) {
-                              return _buildLogRow(page.logs[index]);
+                              return _buildLogRow(filteredLogs[index]);
                             },
                           ),
                   ),
-                  //_buildPagination(page),
                 ],
               ),
             ),

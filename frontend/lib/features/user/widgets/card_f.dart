@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import '../models/flowchart.dart';
 
 class FlowchartCard extends StatelessWidget {
@@ -15,6 +16,7 @@ class FlowchartCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final svg = flowchart.previewSvg;
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(12),
@@ -32,6 +34,24 @@ class FlowchartCard extends StatelessWidget {
               child: Container(
                 width: double.infinity,
                 color: const Color(0xFFF9FAFB),
+                padding: const EdgeInsets.all(12),
+                child: svg == null || svg.trim().isEmpty
+                    ? const Center(
+                        child: Icon(
+                          Icons.account_tree_outlined,
+                          size: 42,
+                          color: Color(0xFF9CA3AF),
+                        ),
+                      )
+                    : ClipRect(
+                        child: SizedBox.expand(
+                          child: SvgPicture.string(
+                            svg,
+                            fit: BoxFit.cover,
+                            alignment: Alignment.center,
+                          ),
+                        ),
+                      ),
               ),
             ),
             Expanded(

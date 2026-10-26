@@ -28,6 +28,7 @@ class ProjectScreen extends StatefulWidget {
 class _ProjectScreenState extends State<ProjectScreen> {
   late final ApiService _api;
   late Future<Project> _projectFuture;
+  String _search = '';
   final _storage = LastRouteStorage.instance;
 
   @override
@@ -74,6 +75,9 @@ class _ProjectScreenState extends State<ProjectScreen> {
 
     // Редактор закрыт
     await _storage.setFlowchart(null);
+    if (mounted) {
+      _reload();
+    }
   }
 
   // все тапы по карточкам идут через это
@@ -172,6 +176,13 @@ class _ProjectScreenState extends State<ProjectScreen> {
   }
 
   Widget _buildContent(Project project) {
+    final query = _search.trim().toLowerCase();
+
+    final flowcharts = project.flowcharts
+        .where((flowchart) {
+          return flowchart.name.toLowerCase().contains(query);
+        })
+        .toList(growable: false);
     return Column(
       children: [
         Container(
@@ -218,11 +229,21 @@ class _ProjectScreenState extends State<ProjectScreen> {
                               ),
                               const SizedBox(width: 8),
                               Expanded(
-                                child: Text(
-                                  'Search for flowchart...',
-                                  style: TextStyle(
-                                    fontSize: 14,
-                                    color: Color(0xFF6B7280),
+                                child: TextField(
+                                  onChanged: (value) {
+                                    setState(() {
+                                      _search = value;
+                                    });
+                                  },
+                                  decoration: const InputDecoration(
+                                    hintText: 'Search for flowchart...',
+                                    hintStyle: TextStyle(
+                                      fontSize: 14,
+                                      color: Color(0xFF6B7280),
+                                    ),
+                                    border: InputBorder.none,
+                                    isDense: true,
+                                    contentPadding: EdgeInsets.zero,
                                   ),
                                 ),
                               ),
@@ -284,7 +305,7 @@ class _ProjectScreenState extends State<ProjectScreen> {
                       ),
                     ),
                     Text(
-                      '${project.flowcharts.length} flowcharts',
+                      '${flowcharts.length} flowcharts',
                       style: const TextStyle(
                         fontSize: 14,
                         color: Color(0xFF6B7280),
@@ -295,8 +316,10 @@ class _ProjectScreenState extends State<ProjectScreen> {
                 const SizedBox(height: 24),
                 Expanded(
                   child: project.flowcharts.isEmpty
+                      ? const Center(child: Text('There are no flowcharts yet'))
+                      : flowcharts.isEmpty
                       ? const Center(
-                          child: Text('There are not flowcharts yet'),
+                          child: Text('No flowcharts match your search'),
                         )
                       : GridView.builder(
                           gridDelegate:
@@ -306,9 +329,10 @@ class _ProjectScreenState extends State<ProjectScreen> {
                                 mainAxisSpacing: 24,
                                 childAspectRatio: 418 / 217,
                               ),
-                          itemCount: project.flowcharts.length,
+                          itemCount: flowcharts.length,
                           itemBuilder: (context, index) {
-                            final f = project.flowcharts[index];
+                            final f = flowcharts[index];
+
                             return FlowchartCard(
                               flowchart: f,
                               onTap: () => _openFlowchart(f),

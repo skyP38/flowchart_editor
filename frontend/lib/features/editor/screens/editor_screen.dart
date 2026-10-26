@@ -29,7 +29,8 @@ import '../../../core/storage/guest_diagram_storage.dart';
 // Главный экран редактора блок-схем
 class EditorScreen extends StatefulWidget {
   final EditorSnapshot? initialSnapshot;
-  final Future<void> Function(EditorSnapshot snapshot)? onSave;
+  final Future<void> Function(EditorSnapshot snapshot, String previewSvg)?
+  onSave;
 
   final bool canSave;
   final VoidCallback? onBack;
@@ -626,7 +627,18 @@ class _EditorScreenState extends State<EditorScreen> {
 
     setState(() => _isSaving = true);
     try {
-      await onSave(_controller.toSnapshot());
+      final snapshot = _controller.toSnapshot();
+      final previewSvg = SvgExporter.export(
+        graph: _controller.graph,
+        router: _router,
+        nodeSize: _controller.nodeSize,
+        spacing: _controller.spacing,
+        canvasSize: _getContentSize(),
+        showGrid: _controller.showGrid,
+      );
+      debugPrint('Generated SVG length: ${previewSvg.length}');
+
+      await onSave(snapshot, previewSvg);
       // FlowchartEditorPage уже показывает snackbar «Схема сохранена»,
       // но на всякий случай продублируем — необязательно.
     } catch (e) {

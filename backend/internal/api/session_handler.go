@@ -31,6 +31,8 @@ type sessionDTO struct {
 	RevokedAt *time.Time `json:"revoked_at,omitempty"`
 	Active    bool       `json:"active"`
 	Current   bool       `json:"current"`
+	DeviceName string    `json:"device_name"`
+	Location   string    `json:"location"`
 }
 
 // List - GET /api/sessions
@@ -85,5 +87,7 @@ func toSessionDTO(s *domains.Session, currentID int64, now time.Time) sessionDTO
 		RevokedAt: s.RevokedAt,
 		Active:    s.IsActive(now),
 		Current:   s.ID == currentID,
+		DeviceName: s.DeviceName,
+		Location:   s.Location,
 	}
 }

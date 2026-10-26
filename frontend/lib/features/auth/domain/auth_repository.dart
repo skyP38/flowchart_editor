@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 
 import '../../../core/network/api_error.dart';
+import '../../../core/services/browser_location_service.dart';
 import '../../../core/network/token_storage.dart';
 import '../data/api/auth_api.dart';
 import 'auth_state.dart';
@@ -48,7 +49,13 @@ class AuthRepository extends ChangeNotifier {
     if (_state is AuthLoading) return;
 
     try {
-      final response = await _api.login(login: login, password: password);
+      final position = await BrowserLocationService.getCurrentPosition();
+      final response = await _api.login(
+        login: login,
+        password: password,
+        latitude: position?.latitude,
+        longitude: position?.longitude,
+      );
       await _storage.saveTokens(
         accessToken: response.tokens.accessToken,
         refreshToken: response.tokens.refreshToken,

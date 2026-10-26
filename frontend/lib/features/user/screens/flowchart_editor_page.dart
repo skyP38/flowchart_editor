@@ -57,12 +57,18 @@ class _FlowchartEditorPageState extends State<FlowchartEditorPage> {
     }
   }
 
-  Future<void> _save(EditorSnapshot snapshot) async {
+  Future<void> _save(EditorSnapshot snapshot, String previewSvg) async {
+    final content = snapshot.toJson();
+
+    content['previewSvg'] = previewSvg;
+
+    debugPrint('Saving SVG length: ${previewSvg.length}');
     await _api.updateFlowchartContent(
       widget.projectId,
       widget.flowchartId,
-      snapshot.toJson(),
+      content,
     );
+
     if (mounted) {
       ScaffoldMessenger.of(
         context,

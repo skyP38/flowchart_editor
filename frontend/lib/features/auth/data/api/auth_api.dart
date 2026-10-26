@@ -26,11 +26,21 @@ class AuthApi {
   Future<AuthResponse> login({
     required String login,
     required String password,
+    double? latitude,
+    double? longitude,
   }) async {
+    final data = <String, dynamic>{'login': login, 'password': password};
+
+    if (latitude != null && longitude != null) {
+      data['latitude'] = latitude;
+      data['longitude'] = longitude;
+    }
+
     final json = await _client.post<Map<String, dynamic>>(
       ApiPaths.login,
-      data: {'login': login, 'password': password},
+      data: data,
     );
+
     return AuthResponse.fromJson(json);
   }
 

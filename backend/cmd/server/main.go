@@ -24,6 +24,7 @@ import (
 	"github.com/skyP38/flowchart_editor/backend/internal/service/sessioncleanup"
 
 	"github.com/skyP38/flowchart_editor/backend/internal/transport"
+	// "github.com/skyP38/flowchart_editor/backend/internal/service/sessionmetadata"
 )
 
 func main() {
@@ -36,7 +37,7 @@ func main() {
 	// dbURL := os.Getenv("DATABASE_URL")
 	// if dbURL == "" {
 	// 	log.Fatal("DATABASE_URL is not set")
-	// }
+	// }	
 	db, err := pgxpool.New(context.Background(), cfg.DatabaseURL)
 	if err != nil {
 		log.Fatal(err)
