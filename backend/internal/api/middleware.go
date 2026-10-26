@@ -126,7 +126,7 @@ func RequireRole(roles ...string) AuthMW {
 			role := RoleFrom(r.Context())
 			if _, ok := allowed[role]; !ok {
 				uid := UserIDFrom(r.Context())
-				log.Printf("forbidden: uid=%d role=%q path=%q", uid, role, r.URL.Path)
+				log.Printf("forbidden: uid=%d role=%q path=%s", uid, role, strconv.Quote(r.URL.Path))
 				transport.WriteError(w, http.StatusForbidden, transport.CodeForbidden, "insufficient permissions")
 				return
 			}

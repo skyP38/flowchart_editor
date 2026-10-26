@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"strings"
 	"time"
+	"strconv"
 )
 
 // Middleware - обертка над http.Handler
@@ -81,7 +82,7 @@ func Logging(next http.Handler) http.Handler {
 		start := time.Now()
 		rec := &statusRecorder{ResponseWriter: w, status: http.StatusOK}
 		next.ServeHTTP(rec, r)
-		log.Printf("%s %q %d %s", r.Method, r.URL.Path, rec.status, time.Since(start))
+		log.Printf("%s %s %d %s", strconv.Quote(r.Method), strconv.Quote(r.URL.Path), rec.status, time.Since(start))
 	})
 }
 

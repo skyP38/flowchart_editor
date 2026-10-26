@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"log"
@@ -8,22 +9,21 @@ import (
 	"net/http"
 	"strconv"
 	"time"
-	"context"
-	//"os"
-	//"fmt"
+	// "os"
+	// "fmt"
 
-	"github.com/skyP38/flowchart_editor/backend/internal/service/sessionmetadata"
 	"github.com/skyP38/flowchart_editor/backend/internal/domains"
 	"github.com/skyP38/flowchart_editor/backend/internal/service/auth"
 	"github.com/skyP38/flowchart_editor/backend/internal/service/ratelimit"
+	"github.com/skyP38/flowchart_editor/backend/internal/service/sessionmetadata"
 	"github.com/skyP38/flowchart_editor/backend/internal/transport"
 )
 
 // AuthHandler - HTTP-обработчик аутентификации
 type AuthHandler struct {
-	svc     *auth.Service
-	limiter ratelimit.Limiter
-	audit domains.AuditLogRepository
+	svc              *auth.Service
+	limiter          ratelimit.Limiter
+	audit            domains.AuditLogRepository
 	metadataResolver SessionMetadataResolver
 }
 
@@ -33,13 +33,13 @@ func NewAuthHandler(svc *auth.Service, limiter ratelimit.Limiter, audits ...doma
 		h.audit = audits[0]
 	}
 	/*geoClient := sessionmetadata.NewGeoLiteClient(
-        os.Getenv("MAXMIND_ACCOUNT_ID"),
-        os.Getenv("MAXMIND_LICENSE_KEY"),
-	)
+	        os.Getenv("MAXMIND_ACCOUNT_ID"),
+	        os.Getenv("MAXMIND_LICENSE_KEY"),
+		)
 
-	h.SetSessionMetadataResolver(
-		sessionmetadata.NewResolver(geoClient),
-	)*/
+		h.SetSessionMetadataResolver(
+			sessionmetadata.NewResolver(geoClient),
+		)*/
 	h.metadataResolver = sessionmetadata.NewResolver(nil)
 	return h
 }
@@ -64,8 +64,8 @@ type registerRequest struct {
 
 // loginRequest - тело запроса логина
 type loginRequest struct {
-	Login    string `json:"login"`
-	Password string `json:"password"`
+	Login     string   `json:"login"`
+	Password  string   `json:"password"`
 	Latitude  *float64 `json:"latitude"`
 	Longitude *float64 `json:"longitude"`
 }
@@ -91,7 +91,7 @@ type authResponse struct {
 }
 
 type SessionMetadataResolver interface {
-    Resolve(userAgent string, remoteAddr string) domains.SessionMetadata
+	Resolve(userAgent string, remoteAddr string) domains.SessionMetadata
 }
 
 // Register обрабатывает POST /api/auth/register
@@ -152,8 +152,8 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 	}
 
 	res, err := h.svc.Login(r.Context(), auth.LoginInput{
-		Login: req.Login, 
-		Password: req.Password, 
+		Login:    req.Login,
+		Password: req.Password,
 		Metadata: h.metadataForRequest(r, req.Latitude, req.Longitude),
 	})
 
@@ -280,11 +280,11 @@ func (h *AuthHandler) writeAudit(
 	}
 
 	entry := &domains.AuditLog{
-		UserID:  userID,
-		Login:   domains.NormalizeLogin(login),
-		Action:  action,
-		Entity:  "session",
-		Status:  status,
+		UserID: userID,
+		Login:  domains.NormalizeLogin(login),
+		Action: action,
+		Entity: "session",
+		Status: status,
 	}
 
 	if err := h.audit.CreateLog(ctx, entry); err != nil {
@@ -309,26 +309,26 @@ func (h *AuthHandler) sessionMetadata(r *http.Request) domains.SessionMetadata {
 }
 
 func (h *AuthHandler) metadataForRequest(
-    r *http.Request,
-    latitude *float64,
-    longitude *float64,
+	r *http.Request,
+	latitude *float64,
+	longitude *float64,
 ) domains.SessionMetadata {
-    // Получаем название браузера через существующий resolver.
-    // Resolver больше не должен обращаться к GeoLite API.
-    metadata := h.sessionMetadata(r)
+	// Получаем название браузера через существующий resolver.
+	// Resolver больше не должен обращаться к GeoLite API.
+	metadata := h.sessionMetadata(r)
 
-    if latitude == nil || longitude == nil {
-        return metadata
-    }
+	if latitude == nil || longitude == nil {
+		return metadata
+	}
 
-    lat := *latitude
-    lon := *longitude
+	lat := *latitude
+	lon := *longitude
 
-    // Проверяем допустимые диапазоны координат.
-    if lat < -90 || lat > 90 || lon < -180 || lon > 180 {
-        return metadata
-    }
+	// Проверяем допустимые диапазоны координат.
+	if lat < -90 || lat > 90 || lon < -180 || lon > 180 {
+		return metadata
+	}
 
-    metadata.Location = sessionmetadata.CoordinatesToLocation(lat, lon)
-    return metadata
+	metadata.Location = sessionmetadata.CoordinatesToLocation(lat, lon)
+	return metadata
 }
