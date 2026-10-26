@@ -2,8 +2,6 @@ package sessionmetadata
 
 import (
 	"context"
-	"net"
-	"net/netip"
 	"strings"
 
 	"github.com/skyP38/flowchart_editor/backend/internal/domains"
