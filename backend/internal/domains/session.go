@@ -14,6 +14,13 @@ type Session struct {
 	CreatedAt time.Time  `json:"createdAt"`
 	ExpiresAt time.Time  `json:"expiresAt"`
 	RevokedAt *time.Time `json:"revokedAt,omitempty"`
+	DeviceName string    `json:"deviceName"`
+	Location string      `json:"location"`
+}
+
+type SessionMetadata struct {
+    DeviceName string
+    Location   string
 }
 
 // IsActive сообщает активна ли сессия на момент now

@@ -56,6 +56,75 @@ func (r *ProjectRepository) ListByUser(
 		return nil, fmt.Errorf("list projects: %w", err)
 	}
 	defer rows.Close()
+
+	var projects []domains.Project
+	var projectIDs []int64
+
+	for rows.Next() {
+		var p domains.Project
+		err := rows.Scan(&p.ID, &p.Name, &p.UserID, &p.DateCreate, &p.DateUpdate)
+		if err != nil {
+			return nil, fmt.Errorf("scan project: %w", err)
+		}
+		p.Flowcharts = []domains.Flowchart{}
+		projects = append(projects, p)
+		projectIDs = append(projectIDs, p.ID)
+	}
+
+	if len(projectIDs) == 0 {
+		return projects, nil
+	}
+
+	fRows, err := r.db.Query(ctx,
+		`SELECT id_flowchart, id_project, name_f, data_f, created_at, updated_at
+		FROM flowcharts
+		WHERE id_project = ANY($1)`, projectIDs)
+	if err != nil {
+		return nil, fmt.Errorf("list flowcharts: %w", err)
+	}
+	defer fRows.Close()
+
+	flowchartsByProject := make(map[int64][]domains.Flowchart)
+	for fRows.Next() {
+		var f domains.Flowchart
+		var projectID int64
+		var data []byte
+
+		err := fRows.Scan(&f.ID, &projectID, &f.Name, &data, &f.DateCreate, &f.DateUpdate)
+		if err != nil {
+			return nil, fmt.Errorf("scan flowchart: %w", err)
+		}
+		
+		if len(data) > 0 {
+			_ = json.Unmarshal(data, &f.Data)
+		}
+		
+		flowchartsByProject[projectID] = append(flowchartsByProject[projectID], f)
+	}
+
+	for i := range projects {
+		if charts, ok := flowchartsByProject[projects[i].ID]; ok {
+			projects[i].Flowcharts = charts
+		}
+	}
+
+	return projects, nil
+}
+
+/*func (r *ProjectRepository) ListByUser(
+	ctx context.Context,
+	userID int64,
+) ([]domains.Project, error) {
+	rows, err := r.db.Query(ctx,
+		`SELECT id_project, name_p, owner_id, created_at, updated_at
+		FROM projects
+		WHERE owner_id = $1
+		ORDER BY updated_at DESC NULLS LAST, created_at DESC`,
+		userID)
+	if err != nil {
+		return nil, fmt.Errorf("list projects: %w", err)
+	}
+	defer rows.Close()
 	projects := make([]domains.Project, 0)
 	for rows.Next() {
 		var p domains.Project
@@ -73,7 +142,7 @@ func (r *ProjectRepository) ListByUser(
 		projects = append(projects, p)
 	}
 	return projects, rows.Err()
-}
+}*/
 
 func (r *ProjectRepository) Update(
 	ctx context.Context,

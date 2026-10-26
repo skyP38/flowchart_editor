@@ -9,7 +9,10 @@ import (
 	"strconv"
 	"time"
 	"context"
+	//"os"
+	//"fmt"
 
+	"github.com/skyP38/flowchart_editor/backend/internal/service/sessionmetadata"
 	"github.com/skyP38/flowchart_editor/backend/internal/domains"
 	"github.com/skyP38/flowchart_editor/backend/internal/service/auth"
 	"github.com/skyP38/flowchart_editor/backend/internal/service/ratelimit"
@@ -21,6 +24,7 @@ type AuthHandler struct {
 	svc     *auth.Service
 	limiter ratelimit.Limiter
 	audit domains.AuditLogRepository
+	metadataResolver SessionMetadataResolver
 }
 
 func NewAuthHandler(svc *auth.Service, limiter ratelimit.Limiter, audits ...domains.AuditLogRepository) *AuthHandler {
@@ -28,6 +32,15 @@ func NewAuthHandler(svc *auth.Service, limiter ratelimit.Limiter, audits ...doma
 	if len(audits) > 0 {
 		h.audit = audits[0]
 	}
+	/*geoClient := sessionmetadata.NewGeoLiteClient(
+        os.Getenv("MAXMIND_ACCOUNT_ID"),
+        os.Getenv("MAXMIND_LICENSE_KEY"),
+	)
+
+	h.SetSessionMetadataResolver(
+		sessionmetadata.NewResolver(geoClient),
+	)*/
+	h.metadataResolver = sessionmetadata.NewResolver(nil)
 	return h
 }
 
@@ -53,6 +66,8 @@ type registerRequest struct {
 type loginRequest struct {
 	Login    string `json:"login"`
 	Password string `json:"password"`
+	Latitude  *float64 `json:"latitude"`
+	Longitude *float64 `json:"longitude"`
 }
 
 type refreshRequest struct {
@@ -75,6 +90,10 @@ type authResponse struct {
 	ExpiresIn    int     `json:"expires_in"`
 }
 
+type SessionMetadataResolver interface {
+    Resolve(userAgent string, remoteAddr string) domains.SessionMetadata
+}
+
 // Register обрабатывает POST /api/auth/register
 // Возвращает 201 Created при успехе, иначе 400 invalid_input
 func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
@@ -90,6 +109,7 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 		Login:    req.Login,
 		Uname:    req.Uname,
 		Password: req.Password,
+		Metadata: h.sessionMetadata(r),
 	})
 	if err != nil {
 		writeAuthError(w, err)
@@ -132,7 +152,9 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 	}
 
 	res, err := h.svc.Login(r.Context(), auth.LoginInput{
-		Login: req.Login, Password: req.Password,
+		Login: req.Login, 
+		Password: req.Password, 
+		Metadata: h.metadataForRequest(r, req.Latitude, req.Longitude),
 	})
 
 	if err != nil {
@@ -164,7 +186,7 @@ func (h *AuthHandler) Refresh(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	res, err := h.svc.Refresh(r.Context(), req.RefreshToken)
+	res, err := h.svc.RefreshWithMetadata(r.Context(), req.RefreshToken, h.sessionMetadata(r))
 	if err != nil {
 		writeAuthError(w, err)
 		return
@@ -268,4 +290,45 @@ func (h *AuthHandler) writeAudit(
 	if err := h.audit.CreateLog(ctx, entry); err != nil {
 		log.Printf("audit authentication: %v", err)
 	}
+}
+
+func (h *AuthHandler) SetSessionMetadataResolver(
+	resolver SessionMetadataResolver,
+) {
+	h.metadataResolver = resolver
+}
+
+func (h *AuthHandler) sessionMetadata(r *http.Request) domains.SessionMetadata {
+	if h.metadataResolver == nil {
+		return domains.SessionMetadata{
+			DeviceName: "Unknown device",
+			Location:   "Not recorded",
+		}
+	}
+	return h.metadataResolver.Resolve(r.UserAgent(), r.RemoteAddr)
+}
+
+func (h *AuthHandler) metadataForRequest(
+    r *http.Request,
+    latitude *float64,
+    longitude *float64,
+) domains.SessionMetadata {
+    // Получаем название браузера через существующий resolver.
+    // Resolver больше не должен обращаться к GeoLite API.
+    metadata := h.sessionMetadata(r)
+
+    if latitude == nil || longitude == nil {
+        return metadata
+    }
+
+    lat := *latitude
+    lon := *longitude
+
+    // Проверяем допустимые диапазоны координат.
+    if lat < -90 || lat > 90 || lon < -180 || lon > 180 {
+        return metadata
+    }
+
+    metadata.Location = sessionmetadata.CoordinatesToLocation(lat, lon)
+    return metadata
 }

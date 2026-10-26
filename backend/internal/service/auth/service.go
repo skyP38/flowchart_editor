@@ -67,12 +67,14 @@ type RegisterInput struct {
 	Login    string
 	Uname    string
 	Password string
+	Metadata domains.SessionMetadata
 }
 
 // LoginInput  данные для логина
 type LoginInput struct {
 	Login    string
 	Password string
+	Metadata domains.SessionMetadata
 }
 
 // AuthResult - результат успешной регистрации или логина
@@ -139,7 +141,7 @@ func (s *Service) Register(ctx context.Context, in RegisterInput) (*AuthResult, 
 		return nil, err
 	}
 
-	return s.issueTokens(ctx, u)
+	return s.issueTokens(ctx, u, in.Metadata)
 }
 
 // Login проверяет учетные данные и выпускает access-токен
@@ -167,40 +169,48 @@ func (s *Service) Login(ctx context.Context, in LoginInput) (*AuthResult, error)
 		_ = recorder.UpdateLastLogin(ctx, u.ID, time.Now().UTC())
 	}
 
-	return s.issueTokens(ctx, u)
+	return s.issueTokens(ctx, u, in.Metadata)
 }
 
+
+func (s *Service) RefreshWithMetadata(
+    ctx context.Context,
+    refreshToken string,
+    metadata domains.SessionMetadata,
+) (*AuthResult, error) {
+	if refreshToken == "" {
+                return nil, ErrInvalidRefreshToken
+        }
+        hash := token.HashRefreshToken(refreshToken)
+        sess, err := s.sessions.GetByTokenHash(ctx, hash)
+        if err != nil {
+                return nil, ErrInvalidRefreshToken
+        }
+
+        now := time.Now().UTC()
+        if !sess.IsActive(now) {
+                if sess.RevokedAt != nil {
+                        _ = s.sessions.RevokeAllExcept(ctx, sess.UserID, domains.RevokeAllSessions, now)
+                }
+                return nil, ErrInvalidRefreshToken
+        }
+
+        u, err := s.users.GetByID(ctx, sess.UserID)
+        if err != nil || u == nil || !u.IsActive {
+                return nil, ErrInvalidRefreshToken
+        }
+
+        // отзыв старой сессии
+        if err := s.sessions.Revoke(ctx, sess.ID, now); err != nil {
+                return nil, err
+        }
+        return s.issueTokens(ctx, u, metadata)
+}
 // Refresh обновляет пару токенов
 // Каждый успешный refresh отзывает старую сессию и создает новую
 // Если предъявлен отозванный токен - отзыв всех сессий
 func (s *Service) Refresh(ctx context.Context, refreshToken string) (*AuthResult, error) {
-	if refreshToken == "" {
-		return nil, ErrInvalidRefreshToken
-	}
-	hash := token.HashRefreshToken(refreshToken)
-	sess, err := s.sessions.GetByTokenHash(ctx, hash)
-	if err != nil {
-		return nil, ErrInvalidRefreshToken
-	}
-
-	now := time.Now().UTC()
-	if !sess.IsActive(now) {
-		if sess.RevokedAt != nil {
-			_ = s.sessions.RevokeAllExcept(ctx, sess.UserID, domains.RevokeAllSessions, now)
-		}
-		return nil, ErrInvalidRefreshToken
-	}
-
-	u, err := s.users.GetByID(ctx, sess.UserID)
-	if err != nil || u == nil || !u.IsActive {
-		return nil, ErrInvalidRefreshToken
-	}
-
-	// отзыв старой сессии
-	if err := s.sessions.Revoke(ctx, sess.ID, now); err != nil {
-		return nil, err
-	}
-	return s.issueTokens(ctx, u)
+	return s.RefreshWithMetadata(ctx, refreshToken, domains.SessionMetadata{})
 }
 
 // Logout отзывает сессию, связанную с токеном
@@ -246,17 +256,25 @@ func (s *Service) RevokeAllSessions(ctx context.Context, userID, keepID int64) e
 }
 
 // issueTokens выпускает пару токенов для пользователя и формирует AuthResult
-func (s *Service) issueTokens(ctx context.Context, u *domains.User) (*AuthResult, error) {
+func (s *Service) issueTokens(ctx context.Context, u *domains.User, metadata domains.SessionMetadata) (*AuthResult, error) {
 	plain, hash, err := token.GenerateRefreshToken()
 	if err != nil {
 		return nil, err
 	}
 	now := time.Now().UTC()
+	if strings.TrimSpace(metadata.DeviceName) == "" {
+		metadata.DeviceName = "Unknown device"
+	}
+	if strings.TrimSpace(metadata.Location) == "" {
+		metadata.Location = "Not recorded"
+	}
 	sess := &domains.Session{
 		UserID:    u.ID,
 		TokenHash: hash,
 		CreatedAt: now,
 		ExpiresAt: now.Add(s.refreshTTL),
+		DeviceName: metadata.DeviceName,
+		Location: metadata.Location,
 	}
 	if err := s.sessions.Create(ctx, sess); err != nil {
 		return nil, err

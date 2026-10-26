@@ -231,5 +231,8 @@ func (h *ProjectHandler) List(
 		http.Error(w, "failed to list projects", http.StatusInternalServerError)
 		return
 	}
+	if projects == nil {
+		projects = []domains.Project{}
+	}
 	transport.WriteJSON(w, http.StatusOK, projects)
 }

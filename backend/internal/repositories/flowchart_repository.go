@@ -47,6 +47,16 @@ func (r *FlowchartRepository) Create(
 	if len(data) > 0 {
 		_ = json.Unmarshal(data, &f.Data)
 	}
+	_, err = r.db.Exec(
+		ctx,
+		`UPDATE projects
+		SET updated_at = NOW()
+		WHERE id_project = $1`,
+		projectID,
+	)
+	if err != nil {
+		return f, err
+	}	
 	return f, nil
 }
 
@@ -55,8 +65,23 @@ func (r *FlowchartRepository) Delete(
 	userID int64,
 	flowchartID int64,
 ) error {
-	result, err := r.db.Exec(ctx, `DELETE FROM flowcharts f USING projects p
-	WHERE f.id_flowchart = $1 AND f.id_project = p.id_project AND p.owner_id = $2`, flowchartID, userID)
+	result, err := r.db.Exec(
+		ctx,
+		`WITH deleted AS (
+			DELETE FROM flowcharts f
+			USING projects p
+			WHERE f.id_flowchart = $1
+			AND f.id_project = p.id_project
+			AND p.owner_id = $2
+			RETURNING f.id_project
+		)
+		UPDATE projects p
+		SET updated_at = NOW()
+		FROM deleted d
+		WHERE p.id_project = d.id_project`,
+		flowchartID,
+		userID,
+	)
 	if err != nil {
 		return fmt.Errorf("delete flowchart: %w", err)
 	}
@@ -94,14 +119,26 @@ func (r *FlowchartRepository) UpdateContent(
 	ctx context.Context, userID, projectID, flowchartID int64, data []byte,
 ) error {
 	res, err := r.db.Exec(ctx,
-		`UPDATE flowcharts f
-            SET data_f = $1::jsonb, updated_at = NOW()
-           FROM projects p
-          WHERE f.id_flowchart = $2
-            AND f.id_project   = $3
-            AND p.id_project   = f.id_project
-            AND p.owner_id     = $4`,
-		data, flowchartID, projectID, userID)
+		`WITH updated_flowchart AS (
+			UPDATE flowcharts f
+			SET data_f = $1::jsonb,
+			updated_at = NOW()
+			FROM projects p
+			WHERE f.id_flowchart = $2
+			AND f.id_project = $3
+			AND p.id_project = f.id_project
+			AND p.owner_id = $4
+			RETURNING f.id_project
+		)
+		UPDATE projects p
+		SET updated_at = NOW()
+		FROM updated_flowchart uf
+		WHERE p.id_project = uf.id_project`,
+		data,
+		flowchartID,
+		projectID,
+		userID,
+	)
 	if err != nil {
 		return fmt.Errorf("update flowchart content: %w", err)
 	}

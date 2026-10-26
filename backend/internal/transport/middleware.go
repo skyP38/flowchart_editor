@@ -5,7 +5,6 @@ package transport
 
 import (
 	"log"
-	"log/slog"
 	"net/http"
 	"strings"
 	"time"
@@ -82,12 +81,7 @@ func Logging(next http.Handler) http.Handler {
 		start := time.Now()
 		rec := &statusRecorder{ResponseWriter: w, status: http.StatusOK}
 		next.ServeHTTP(rec, r)
-		slog.Info("request",
-			"method", r.Method,
-			"path", r.URL.Path,
-			"status", rec.status,
-			"duration", time.Since(start),
-		)
+		log.Printf("%s %s %d %s", r.Method, r.URL.Path, rec.status, time.Since(start))
 	})
 }
 

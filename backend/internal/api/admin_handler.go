@@ -201,6 +201,8 @@ type adminSessionDTO struct {
 	ExpiresAt time.Time  `json:"expiresAt"`
 	RevokedAt *time.Time `json:"revokedAt,omitempty"`
 	Active    bool       `json:"active"`
+	DeviceName string    `json:"deviceName"`
+	Location string      `json:"location"`
 }
 
 func (h *AdminHandler) ListSessions(w http.ResponseWriter, r *http.Request) {
@@ -226,7 +228,7 @@ func (h *AdminHandler) ListSessions(w http.ResponseWriter, r *http.Request) {
 		item := adminSessionDTO{
 			ID: session.ID, UserID: session.UserID, CreatedAt: session.CreatedAt,
 			ExpiresAt: session.ExpiresAt, RevokedAt: session.RevokedAt,
-			Active: session.IsActive(now),
+			Active: session.IsActive(now), DeviceName: session.DeviceName, Location: session.Location,
 		}
 		if user, ok := usersByID[session.UserID]; ok {
 			item.Login = user.Login

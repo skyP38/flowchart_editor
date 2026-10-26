@@ -42,7 +42,7 @@ func (r *SessionRepository) ListByUserID(
 	userID int64,
 ) ([]*domains.Session, error) {
 	rows, err := r.db.Query(ctx,
-		`SELECT id_sessions, id_user, token_hash, created_at, expires_at, revoked_at
+		`SELECT id_sessions, id_user, token_hash, created_at, expires_at, revoked_at, device_name, location
 		FROM sessions
 		WHERE id_user = $1
 		ORDER BY created_at DESC`, userID)
@@ -61,6 +61,8 @@ func (r *SessionRepository) ListByUserID(
 			&s.CreatedAt,
 			&s.ExpiresAt,
 			&s.RevokedAt,
+			&s.DeviceName,
+			&s.Location,
 		); err != nil {
 			return nil, fmt.Errorf("scan session: %w", err)
 		}
@@ -71,7 +73,7 @@ func (r *SessionRepository) ListByUserID(
 
 func (r *SessionRepository) ListAll(ctx context.Context) ([]*domains.Session, error) {
 	rows, err := r.db.Query(ctx,
-		`SELECT id_sessions, id_user, token_hash, created_at, expires_at, revoked_at
+		`SELECT id_sessions, id_user, token_hash, created_at, expires_at, revoked_at, device_name, location
 		 FROM sessions
 		 ORDER BY created_at DESC, id_sessions DESC`)
 	if err != nil {
@@ -89,6 +91,8 @@ func (r *SessionRepository) ListAll(ctx context.Context) ([]*domains.Session, er
 			&session.CreatedAt,
 			&session.ExpiresAt,
 			&session.RevokedAt,
+			&session.DeviceName,
+			&session.Location,
 		); err != nil {
 			return nil, fmt.Errorf("scan session: %w", err)
 		}
@@ -120,11 +124,17 @@ func (r *SessionRepository) Close(
 }
 
 func (r *SessionRepository) Create(ctx context.Context, s *domains.Session) error {
+	if s.DeviceName == "" {
+		s.DeviceName = "Unknown device"
+	}
+	if s.Location == "" {
+		s.Location = "Not recorded"
+	}
 	err := r.db.QueryRow(ctx,
-		`INSERT INTO sessions (id_user, created_at, expires_at, revoked_at, token_hash)
-		VALUES ($1, $2, $3, NULL, $4)
+		`INSERT INTO sessions (id_user, created_at, expires_at, revoked_at, token_hash, device_name, location)
+		VALUES ($1, $2, $3, NULL, $4, $5, $6)
 		RETURNING id_sessions`,
-		s.UserID, s.CreatedAt, s.ExpiresAt, s.TokenHash).Scan(&s.ID)
+		s.UserID, s.CreatedAt, s.ExpiresAt, s.TokenHash, s.DeviceName, s.Location).Scan(&s.ID)
 	if err != nil {
 		return fmt.Errorf("create session: %w", err)
 	}
@@ -134,10 +144,9 @@ func (r *SessionRepository) Create(ctx context.Context, s *domains.Session) erro
 func (r *SessionRepository) GetByTokenHash(ctx context.Context, hash string) (*domains.Session, error) {
 	var s domains.Session
 	err := r.db.QueryRow(ctx,
-		`SELECT id_sessions, id_user, token_hash, created_at, expires_at, revoked_at
+		`SELECT id_sessions, id_user, token_hash, created_at, expires_at, revoked_at, device_name, location
 		FROM sessions WHERE token_hash = $1`, hash).Scan(
-		&s.ID, &s.UserID, &s.TokenHash, &s.CreatedAt, &s.ExpiresAt, &s.RevokedAt,
-	)
+		&s.ID, &s.UserID, &s.TokenHash, &s.CreatedAt, &s.ExpiresAt, &s.RevokedAt, &s.DeviceName, &s.Location)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, domains.ErrNotFound
 	}
@@ -150,9 +159,9 @@ func (r *SessionRepository) GetByTokenHash(ctx context.Context, hash string) (*d
 func (r *SessionRepository) GetByID(ctx context.Context, id int64) (*domains.Session, error) {
 	var s domains.Session
 	err := r.db.QueryRow(ctx,
-		`SELECT id_sessions, id_user, token_hash, created_at, expires_at, revoked_at
+		`SELECT id_sessions, id_user, token_hash, created_at, expires_at, revoked_at, device_name, location
 		FROM sessions WHERE id_sessions = $1`, id).Scan(
-		&s.ID, &s.UserID, &s.TokenHash, &s.CreatedAt, &s.ExpiresAt, &s.RevokedAt,
+		&s.ID, &s.UserID, &s.TokenHash, &s.CreatedAt, &s.ExpiresAt, &s.RevokedAt, &s.DeviceName, &s.Location,
 	)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, domains.ErrNotFound
