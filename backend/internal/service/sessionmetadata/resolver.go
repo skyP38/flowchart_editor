@@ -88,28 +88,3 @@ func detectDeviceName(userAgent string) string {
 
 	return browser + " on " + osName
 }
-
-func extractPublicIP(remoteAddr string) netip.Addr {
-	host, _, err := net.SplitHostPort(remoteAddr)
-	if err != nil {
-		host = strings.Trim(remoteAddr, "[]")
-	}
-
-	ip, err := netip.ParseAddr(host)
-	if err != nil {
-		return netip.Addr{}
-	}
-
-	ip = ip.Unmap()
-
-	if !ip.IsValid() ||
-		ip.IsLoopback() ||
-		ip.IsPrivate() ||
-		ip.IsUnspecified() ||
-		ip.IsLinkLocalUnicast() ||
-		ip.IsMulticast() {
-		return netip.Addr{}
-	}
-
-	return ip
-}
