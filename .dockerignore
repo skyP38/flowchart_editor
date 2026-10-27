@@ -1,0 +1,10 @@
+.git
+.github
+.env
+.env.*
+*.md
+.idea
+.vscode
+frontend/build
+frontend/.dart_tool
+backend/tmp
