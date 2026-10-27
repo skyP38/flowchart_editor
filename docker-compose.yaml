@@ -55,9 +55,12 @@ services:
     build:
       context: ./frontend
       args:
-        - API_BASE_URL=http://localhost:8080
+        - API_BASE_URL=
     ports:
       - "80:80"
+      - "443:443"
+    volumes:
+      - ./certs:/etc/nginx/certs:ro
     depends_on:
       - backend
 

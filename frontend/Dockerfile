@@ -15,7 +15,7 @@ RUN flutter pub get
 COPY . .
 
 RUN flutter clean
-ARG API_BASE_URL=http://localhost:8080
+ARG API_BASE_URL=/
 RUN flutter build web --release --dart-define=API_BASE_URL=$API_BASE_URL --no-wasm-dry-run
 
 
