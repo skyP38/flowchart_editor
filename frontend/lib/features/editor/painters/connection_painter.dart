@@ -60,10 +60,6 @@ class ConnectionPainter extends CustomPainter {
 
     // Кружки для вставки блоков
     for (final point in insertionPoints) {
-      // final isPointOfHovered = point.connection.id == hoveredConnectionId;
-      // final plusColor = hasHover && !isPointOfHovered
-      //     ? Colors.grey.shade400
-      //     : Colors.blue;
       // Заливка кружка
       final fillPaint = Paint()
         ..color = Colors.white
@@ -134,12 +130,9 @@ class ConnectionPainter extends CustomPainter {
       // левый ход между колонками в _routeDefault.
       if (!isLast && isHorizontal && goesLeft && segLen > 30) {
         final mid = Offset(
-          s.start.dx + (s.end.dx - s.start.dx) * 0.25,
-          s.start.dy + (s.end.dy - s.start.dy) * 0.25,
+          (s.start.dx + s.end.dx) / 2,
+          (s.start.dy + s.end.dy) / 2,
         );
-        //   (s.start.dx + s.end.dx) / 2,
-        //   (s.start.dy + s.end.dy) / 2,
-        // );
         _drawArrowHead(canvas, mid, Offset(s.dirX, s.dirY), arrowPaint);
       }
     }

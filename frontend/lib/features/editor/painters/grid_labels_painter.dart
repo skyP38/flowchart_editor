@@ -1,4 +1,3 @@
-import 'package:flowchart_editor_frontend/features/editor/constants/diagram_constants.dart';
 import 'package:flutter/material.dart';
 
 // Преобразует номер колонки(цифру) в букву
@@ -16,12 +15,10 @@ String numberToLetter(int n) {
 // Рисует подписи сетки: цифры сверху(столбцы), буквы слева (строки)
 // Нумерация привязана к расположению блока Start
 class GridLabelsPainter extends CustomPainter {
-  final double columnWidth; // = spacing.stepX
-  final double rowHeight; // = spacing.stepY
-  final double nodeWidth; // = nodeSize.width
-  final double nodeHeight; // = nodeSize.height
-  // final double? stepX;
-  // final double? stepY;
+  final double columnWidth;
+  final double rowHeight;
+  final double nodeWidth;
+  final double nodeHeight;
   final Offset startPosition;
 
   GridLabelsPainter({
@@ -29,21 +26,11 @@ class GridLabelsPainter extends CustomPainter {
     required this.rowHeight,
     required this.nodeWidth,
     required this.nodeHeight,
-    // required this.stepX,
-    // required this.stepY,
     required this.startPosition,
   });
 
   @override
   void paint(Canvas canvas, Size size) {
-    // if (stepX == null || stepY == null) return;
-
-    final textStyle = TextStyle(
-      color: Colors.grey.shade700,
-      fontSize: GridConstants.fontSize,
-      fontWeight: FontWeight.w500,
-    );
-
     // Стиль для линий сетки
     final linePaint = Paint()
       ..color = Colors.grey.withValues(alpha: 0.2)
@@ -64,17 +51,6 @@ class GridLabelsPainter extends CustomPainter {
       if (x >= 0 && x <= size.width) {
         canvas.drawLine(Offset(x, 0), Offset(x, size.height), linePaint);
       }
-
-      // Цифра по центру ячейки
-      final labelX = x + columnWidth / 2;
-      if (labelX >= 0 && labelX <= size.width) {
-        final number = col + 1;
-        final tp = TextPainter(
-          text: TextSpan(text: '$number', style: textStyle),
-          textDirection: TextDirection.ltr,
-        )..layout();
-        tp.paint(canvas, Offset(x - tp.width / 2, 2));
-      }
     }
 
     // Строки: аналогично, центр строки 0 = центр Start-блока.
@@ -85,16 +61,6 @@ class GridLabelsPainter extends CustomPainter {
       final y = startBoundaryY + row * rowHeight;
       if (y >= 0 && y <= size.height) {
         canvas.drawLine(Offset(0, y), Offset(size.width, y), linePaint);
-      }
-
-      final labelY = y + rowHeight / 2;
-      if (labelY >= 0 && labelY <= size.height) {
-        final letter = numberToLetter(row);
-        final tp = TextPainter(
-          text: TextSpan(text: letter, style: textStyle),
-          textDirection: TextDirection.ltr,
-        )..layout();
-        tp.paint(canvas, Offset(2, y - tp.height / 2));
       }
     }
   }

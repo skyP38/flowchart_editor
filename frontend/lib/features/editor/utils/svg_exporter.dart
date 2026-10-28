@@ -42,8 +42,6 @@ class SvgExporter {
             startPosition: start.position,
             stepX: spacing.stepX - GridConstants.stepXExtra,
             stepY: spacing.stepY - GridConstants.stepYExtra,
-            // stepX: nodeSize.width,
-            // stepY: nodeSize.height,
           ),
         );
       }
@@ -113,8 +111,8 @@ class SvgExporter {
 
       if (!isLast && isHorizontal && goesLeft && segLen > 30) {
         final mid = Offset(
-          s.start.dx + (s.end.dx - s.start.dx) * 0.25,
-          s.start.dy + (s.end.dy - s.start.dy) * 0.25,
+          (s.start.dx + s.end.dx) / 2,
+          (s.start.dy + s.end.dy) / 2,
         );
         buffer.write(_arrowHeadSvg(mid, s.dirX, s.dirY));
       }
