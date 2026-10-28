@@ -148,14 +148,15 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 	})
 
 	if err != nil {
-		if errors.Is(err, auth.ErrInvalidCredentials) {
+		switch {
+		case errors.Is(err, auth.ErrInvalidCredentials):
 			if rerr := h.limiter.RecordFailure(r.Context(), keys); rerr != nil {
 				log.Printf("ratelimit: record failure: %v; keys=%v", rerr, keys)
 			}
 			h.writeAudit(r.Context(), nil, login, "login.failed", "Fail")
-		} else if errors.Is(err, auth.ErrUserBlocked) {
+		case errors.Is(err, auth.ErrUserBlocked):
 			h.writeAudit(r.Context(), nil, login, "login.blocked", "Fail")
-		} else {
+		default:
 			h.writeAudit(r.Context(), nil, login, "login.failed", "Fail")
 		}
 		writeAuthError(w, err)

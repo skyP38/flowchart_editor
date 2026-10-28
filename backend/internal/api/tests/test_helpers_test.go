@@ -79,7 +79,7 @@ func setupEnv(t *testing.T, opts setupOpts) *testEnv {
 		opts.Pepper, opts.AccessTTL, opts.RefreshTTL,
 	)
 
-	authMW := api.Auth(accessMgr, sessions)
+	authMW := api.Auth(accessMgr, sessions, users)
 	mux := http.NewServeMux()
 	api.NewAuthHandler(authSvc, limiter).RegisterRoutes(mux, authMW)
 	api.NewSessionHandler(authSvc).RegisterRoutes(mux, authMW)
