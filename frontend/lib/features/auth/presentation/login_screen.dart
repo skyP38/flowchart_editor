@@ -93,6 +93,15 @@ class _LoginScreenState extends State<LoginScreen> {
 
   // Раскладывает ошибку сервера
   void _applyServerError(ApiError err) {
+    if (err.isUserBlocked) {
+      setState(() {
+        _isSubmitting = false;
+        _fieldErrors.clear();
+        _generalError =
+            'Your account has been blocked. Contact an administrator.';
+      });
+      return;
+    }
     final newFieldErrors = <String, String>{};
     for (final field in const ['login', 'password']) {
       final msg = err.fieldError(field);

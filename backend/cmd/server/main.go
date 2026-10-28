@@ -37,7 +37,7 @@ func main() {
 	// dbURL := os.Getenv("DATABASE_URL")
 	// if dbURL == "" {
 	// 	log.Fatal("DATABASE_URL is not set")
-	// }	
+	// }
 	db, err := pgxpool.New(context.Background(), cfg.DatabaseURL)
 	if err != nil {
 		log.Fatal(err)
@@ -93,7 +93,7 @@ func main() {
 	flowchartHandler := api.NewFlowchartHandler(flowchartSvc)
 
 	// middleware аутентификации
-	authMW := api.Auth(accessMgr, sessionRepo, logRepo)
+	authMW := api.Auth(accessMgr, sessionRepo, userRepo, logRepo)
 
 	mux := http.NewServeMux()
 

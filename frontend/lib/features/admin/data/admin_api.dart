@@ -58,4 +58,11 @@ class AdminApi {
   Future<void> deleteUser(int id) async {
     await _client.delete<void>(ApiPaths.adminUser(id));
   }
+
+  Future<void> setUserActive(int id, bool active) async {
+    await _client.patch<void>(
+      '${ApiPaths.adminUser(id)}/active',
+      data: {'active': active},
+    );
+  }
 }

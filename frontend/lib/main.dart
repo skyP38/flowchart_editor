@@ -23,19 +23,26 @@ Future<void> main() async {
 
   final tokenStorage = SecureTokenStorage();
 
-  late AuthRepository authRepository;
+  late final ApiClient apiClient;
+  late final AuthApi authApi;
+  late final AdminApi adminApi;
+  late final ApiService apiService;
+  late final AuthRepository authRepository;
 
-  final apiClient = ApiClient(
+  apiClient = ApiClient(
     baseUrl: baseUrl,
     storage: tokenStorage,
-    onUnauthorized: () {
-      authRepository.onSessionExpired();
-    },
+    onUnauthorized: () => authRepository.onSessionExpired(
+      reason: 'Your session has expired. Please sign in again.',
+    ),
+    onUserBlocked: () => authRepository.onSessionExpired(
+      reason: 'Your account has been blocked. Contact an administrator.',
+    ),
   );
 
-  final authApi = AuthApi(apiClient);
-  final adminApi = AdminApi(apiClient);
-  final apiService = ApiService(apiClient);
+  authApi = AuthApi(apiClient);
+  adminApi = AdminApi(apiClient);
+  apiService = ApiService(apiClient);
 
   authRepository = AuthRepository(api: authApi, storage: tokenStorage);
 

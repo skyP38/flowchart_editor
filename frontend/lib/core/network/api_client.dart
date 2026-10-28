@@ -15,11 +15,11 @@ class ApiClient {
     required String baseUrl,
     required TokenStorage storage,
     void Function()? onUnauthorized,
+    void Function()? onUserBlocked,
     Duration connectTimeout = const Duration(seconds: 15),
     Duration receiveTimeout = const Duration(seconds: 20),
     Duration sendTimeout = const Duration(seconds: 20),
-  }) : // _storage = storage,
-       _dio = Dio(
+  }) : _dio = Dio(
          BaseOptions(
            baseUrl: baseUrl,
            connectTimeout: connectTimeout,
@@ -40,11 +40,9 @@ class ApiClient {
         dio: _dio,
         storage: storage,
         onUnauthorized: onUnauthorized,
+        onUserBlocked: onUserBlocked,
       ),
       LoggingInterceptor(),
-
-      // if (const bool.fromEnvironment('dart.vm.product') == false)
-      //   LoggingInterceptor(),
     ]);
   }
 

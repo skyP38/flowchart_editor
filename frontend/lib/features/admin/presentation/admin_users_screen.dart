@@ -6,8 +6,7 @@ import '../../auth/domain/auth_repository.dart';
 import '../data/admin_api.dart';
 import '../models/admin_user.dart';
 import '../../../core/network/api_error.dart';
-
-// import '../data/admin_route_storage.dart';
+import '../../user/widgets/user.dart';
 
 class AdminUsersScreen extends StatefulWidget {
   final VoidCallback onOpenEditor;
@@ -104,8 +103,66 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
     }).toList();
   }
 
+  Future<void> _setUserActive(AdminUser user, bool active) async {
+    if (!active) {
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Block user?'),
+          content: Text(
+            'Block "${user.login}"? '
+            'All their sessions will be terminated and they won\'t be able to log in.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              style: FilledButton.styleFrom(
+                backgroundColor: const Color(0xFFDC2626),
+              ),
+              onPressed: () => Navigator.of(ctx).pop(true),
+              child: const Text('Block'),
+            ),
+          ],
+        ),
+      );
+      if (confirmed != true || !mounted) return;
+    }
+
+    try {
+      await _api.setUserActive(user.id, active);
+      if (!mounted) return;
+      _reload();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            active
+                ? 'User "${user.login}" unblocked'
+                : 'User "${user.login}" blocked',
+          ),
+        ),
+      );
+    } on ApiError catch (e) {
+      if (!mounted) return;
+      final msg = e.code == 'last_admin'
+          ? 'You cannot block the last admin'
+          : e.message;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Failed to update user: $e')));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    final width = MediaQuery.sizeOf(context).width;
+    final compact = width < 900;
+    final narrow = width < 700;
     return Scaffold(
       appBar: AppBar(
         title: Row(
@@ -135,144 +192,48 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
         shape: const Border(
           bottom: BorderSide(color: Color(0xFFD9D9D9), width: 1),
         ),
-        actions: [
-          TextButton.icon(
-            onPressed: widget.onOpenEditor,
-            label: const Text(
-              'Flowchart editor',
-              style: TextStyle(color: Color(0xFF1E1E1E)),
-            ),
-          ),
-          TextButton.icon(
-            onPressed: _reload,
-            label: const Text(
-              'Users',
-              style: TextStyle(color: Color(0xFF1E1E1E)),
-            ),
-          ),
-          TextButton.icon(
-            onPressed: _sessions,
-            label: const Text(
-              'Sessions',
-              style: TextStyle(color: Color(0xFF1E1E1E)),
-            ),
-          ),
-          TextButton.icon(
-            onPressed: _logs,
-            label: const Text(
-              'Logs',
-              style: TextStyle(color: Color(0xFF1E1E1E)),
-            ),
-          ),
-          TextButton.icon(
-            onPressed: _logout,
-            label: const Text(
-              'Log out',
-              style: TextStyle(color: Color(0xFF1E1E1E)),
-            ),
-            style: TextButton.styleFrom(
-              backgroundColor: const Color(0xFFE3E3E3),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
-                side: const BorderSide(color: Color(0xFF767676), width: 1),
-              ),
-            ),
-          ),
-          const SizedBox(width: 16),
-        ],
+        actions: compact
+            ? [
+                const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 4),
+                  child: UserChip(compact: true),
+                ),
+                _buildMobileMenu(),
+              ]
+            : [
+                _navButton('Flowchart editor', widget.onOpenEditor),
+                _navButton('Users', _reload, active: true),
+                _navButton('Sessions', _sessions),
+                _navButton('Logs', _logs),
+                TextButton.icon(
+                  onPressed: _logout,
+                  label: const Text(
+                    'Log out',
+                    style: TextStyle(color: Color(0xFF1E1E1E)),
+                  ),
+                  style: TextButton.styleFrom(
+                    backgroundColor: const Color(0xFFE3E3E3),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      side: const BorderSide(
+                        color: Color(0xFF767676),
+                        width: 1,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 16),
+                const UserChip(),
+                const SizedBox(width: 12),
+              ],
       ),
       backgroundColor: const Color(0xFFF5F5F5),
       body: Column(
         children: [
-          Container(
-            color: Colors.white,
-            padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 20),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Text(
-                      'Users',
-                      style: TextStyle(
-                        fontSize: 24,
-                        fontWeight: FontWeight.w700,
-                        color: Color(0xFF1E1E1E),
-                      ),
-                    ),
-                    FilledButton.icon(
-                      onPressed: _showAddUserDialog,
-                      icon: const Icon(Icons.add),
-                      label: const Text('Add user'),
-                      style: FilledButton.styleFrom(
-                        backgroundColor: const Color(0xFF6750A4),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                Row(
-                  children: [
-                    Expanded(
-                      child: SizedBox(
-                        height: 40,
-                        child: TextField(
-                          onChanged: (v) => setState(() => _search = v),
-                          decoration: InputDecoration(
-                            hintText: 'Search by login, name or role...',
-                            hintStyle: const TextStyle(
-                              fontSize: 14,
-                              color: Color(0xFF9CA3AF),
-                            ),
-                            prefixIcon: const Icon(Icons.search, size: 18),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(6),
-                              borderSide: const BorderSide(
-                                color: Color(0xFFD9D9D9),
-                              ),
-                            ),
-                            enabledBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(6),
-                              borderSide: const BorderSide(
-                                color: Color(0xFFD9D9D9),
-                              ),
-                            ),
-                            contentPadding: const EdgeInsets.symmetric(
-                              vertical: 0,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 16),
-                    SizedBox(
-                      height: 40,
-                      child: DropdownButtonHideUnderline(
-                        child: DropdownButton<String>(
-                          value: _statusFilter,
-                          items: ['All statuses', 'Active', 'Inactive']
-                              .map(
-                                (e) =>
-                                    DropdownMenuItem(value: e, child: Text(e)),
-                              )
-                              .toList(),
-                          onChanged: (v) => setState(() => _statusFilter = v!),
-                          style: const TextStyle(
-                            fontSize: 14,
-                            color: Color(0xFF1E1E1E),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
+          _buildPageHeader(narrow: narrow),
           Expanded(
             child: SingleChildScrollView(
-              padding: const EdgeInsets.all(40),
+              padding: EdgeInsets.all(narrow ? 16 : 40),
               child: FutureBuilder<List<AdminUser>>(
                 future: _usersFuture,
                 builder: (context, snapshot) {
@@ -296,7 +257,9 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
                   }
 
                   final users = _filterUsers(snapshot.data ?? []);
-                  return _buildTable(users);
+                  return narrow
+                      ? _buildUserCards(users)
+                      : _buildDesktopTable(users);
                 },
               ),
             ),
@@ -306,7 +269,189 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
     );
   }
 
-  Widget _buildTable(List<AdminUser> users) {
+  Widget _navButton(
+    String label,
+    VoidCallback? onPressed, {
+    bool active = false,
+  }) {
+    return TextButton(
+      onPressed: active ? null : onPressed,
+      style: TextButton.styleFrom(
+        backgroundColor: active
+            ? const Color(0xFFF1EDFA) // фиолетовая подложка
+            : Colors.transparent,
+        foregroundColor: active
+            ? const Color(0xFF6750A4) // фиолетовый текст
+            : const Color(0xFF1E1E1E),
+        disabledForegroundColor: const Color(0xFF6750A4),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          fontWeight: active ? FontWeight.w700 : FontWeight.w400,
+          fontSize: 14,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMobileMenu() {
+    return PopupMenuButton<String>(
+      icon: const Icon(Icons.more_vert, color: Color(0xFF1E1E1E)),
+      tooltip: 'Menu',
+      onSelected: (value) {
+        switch (value) {
+          case 'editor':
+            widget.onOpenEditor();
+            break;
+          case 'users':
+            _reload();
+            break;
+          case 'sessions':
+            _sessions();
+            break;
+          case 'logs':
+            _logs();
+            break;
+          case 'logout':
+            _logout();
+            break;
+        }
+      },
+
+      itemBuilder: (context) => [
+        const PopupMenuItem(value: 'editor', child: Text('Flowchart editor')),
+        PopupMenuItem(
+          value: 'users',
+          enabled: false,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF1EDFA),
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: const Text(
+              'Users',
+              style: TextStyle(
+                color: Color(0xFF6750A4),
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        ),
+        const PopupMenuItem(value: 'sessions', child: Text('Sessions')),
+        const PopupMenuItem(value: 'logs', child: Text('Logs')),
+        const PopupMenuDivider(),
+        const PopupMenuItem(value: 'logout', child: Text('Log out')),
+      ],
+    );
+  }
+
+  Widget _buildPageHeader({required bool narrow}) {
+    return Container(
+      color: Colors.white,
+      padding: EdgeInsets.symmetric(
+        horizontal: narrow ? 16 : 40,
+        vertical: narrow ? 16 : 20,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Users',
+                style: TextStyle(
+                  fontSize: narrow ? 20 : 24,
+                  fontWeight: FontWeight.w700,
+                  color: const Color(0xFF1E1E1E),
+                ),
+              ),
+              FilledButton.icon(
+                onPressed: _showAddUserDialog,
+                icon: const Icon(Icons.add),
+                label: const Text('Add user'),
+                style: FilledButton.styleFrom(
+                  backgroundColor: const Color(0xFF6750A4),
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 16),
+          if (narrow) ...[
+            _buildSearchField(),
+            const SizedBox(height: 12),
+            _buildStatusDropdown(fullWidth: true),
+          ] else
+            Row(
+              children: [
+                Expanded(child: _buildSearchField()),
+                const SizedBox(width: 16),
+                _buildStatusDropdown(fullWidth: false),
+              ],
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSearchField() {
+    return SizedBox(
+      height: 40,
+      child: TextField(
+        onChanged: (v) => setState(() => _search = v),
+        decoration: InputDecoration(
+          hintText: 'Search by login, name or role...',
+          hintStyle: const TextStyle(fontSize: 14, color: Color(0xFF9CA3AF)),
+          prefixIcon: const Icon(Icons.search, size: 18),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(6),
+            borderSide: const BorderSide(color: Color(0xFFD9D9D9)),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(6),
+            borderSide: const BorderSide(color: Color(0xFFD9D9D9)),
+          ),
+          contentPadding: const EdgeInsets.symmetric(vertical: 0),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStatusDropdown({required bool fullWidth}) {
+    final dropdown = DropdownButtonHideUnderline(
+      child: DropdownButton<String>(
+        value: _statusFilter,
+        isExpanded: fullWidth,
+        items: [
+          'All statuses',
+          'Active',
+          'Inactive',
+        ].map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
+        onChanged: (v) => setState(() => _statusFilter = v!),
+        style: const TextStyle(fontSize: 14, color: Color(0xFF1E1E1E)),
+      ),
+    );
+
+    if (!fullWidth) return SizedBox(height: 40, child: dropdown);
+
+    return Container(
+      height: 40,
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      decoration: BoxDecoration(
+        border: Border.all(color: const Color(0xFFD9D9D9)),
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: dropdown,
+    );
+  }
+
+  //  Desktop version
+
+  Widget _buildDesktopTable(List<AdminUser> users) {
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
@@ -388,10 +533,25 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
           overflow: TextOverflow.ellipsis,
           style: const TextStyle(fontSize: 14, color: Color(0xFF4B5563)),
         ),
-        actions: IconButton(
-          tooltip: 'Delete user',
-          onPressed: () => _confirmDeleteUser(user),
-          icon: const Icon(Icons.delete_outline, color: Color(0xFFDC2626)),
+        actions: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            IconButton(
+              tooltip: user.isActive ? 'Block user' : 'Unblock user',
+              onPressed: () => _setUserActive(user, !user.isActive),
+              icon: Icon(
+                user.isActive ? Icons.block : Icons.lock_open_outlined,
+                color: user.isActive
+                    ? const Color(0xFFB45309)
+                    : const Color(0xFF059669),
+              ),
+            ),
+            IconButton(
+              tooltip: 'Delete user',
+              onPressed: () => _confirmDeleteUser(user),
+              icon: const Icon(Icons.delete_outline, color: Color(0xFFDC2626)),
+            ),
+          ],
         ),
       ),
     );
@@ -422,10 +582,122 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
         if (actions != null) ...[
           const SizedBox(width: 12),
           SizedBox(
-            width: 72,
+            width: 100,
             child: Align(alignment: Alignment.centerRight, child: actions),
           ),
         ],
+      ],
+    );
+  }
+
+  //  Mobile version
+  Widget _buildUserCards(List<AdminUser> users) {
+    if (users.isEmpty) {
+      return const Padding(
+        padding: EdgeInsets.all(32),
+        child: Center(child: Text('No users found')),
+      );
+    }
+
+    return Column(children: [for (final user in users) _buildUserCard(user)]);
+  }
+
+  Widget _buildUserCard(AdminUser user) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        border: Border.all(color: const Color(0xFFE5E7EB)),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  user.login,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF111827),
+                  ),
+                ),
+              ),
+              IconButton(
+                tooltip: user.isActive ? 'Block user' : 'Unblock user',
+                visualDensity: VisualDensity.compact,
+                onPressed: () => _setUserActive(user, !user.isActive),
+                icon: Icon(
+                  user.isActive ? Icons.block : Icons.lock_open_outlined,
+                  color: user.isActive
+                      ? const Color(0xFFB45309)
+                      : const Color(0xFF059669),
+                  size: 20,
+                ),
+              ),
+              IconButton(
+                tooltip: 'Delete user',
+                visualDensity: VisualDensity.compact,
+                onPressed: () => _confirmDeleteUser(user),
+                icon: const Icon(
+                  Icons.delete_outline,
+                  color: Color(0xFFDC2626),
+                  size: 20,
+                ),
+              ),
+            ],
+          ),
+          if (user.name.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Text(
+                user.name,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontSize: 13, color: Color(0xFF4B5563)),
+              ),
+            ),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              _RoleBadge(role: user.role),
+              _StatusBadge(isActive: user.isActive),
+            ],
+          ),
+          const SizedBox(height: 10),
+          _infoLine('Created', _formatDate(user.createdAt)),
+          const SizedBox(height: 4),
+          _infoLine(
+            'Last seen',
+            user.lastLogin != null ? _formatDate(user.lastLogin!) : '—',
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _infoLine(String label, String value) {
+    return Row(
+      children: [
+        SizedBox(
+          width: 80,
+          child: Text(
+            label,
+            style: const TextStyle(fontSize: 12, color: Color(0xFF6B7280)),
+          ),
+        ),
+        Expanded(
+          child: Text(
+            value,
+            style: const TextStyle(fontSize: 13, color: Color(0xFF111827)),
+          ),
+        ),
       ],
     );
   }
@@ -434,34 +706,6 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
     String two(int value) => value.toString().padLeft(2, '0');
     return '${two(date.day)}.${two(date.month)}.${date.year.toString().substring(2)}';
   }
-
-  // Future<void> _showUserDetails(AdminUser user) async {
-  //   await showDialog<void>(
-  //     context: context,
-  //     builder: (context) => AlertDialog(
-  //       title: Text(user.name.isEmpty ? user.login : user.name),
-  //       content: Column(
-  //         mainAxisSize: MainAxisSize.min,
-  //         crossAxisAlignment: CrossAxisAlignment.start,
-  //         children: [
-  //           Text('Login: ${user.login}'),
-  //           Text('Role: ${user.role}'),
-  //           Text('Status: ${user.isActive ? "Active" : "Inactive"}'),
-  //           Text('Created: ${_formatDate(user.createdAt)}'),
-  //           Text(
-  //             'Last seen: ${user.lastLogin == null ? "—" : _formatDate(user.lastLogin!)}',
-  //           ),
-  //         ],
-  //       ),
-  //       actions: [
-  //         TextButton(
-  //           onPressed: () => Navigator.pop(context),
-  //           child: const Text('Close'),
-  //         ),
-  //       ],
-  //     ),
-  //   );
-  // }
 
   Future<void> _confirmDeleteUser(AdminUser user) async {
     final confirmed = await showDialog<bool>(
@@ -489,11 +733,8 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
 
     try {
       await _api.deleteUser(user.id);
-
       if (!mounted) return;
-
       _reload();
-
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text('User "${user.login}" deleted')));
@@ -505,7 +746,7 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text(message)));
-    } catch (e) {
+    } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -519,14 +760,12 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
 
 class _HeaderCell extends StatelessWidget {
   final String text;
-  // final TextAlign align;
   const _HeaderCell(this.text);
 
   @override
   Widget build(BuildContext context) {
     return Text(
       text,
-      // textAlign: align,
       style: const TextStyle(
         fontSize: 12,
         fontWeight: FontWeight.w600,
@@ -545,6 +784,7 @@ class _RoleBadge extends StatelessWidget {
     final isAdmin = role == 'admin';
     return Container(
       height: 24,
+      padding: const EdgeInsets.symmetric(horizontal: 10),
       alignment: Alignment.center,
       decoration: BoxDecoration(
         color: isAdmin ? const Color(0xFFFEF3C7) : const Color(0xFFE8F0FE),
@@ -570,13 +810,14 @@ class _StatusBadge extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       height: 24,
+      padding: const EdgeInsets.symmetric(horizontal: 10),
       alignment: Alignment.center,
       decoration: BoxDecoration(
         color: isActive ? const Color(0xFFECFDF5) : const Color(0xFFFEF2F2),
         borderRadius: BorderRadius.circular(6),
       ),
       child: Text(
-        isActive ? 'Active' : 'Inactive',
+        isActive ? 'Active' : 'Blocked',
         style: TextStyle(
           fontSize: 12,
           fontWeight: FontWeight.w600,
@@ -621,59 +862,65 @@ class _AddUserDialogState extends State<_AddUserDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final dialogWidth = MediaQuery.sizeOf(context).width < 460
+        ? MediaQuery.sizeOf(context).width - 80
+        : 380.0;
+
     return AlertDialog(
       title: const Text('Add user'),
       content: SizedBox(
-        width: 380,
-        child: Form(
-          key: _formKey,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextFormField(
-                controller: _login,
-                decoration: const InputDecoration(
-                  labelText: 'Login',
-                  hintText: '3–32 letters/digits/_',
-                ),
-                validator: (v) =>
-                    RegExp(r'^[a-zA-Z0-9_]{3,32}$').hasMatch(v?.trim() ?? '')
-                    ? null
-                    : 'Invalid login',
-              ),
-              const SizedBox(height: 12),
-              TextFormField(
-                controller: _name,
-                decoration: const InputDecoration(labelText: 'Name'),
-                validator: (v) =>
-                    (v?.trim().isEmpty ?? true) ? 'Enter a name' : null,
-              ),
-              const SizedBox(height: 12),
-              TextFormField(
-                controller: _password,
-                obscureText: true,
-                decoration: const InputDecoration(labelText: 'Password'),
-                validator: (v) =>
-                    RegExp(
-                      r'^(?=.*[A-Za-z])(?=.*[0-9]).{8,}$',
-                    ).hasMatch(v ?? '')
-                    ? null
-                    : 'Min 8 chars, 1 letter, 1 digit',
-              ),
-              const SizedBox(height: 12),
-              DropdownButtonFormField<String>(
-                initialValue: _role,
-                decoration: const InputDecoration(labelText: 'Role'),
-                items: const [
-                  DropdownMenuItem(value: 'user', child: Text('User')),
-                  DropdownMenuItem(
-                    value: 'admin',
-                    child: Text('Administrator'),
+        width: dialogWidth,
+        child: SingleChildScrollView(
+          child: Form(
+            key: _formKey,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextFormField(
+                  controller: _login,
+                  decoration: const InputDecoration(
+                    labelText: 'Login',
+                    hintText: '3–32 letters/digits/_',
                   ),
-                ],
-                onChanged: (v) => setState(() => _role = v!),
-              ),
-            ],
+                  validator: (v) =>
+                      RegExp(r'^[a-zA-Z0-9_]{3,32}$').hasMatch(v?.trim() ?? '')
+                      ? null
+                      : 'Invalid login',
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: _name,
+                  decoration: const InputDecoration(labelText: 'Name'),
+                  validator: (v) =>
+                      (v?.trim().isEmpty ?? true) ? 'Enter a name' : null,
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: _password,
+                  obscureText: true,
+                  decoration: const InputDecoration(labelText: 'Password'),
+                  validator: (v) =>
+                      RegExp(
+                        r'^(?=.*[A-Za-z])(?=.*[0-9]).{8,}$',
+                      ).hasMatch(v ?? '')
+                      ? null
+                      : 'Min 8 chars, 1 letter, 1 digit',
+                ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<String>(
+                  initialValue: _role,
+                  decoration: const InputDecoration(labelText: 'Role'),
+                  items: const [
+                    DropdownMenuItem(value: 'user', child: Text('User')),
+                    DropdownMenuItem(
+                      value: 'admin',
+                      child: Text('Administrator'),
+                    ),
+                  ],
+                  onChanged: (v) => setState(() => _role = v!),
+                ),
+              ],
+            ),
           ),
         ),
       ),

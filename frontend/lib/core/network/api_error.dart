@@ -37,6 +37,14 @@ class ApiError implements Exception {
   bool get isValidation => type == ApiErrorType.validation;
   bool get isServer => type == ApiErrorType.server;
 
+  bool get isUserBlocked {
+    if (statusCode == 403 &&
+        (code == 'user_blocked' || message == 'user is blocked')) {
+      return true;
+    }
+    return false;
+  }
+
   // Достает тип ошибки по конкретному полю формы
   String? fieldError(String field) {
     final d = details;

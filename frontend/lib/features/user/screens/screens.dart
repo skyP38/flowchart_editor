@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../../../core/network/api_service.dart';
 import '../widgets/card_p.dart';
 import '../models/project.dart';
+import 'project_screen.dart';
 
 class ProjectsContent extends StatefulWidget {
   const ProjectsContent({super.key});
@@ -59,24 +60,68 @@ class _ProjectsContentState extends State<ProjectsContent> {
     _reload();
   }
 
+  Future<void> _openProject(Project project) async {
+    await Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => ProjectScreen(projectId: project.id)),
+    );
+    if (mounted) _reload();
+  }
+
   Future<void> _deleteProject(Project project) async {
-    await _api.deleteProject(project.id);
-    _reload();
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete project?'),
+        content: Text(
+          'Delete "${project.name}" and all its flowcharts? '
+          'This action cannot be undone.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: const Color(0xFFDC2626),
+            ),
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true || !mounted) return;
+
+    try {
+      await _api.deleteProject(project.id);
+      if (!mounted) return;
+      _reload();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Project "${project.name}" deleted')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Could not delete project: $e')));
+    }
   }
 
   @override
   Widget build(BuildContext context) {
+    final narrow = MediaQuery.sizeOf(context).width < 800;
+
     return Column(
       children: [
-        // return Scaffold(
-        // body: Row(
-        // children: [
-        // // const Sidebar(currentRoute: 'projects'),
-        // Expanded(
-        //   child: Column(
-        //     children: [
         Padding(
-          padding: const EdgeInsets.fromLTRB(40, 24, 40, 0),
+          padding: EdgeInsets.fromLTRB(
+            narrow ? 12 : 40,
+            narrow ? 16 : 24,
+            narrow ? 12 : 40,
+            0,
+          ),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -203,19 +248,24 @@ class _ProjectsContentState extends State<ProjectsContent> {
                         );
                       }
                       return GridView.builder(
-                        gridDelegate:
-                            const SliverGridDelegateWithFixedCrossAxisCount(
-                              crossAxisCount: 2,
-                              crossAxisSpacing: 24,
-                              mainAxisSpacing: 24,
-                              childAspectRatio: 418 / 217,
-                            ),
+                        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: MediaQuery.sizeOf(context).width < 800
+                              ? 1
+                              : 2,
+                          crossAxisSpacing: 24,
+                          mainAxisSpacing: 24,
+                          childAspectRatio: 418 / 217,
+                        ),
                         itemCount: filteredProjects.length,
                         itemBuilder: (context, index) {
                           final project = filteredProjects[index];
-                          return ProjectCard(
-                            project: project,
-                            onDelete: () => _deleteProject(project),
+                          return InkWell(
+                            onTap: () => _openProject(project),
+                            borderRadius: BorderRadius.circular(12),
+                            child: ProjectCard(
+                              project: project,
+                              onDelete: () => _deleteProject(project),
+                            ),
                           );
                         },
                       );

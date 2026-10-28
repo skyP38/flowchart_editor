@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'dart:math' as Math;
 
 import '../models/session.dart';
 import '../../auth/data/api/auth_api.dart';
@@ -40,14 +41,16 @@ class _SessionScreenState extends State<SessionScreen> {
     }
   }
 
+  bool get _isNarrow => MediaQuery.sizeOf(context).width < 700;
+
   @override
   Widget build(BuildContext context) {
     return Column(
       children: [
-        _buildTopBar(),
+        // _buildTopBar(),
         Expanded(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.all(40),
+            padding: EdgeInsets.all(_isNarrow ? 12 : 40),
             child: FutureBuilder<List<Session>>(
               future: _sessionsFuture,
               builder: (context, snapshot) {
@@ -70,7 +73,9 @@ class _SessionScreenState extends State<SessionScreen> {
                   );
                 }
                 final sessions = snapshot.data ?? [];
-                return _buildContent(sessions);
+                return _isNarrow
+                    ? _buildCardsContent(sessions)
+                    : _buildTableContent(sessions);
               },
             ),
           ),
@@ -79,73 +84,170 @@ class _SessionScreenState extends State<SessionScreen> {
     );
   }
 
-  Widget _buildTopBar() {
-    return Container(
-      height: 60,
-      padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 18),
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        border: Border(bottom: BorderSide(color: Color(0xFFD9D9D9))),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          const Text(
-            'Session',
-            style: TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.w700,
-              color: Color(0xFF1E1E1E),
-            ),
-          ),
-          /*Container(
-            width: 8,
-            height: 8,
-            decoration: const BoxDecoration(
-              color: Color(0xFF059669),
-              shape: BoxShape.circle,
-            ),
-          ),*/
-        ],
-      ),
-    );
-  }
-
-  Widget _buildContent(List<Session> sessions) {
+  // Mobile version
+  Widget _buildCardsContent(List<Session> sessions) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const Text(
           'Active sessions',
           style: TextStyle(
-            fontSize: 24,
+            fontSize: 20,
             fontWeight: FontWeight.w700,
             color: Color(0xFF1E1E1E),
           ),
         ),
-        const SizedBox(height: 24),
-        Container(
-          decoration: BoxDecoration(
-            color: Colors.white,
-            border: Border.all(color: const Color(0xFFE5E7EB)),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          clipBehavior: Clip.hardEdge,
-          child: Column(
+        const SizedBox(height: 16),
+        if (sessions.isEmpty)
+          const Padding(
+            padding: EdgeInsets.all(32),
+            child: Center(child: Text('No sessions')),
+          )
+        else
+          for (final s in sessions) _buildSessionCard(s),
+      ],
+    );
+  }
+
+  Widget _buildSessionCard(Session s) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        border: Border.all(color: const Color(0xFFE5E7EB)),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
             children: [
-              _buildHeader(),
-              if (sessions.isEmpty)
-                const Padding(
-                  padding: EdgeInsets.all(32),
-                  child: Center(child: Text('No sessions')),
-                )
-              else
-                for (int i = 0; i < sessions.length; i++)
-                  _buildRow(sessions[i], isLast: i == sessions.length - 1),
+              Expanded(
+                child: Text(
+                  'Session #${s.id}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF111827),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 5,
+                ),
+                decoration: BoxDecoration(
+                  color: s.isActive
+                      ? const Color(0xFFECFDF5)
+                      : const Color(0xFFFEF2F2),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Text(
+                  s.statusLabel,
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: s.isActive
+                        ? const Color(0xFF059669)
+                        : const Color(0xFFEF4444),
+                  ),
+                ),
+              ),
             ],
+          ),
+          const SizedBox(height: 10),
+          _infoRow(Icons.devices_outlined, s.deviceName),
+          const SizedBox(height: 6),
+          _infoRow(Icons.location_on_outlined, s.location),
+          const SizedBox(height: 6),
+          _infoRow(Icons.schedule, s.createdLabel),
+          const SizedBox(height: 6),
+          _infoRow(Icons.access_time, s.activityLabel),
+          if (s.isActive) ...[
+            const SizedBox(height: 10),
+            Align(
+              alignment: Alignment.centerRight,
+              child: _TerminateButton(onPressed: () => _close(s)),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _infoRow(IconData icon, String text) {
+    return Row(
+      children: [
+        Icon(icon, size: 16, color: const Color(0xFF6B7280)),
+        const SizedBox(width: 6),
+        Expanded(
+          child: Text(
+            text,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontSize: 13, color: Color(0xFF4B5563)),
           ),
         ),
       ],
+    );
+  }
+
+  //  Desktop version
+  Widget _buildTableContent(List<Session> sessions) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final tableWidth = Math.max(constraints.maxWidth, 800.0);
+
+        return SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: SizedBox(
+            width: tableWidth,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Active sessions',
+                  style: TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF1E1E1E),
+                  ),
+                ),
+                const SizedBox(height: 24),
+                Container(
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    border: Border.all(color: const Color(0xFFE5E7EB)),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  clipBehavior: Clip.hardEdge,
+                  child: Column(
+                    children: [
+                      _buildHeader(),
+                      if (sessions.isEmpty)
+                        const Padding(
+                          padding: EdgeInsets.all(32),
+                          child: Center(child: Text('No sessions')),
+                        )
+                      else
+                        for (int i = 0; i < sessions.length; i++)
+                          _buildRow(
+                            sessions[i],
+                            isLast: i == sessions.length - 1,
+                          ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 
@@ -157,12 +259,12 @@ class _SessionScreenState extends State<SessionScreen> {
         border: Border(bottom: BorderSide(color: Color(0xFFE5E7EB))),
       ),
       child: _columns(
-        session: const _HeaderCell('SESSION'),
-        device: const _HeaderCell('DEVICE'),
-        location: const _HeaderCell('LOCATION'),
-        created: const _HeaderCell('CREATED'),
-        status: const _HeaderCell('STATUS'),
-        activity: const _HeaderCell('ACTIVITY'),
+        session: const _HeaderCell('SESSION', align: TextAlign.left),
+        device: const _HeaderCell('DEVICE', align: TextAlign.center),
+        location: const _HeaderCell('LOCATION', align: TextAlign.center),
+        created: const _HeaderCell('CREATED', align: TextAlign.center),
+        status: const _HeaderCell('STATUS', align: TextAlign.center),
+        activity: const _HeaderCell('ACTIVITY', align: TextAlign.center),
         action: const _HeaderCell('ACTION', align: TextAlign.center),
       ),
     );
@@ -179,20 +281,6 @@ class _SessionScreenState extends State<SessionScreen> {
       child: _columns(
         session: Row(
           children: [
-            /*Container(
-              width: 32,
-              height: 32,
-              decoration: BoxDecoration(
-                color: const Color(0xFFF3F4F6),
-                borderRadius: BorderRadius.circular(6),
-              ),
-              child: const Icon(
-                Icons.laptop_mac,
-                size: 16,
-                color: Color(0xFF4B5563),
-              ),
-            ),
-            const SizedBox(width: 12),*/
             Expanded(
               child: Text(
                 'Session #${s.id}',
@@ -209,25 +297,12 @@ class _SessionScreenState extends State<SessionScreen> {
         ),
         device: Row(
           children: [
-            /*Container(
-              width: 32,
-              height: 32,
-              decoration: BoxDecoration(
-                color: const Color(0xFFF3F4F6),
-                borderRadius: BorderRadius.circular(6),
-              ),
-              child: const Icon(
-                Icons.devices_outlined,
-                size: 16,
-                color: Color(0xFF4B5563),
-              ),
-            ),
-            const SizedBox(width: 12),*/
             Expanded(
               child: Text(
                 s.deviceName,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
                 style: const TextStyle(fontSize: 14, color: Color(0xFF111827)),
               ),
             ),
@@ -236,12 +311,14 @@ class _SessionScreenState extends State<SessionScreen> {
         location: Text(
           s.location,
           maxLines: 1,
+          textAlign: TextAlign.center,
           overflow: TextOverflow.ellipsis,
           style: const TextStyle(fontSize: 14, color: Color(0xFF6B7280)),
         ),
         created: Text(
           s.createdLabel,
           maxLines: 1,
+          textAlign: TextAlign.center,
           overflow: TextOverflow.ellipsis,
           style: const TextStyle(fontSize: 14, color: Color(0xFF4B5563)),
         ),
@@ -257,6 +334,7 @@ class _SessionScreenState extends State<SessionScreen> {
           child: Text(
             s.statusLabel,
             maxLines: 1,
+            textAlign: TextAlign.center,
             overflow: TextOverflow.ellipsis,
             style: TextStyle(
               fontSize: 14,
@@ -270,6 +348,7 @@ class _SessionScreenState extends State<SessionScreen> {
         activity: Text(
           s.activityLabel,
           maxLines: 1,
+          textAlign: TextAlign.center,
           overflow: TextOverflow.ellipsis,
           style: const TextStyle(fontSize: 14, color: Color(0xFF4B5563)),
         ),
@@ -294,7 +373,7 @@ class _SessionScreenState extends State<SessionScreen> {
   }) {
     return Row(
       children: [
-        Expanded(flex: 4, child: session),
+        Expanded(flex: 3, child: session),
         const SizedBox(width: 12),
         Expanded(flex: 3, child: device),
         const SizedBox(width: 12),
@@ -307,15 +386,6 @@ class _SessionScreenState extends State<SessionScreen> {
         Expanded(flex: 3, child: activity),
         const SizedBox(width: 12),
         Expanded(flex: 3, child: action),
-        // Expanded(child: session),
-        // const SizedBox(width: _colGap),
-        // SizedBox(width: _createdWidth, child: created),
-        // const SizedBox(width: _colGap),
-        // SizedBox(width: _statusWidth, child: status),
-        // const SizedBox(width: _colGap),
-        // SizedBox(width: _activityWidth, child: activity),
-        // const SizedBox(width: _colGap),
-        // SizedBox(width: _actionWidth, child: action),
       ],
     );
   }

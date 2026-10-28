@@ -135,9 +135,6 @@ func (s *Service) Register(ctx context.Context, in RegisterInput) (*AuthResult, 
 		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
 			return nil, ErrLoginTaken
 		}
-		/*if errors.Is(err, memory.ErrUserAlreadyExists) {
-			return nil, ErrLoginTaken
-		}*/
 		return nil, err
 	}
 

@@ -16,6 +16,7 @@ class RefreshInterceptor extends Interceptor {
   final Dio _dio;
   final TokenStorage _storage;
   final void Function()? onUnauthorized;
+  final void Function()? onUserBlocked;
 
   Future<String?>? _refreshFuture;
 
@@ -29,6 +30,7 @@ class RefreshInterceptor extends Interceptor {
     required Dio dio,
     required TokenStorage storage,
     this.onUnauthorized,
+    this.onUserBlocked,
   }) : _dio = dio,
        _storage = storage;
 
@@ -44,8 +46,22 @@ class RefreshInterceptor extends Interceptor {
     final response = err.response;
     final alreadyRetried = err.requestOptions.extra['__retried'] == true;
 
+    final status = response?.statusCode;
+
+    final data = response?.data;
+    final code = data is Map ? data['code']?.toString() : null;
+    final message = data is Map ? data['message']?.toString() : null;
+    final blocked =
+        status == 403 &&
+        (code == 'user_blocked' || message == 'user is blocked');
+    if (blocked) {
+      await _storage.clear();
+      onUserBlocked?.call();
+      return handler.next(err);
+    }
+
     // Реакция на 401 в защищенных запросах 1 раз
-    if (response?.statusCode != 401 ||
+    if (status != 401 ||
         ApiPaths.isPublic(err.requestOptions.path) ||
         alreadyRetried) {
       return handler.next(err);

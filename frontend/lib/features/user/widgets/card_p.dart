@@ -47,7 +47,7 @@ class ProjectCard extends StatelessWidget {
                         softWrap: false,
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
-                          fontSize: 24,
+                          fontSize: 30,
                           fontWeight: FontWeight.w600,
                         ),
                       ),
@@ -55,10 +55,8 @@ class ProjectCard extends StatelessWidget {
                       Text(
                         '${project.flowcharts.length} flowcharts',
                         style: const TextStyle(
-                          fontSize: 14,
-                          color: Color(
-                            0xFF6B7280,
-                          ), // Серый цвет, чтобы не отвлекать от названия
+                          fontSize: 18,
+                          color: Color(0xFF6B7280),
                           fontWeight: FontWeight.w400,
                         ),
                       ),
@@ -69,17 +67,16 @@ class ProjectCard extends StatelessWidget {
             ),
 
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               child: Row(
                 children: [
                   Expanded(
-                    // ← ключевое
                     child: Text(
                       'Modified: ${formatMyDate(project.modified)}',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
-                        fontSize: 8,
+                        fontSize: 14,
                         fontWeight: FontWeight.w600,
                       ),
                     ),
@@ -87,17 +84,17 @@ class ProjectCard extends StatelessWidget {
                   const SizedBox(width: 8),
                   InkWell(
                     onTap: onDelete,
-                    borderRadius: BorderRadius.circular(6),
+                    borderRadius: BorderRadius.circular(8),
                     child: Container(
-                      width: 26,
-                      height: 26,
+                      width: 38,
+                      height: 38,
                       decoration: BoxDecoration(
                         color: const Color(0xFFFEE2E2),
-                        borderRadius: BorderRadius.circular(6),
+                        borderRadius: BorderRadius.circular(8),
                       ),
                       child: const Icon(
                         Icons.delete_outline,
-                        size: 14,
+                        size: 20,
                         color: Color(0xFFEF4444),
                       ),
                     ),
