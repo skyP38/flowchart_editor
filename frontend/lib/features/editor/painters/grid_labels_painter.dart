@@ -21,12 +21,17 @@ class GridLabelsPainter extends CustomPainter {
   final double nodeHeight;
   final Offset startPosition;
 
+  final bool showLines;
+  final bool showLabels;
+
   GridLabelsPainter({
     required this.columnWidth,
     required this.rowHeight,
     required this.nodeWidth,
     required this.nodeHeight,
     required this.startPosition,
+    this.showLines = true,
+    this.showLabels = true,
   });
 
   @override
@@ -35,6 +40,12 @@ class GridLabelsPainter extends CustomPainter {
     final linePaint = Paint()
       ..color = Colors.grey.withValues(alpha: 0.2)
       ..strokeWidth = 1.0;
+
+    final textStyle = TextStyle(
+      color: Colors.grey.shade700,
+      fontSize: 18,
+      fontWeight: FontWeight.w500,
+    );
 
     // Находим левую/верхнюю границу ячейки
     final shiftX = (columnWidth - nodeWidth) / 2;
@@ -51,6 +62,17 @@ class GridLabelsPainter extends CustomPainter {
       if (x >= 0 && x <= size.width) {
         canvas.drawLine(Offset(x, 0), Offset(x, size.height), linePaint);
       }
+
+      if (showLabels) {
+        final labelX = x + columnWidth / 2;
+        if (labelX >= 0 && labelX <= size.width) {
+          final tp = TextPainter(
+            text: TextSpan(text: '${col + 1}', style: textStyle),
+            textDirection: TextDirection.ltr,
+          )..layout();
+          tp.paint(canvas, Offset(labelX - tp.width / 2, 4));
+        }
+      }
     }
 
     // Строки: аналогично, центр строки 0 = центр Start-блока.
@@ -61,6 +83,17 @@ class GridLabelsPainter extends CustomPainter {
       final y = startBoundaryY + row * rowHeight;
       if (y >= 0 && y <= size.height) {
         canvas.drawLine(Offset(0, y), Offset(size.width, y), linePaint);
+      }
+
+      if (showLabels) {
+        final labelY = y + rowHeight / 2;
+        if (labelY >= 0 && labelY <= size.height) {
+          final tp = TextPainter(
+            text: TextSpan(text: numberToLetter(row), style: textStyle),
+            textDirection: TextDirection.ltr,
+          )..layout();
+          tp.paint(canvas, Offset(4, labelY - tp.height / 2));
+        }
       }
     }
   }

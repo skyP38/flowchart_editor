@@ -1,6 +1,8 @@
 import 'dart:convert';
 import 'dart:async';
 import 'dart:math' as math;
+import 'dart:ui' as ui;
+import 'package:flutter/rendering.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/gestures.dart';
 import 'package:file_picker/file_picker.dart';
@@ -84,6 +86,10 @@ class _EditorScreenState extends State<EditorScreen>
   bool _zoomTickerRunning = false;
   Offset _zoomAnchorScreen = Offset.zero;
   Offset _zoomAnchorContent = Offset.zero;
+
+  bool _isSaving = false;
+  final GlobalKey _canvasKey = GlobalKey();
+  bool _capturing = false;
 
   @override
   void initState() {
@@ -501,10 +507,12 @@ class _EditorScreenState extends State<EditorScreen>
     // final nodeSize = _controller.nodeSize;
 
     for (final conn in connections) {
-      final path = _router.build(conn, graph);
+      // final path = _router.build(conn, graph);
       // Разбиение пути на сегменты и поиск минимальное расстояние
       double minDistForConn = double.infinity;
-      final metrics = path.computeMetrics();
+      final routed = _router.build(conn, graph);
+      final metrics = routed.path.computeMetrics();
+      // final metrics = path.computeMetrics();
       for (final metric in metrics) {
         const double step = 2.0; // шаг для дискретизации
         for (double dist = 0; dist <= metric.length; dist += step) {
@@ -609,8 +617,6 @@ class _EditorScreenState extends State<EditorScreen>
       _controller.updateNodeText(nodeName, newText);
     }
   }
-
-  bool _isSaving = false;
 
   // Печатает текущую раскладку блок-схемы в консоль в виде дерева:
   //
@@ -737,64 +743,64 @@ class _EditorScreenState extends State<EditorScreen>
   ///  • ForBlock    — всё, что лежит в body (без перехода по exit);
   ///  • LogicBlock  — узлы по yes-ветке до слияния с no-веткой
   ///                  (сама точка слияния — не ребёнок);
-  ///  • остальные   — 0.
-  static int _countChildren(FlowchartGraph g, String nodeName) {
-    final node = g.nodes[nodeName];
-    if (node == null) return 0;
+  // ///  • остальные   — 0.
+  // static int _countChildren(FlowchartGraph g, String nodeName) {
+  //   final node = g.nodes[nodeName];
+  //   if (node == null) return 0;
 
-    if (node.data is ForBlock) {
-      return _countBodySubtree(g, nodeName);
-    }
-    if (node.data is LogicBlock) {
-      return _countYesBranchChildren(g, nodeName);
-    }
-    return 0;
-  }
+  //   if (node.data is ForBlock) {
+  //     return _countBodySubtree(g, nodeName);
+  //   }
+  //   if (node.data is LogicBlock) {
+  //     return _countYesBranchChildren(g, nodeName);
+  //   }
+  //   return 0;
+  // }
 
   /// yes-ветка условия: BFS от yes-цели, с остановкой на любом узле,
   /// достижимом из no-ветки (это и есть merge-точка), и на End.
-  static int _countYesBranchChildren(FlowchartGraph g, String logicName) {
-    ConnectionData? yesConn;
-    ConnectionData? noConn;
-    for (final c in g.outgoing[logicName] ?? const <ConnectionData>[]) {
-      if (c.sourcePort == 'yes') yesConn = c;
-      if (c.sourcePort == 'no') noConn = c;
-    }
-    if (yesConn == null || noConn == null) return 0;
+  // static int _countYesBranchChildren(FlowchartGraph g, String logicName) {
+  //   ConnectionData? yesConn;
+  //   ConnectionData? noConn;
+  //   for (final c in g.outgoing[logicName] ?? const <ConnectionData>[]) {
+  //     if (c.sourcePort == 'yes') yesConn = c;
+  //     if (c.sourcePort == 'no') noConn = c;
+  //   }
+  //   if (yesConn == null || noConn == null) return 0;
 
-    // Обе ветки сразу сходятся в одну и ту же точку → детей нет.
-    if (yesConn.targetNodeName == noConn.targetNodeName) return 0;
+  //   // Обе ветки сразу сходятся в одну и ту же точку → детей нет.
+  //   if (yesConn.targetNodeName == noConn.targetNodeName) return 0;
 
-    // Множество узлов, достижимых из no-ветки, — это «запрещённая зона».
-    final noReachable = <String>{};
-    final noQueue = <String>[noConn.targetNodeName];
-    while (noQueue.isNotEmpty) {
-      final cur = noQueue.removeAt(0);
-      if (!noReachable.add(cur)) continue;
-      if (g.isEnd(cur)) continue;
-      for (final c in g.outgoing[cur] ?? const <ConnectionData>[]) {
-        if (c.targetPort == 'loopback') continue;
-        noQueue.add(c.targetNodeName);
-      }
-    }
+  //   // Множество узлов, достижимых из no-ветки, — это «запрещённая зона».
+  //   final noReachable = <String>{};
+  //   final noQueue = <String>[noConn.targetNodeName];
+  //   while (noQueue.isNotEmpty) {
+  //     final cur = noQueue.removeAt(0);
+  //     if (!noReachable.add(cur)) continue;
+  //     if (g.isEnd(cur)) continue;
+  //     for (final c in g.outgoing[cur] ?? const <ConnectionData>[]) {
+  //       if (c.targetPort == 'loopback') continue;
+  //       noQueue.add(c.targetNodeName);
+  //     }
+  //   }
 
-    // Идём по yes-ветке, но упираемся на первом узле, который есть в no-зоне.
-    final visited = <String>{};
-    final queue = <String>[yesConn.targetNodeName];
-    int count = 0;
-    while (queue.isNotEmpty) {
-      final cur = queue.removeAt(0);
-      if (!visited.add(cur)) continue;
-      if (noReachable.contains(cur)) continue; // merge-точка — стоп
-      if (g.isEnd(cur)) continue;
-      count++;
-      for (final c in g.outgoing[cur] ?? const <ConnectionData>[]) {
-        if (c.targetPort == 'loopback') continue;
-        queue.add(c.targetNodeName);
-      }
-    }
-    return count;
-  }
+  //   // Идём по yes-ветке, но упираемся на первом узле, который есть в no-зоне.
+  //   final visited = <String>{};
+  //   final queue = <String>[yesConn.targetNodeName];
+  //   int count = 0;
+  //   while (queue.isNotEmpty) {
+  //     final cur = queue.removeAt(0);
+  //     if (!visited.add(cur)) continue;
+  //     if (noReachable.contains(cur)) continue; // merge-точка — стоп
+  //     if (g.isEnd(cur)) continue;
+  //     count++;
+  //     for (final c in g.outgoing[cur] ?? const <ConnectionData>[]) {
+  //       if (c.targetPort == 'loopback') continue;
+  //       queue.add(c.targetNodeName);
+  //     }
+  //   }
+  //   return count;
+  // }
 
   /// Полное поддерево: BFS по исходящим рёбрам, без loopback,
   /// с остановкой на End. Возвращает количество потомков (без самого root).
@@ -1030,6 +1036,80 @@ class _EditorScreenState extends State<EditorScreen>
     return name.isEmpty ? 'diagram' : name;
   }
 
+  Future<void> _exportToPng() async {
+    if (_controller.nodes.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Нет элементов для экспорта')),
+      );
+      return;
+    }
+
+    final name = await _askFileName('Экспорт в PNG');
+    if (name == null) return;
+
+    setState(() => _capturing = true);
+
+    try {
+      // Ждём, пока кадр отрисуется полностью. Иногда одного endOfFrame
+      // не хватает — RenderRepaintBoundary получает слой чуть позже.
+      RenderRepaintBoundary? boundary;
+      for (var attempt = 0; attempt < 10; attempt++) {
+        await WidgetsBinding.instance.endOfFrame;
+        if (!mounted) return;
+
+        final ctx = _canvasKey.currentContext;
+        if (ctx == null) {
+          debugPrint('[png] attempt=$attempt: context=null');
+          await Future.delayed(const Duration(milliseconds: 16));
+          continue;
+        }
+        final obj = ctx.findRenderObject();
+        debugPrint('[png] attempt=$attempt: obj=${obj?.runtimeType}');
+        if (obj is RenderRepaintBoundary) {
+          if (!obj.debugNeedsPaint) {
+            boundary = obj;
+            break;
+          }
+        }
+        await Future.delayed(const Duration(milliseconds: 16));
+      }
+
+      if (boundary == null) {
+        throw Exception(
+          'Не удалось дождаться отрисовки холста. '
+          'Проверьте, что RepaintBoundary с key: _canvasKey '
+          'оборачивает CustomPaint с холстом.',
+        );
+      }
+
+      final image = await boundary.toImage(pixelRatio: 2.0);
+      final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+      if (byteData == null) {
+        throw Exception('Не удалось получить PNG байты');
+      }
+      final bytes = byteData.buffer.asUint8List();
+
+      await FileSaver.instance.saveFile(
+        name: name,
+        bytes: bytes,
+        ext: 'png',
+        mimeType: MimeType.png,
+      );
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Файл $name.png сохранён')));
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Ошибка экспорта: $e')));
+    } finally {
+      if (mounted) setState(() => _capturing = false);
+    }
+  }
+
   Future<void> _exportToSvg() async {
     if (_controller.nodes.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -1130,7 +1210,7 @@ class _EditorScreenState extends State<EditorScreen>
               ? (_) {}
               : (newSize) => _controller.setNodeSize(newSize),
           onPositionChange: readOnly
-              ? (_, __) {}
+              ? (_, _) {}
               : (name, newPosition) =>
                     _controller.updateNodePosition(name, newPosition),
 
@@ -1161,6 +1241,8 @@ class _EditorScreenState extends State<EditorScreen>
     );
     final startPos = startNodeEntry?.value.position;
 
+    final renderGrid = showGrid || _capturing;
+
     Widget gridWidget = const SizedBox.shrink();
     if (showGrid && startNodeEntry != null) {
       gridWidget = GridWithLabels(
@@ -1170,8 +1252,22 @@ class _EditorScreenState extends State<EditorScreen>
         nodeWidth: _controller.nodeSize.width,
         nodeHeight: _controller.nodeSize.height,
         startPosition: startNodeEntry.value.position,
+        showLines: true,
+        showLabels: _capturing,
       );
     }
+
+    // Widget gridWidget = const SizedBox.shrink();
+    // if (showGrid && startNodeEntry != null) {
+    //   gridWidget = GridWithLabels(
+    //     canvasSize: contentSize,
+    //     columnWidth: _controller.spacing.stepX,
+    //     rowHeight: _controller.spacing.stepY,
+    //     nodeWidth: _controller.nodeSize.width,
+    //     nodeHeight: _controller.nodeSize.height,
+    //     startPosition: startNodeEntry.value.position,
+    //   );
+    // }
 
     final leftInset = toolbarVisible ? 200.0 : 40.0;
     final bottomInset = isMobile ? 20.0 : 0.0; // высота _BottomScrollBar
@@ -1197,9 +1293,11 @@ class _EditorScreenState extends State<EditorScreen>
                     isGridVisible: showGrid,
                     onGridToggle: _controller.setShowGrid,
                     onExport: _exportToSvg,
+                    onExportPng: _exportToPng,
                     onExportJson: _exportToJson,
                     onUndo: _controller.undo,
                     onRedo: _controller.redo,
+
                     onSave: _saveToDb,
                     canSave: widget.canSave && widget.onSave != null,
                     onLoad: _loadFromFile,
@@ -1275,8 +1373,9 @@ class _EditorScreenState extends State<EditorScreen>
                                           ? null
                                           : (details) {
                                               // Начинаем выделение, только если касание было по пустой области
-                                              if (!_isSelectingFromEmpty)
+                                              if (!_isSelectingFromEmpty) {
                                                 return;
+                                              }
                                               setState(() {
                                                 _isSelecting = true;
                                                 _selectionStart =
@@ -1337,48 +1436,61 @@ class _EditorScreenState extends State<EditorScreen>
                                                 _handleKeyEvent(event);
                                                 return KeyEventResult.ignored;
                                               },
-                                        child: CustomPaint(
-                                          child: Stack(
-                                            children: [
-                                              // Сетка
-                                              if (showGrid) gridWidget,
-                                              // Линии соединений
-                                              CustomPaint(
-                                                painter: ConnectionPainter(
-                                                  graph: graph,
-                                                  router: _router,
-                                                  selectedConnectionId:
-                                                      _selectedConnectionId,
-                                                  hoveredConnectionId:
-                                                      _hoveredConnectionId,
-                                                  insertionPoints: readOnly
-                                                      ? const <InsertionPoint>[]
-                                                      : _insertionPoints,
-                                                ),
-                                                child: Stack(
-                                                  children: nodes.entries
-                                                      .map(
-                                                        (entry) =>
-                                                            _buildNodeWidget(
-                                                              entry.key,
-                                                              entry.value,
-                                                              readOnly,
-                                                            ),
-                                                      )
-                                                      .toList(),
-                                                ),
-                                              ),
-                                              // Прямоугольник выделения
-                                              if (_isSelecting &&
-                                                  _selectionStart != null &&
-                                                  _selectionEnd != null)
+                                        child: RepaintBoundary(
+                                          key: _canvasKey,
+                                          child: CustomPaint(
+                                            child: Stack(
+                                              children: [
+                                                // Сетка
+                                                if (showGrid) gridWidget,
+                                                // Линии соединений
                                                 CustomPaint(
-                                                  painter: SelectionRectPainter(
-                                                    start: _selectionStart!,
-                                                    end: _selectionEnd!,
+                                                  painter: ConnectionPainter(
+                                                    graph: graph,
+                                                    router: _router,
+                                                    selectedConnectionId:
+                                                        _capturing
+                                                        ? null
+                                                        : _selectedConnectionId,
+                                                    hoveredConnectionId:
+                                                        _capturing
+                                                        ? null
+                                                        : _hoveredConnectionId,
+                                                    insertionPoints: readOnly
+                                                        ? const <
+                                                            InsertionPoint
+                                                          >[]
+                                                        : _capturing
+                                                        ? const []
+                                                        : _insertionPoints,
+                                                  ),
+                                                  child: Stack(
+                                                    children: nodes.entries
+                                                        .map(
+                                                          (entry) =>
+                                                              _buildNodeWidget(
+                                                                entry.key,
+                                                                entry.value,
+                                                                readOnly,
+                                                              ),
+                                                        )
+                                                        .toList(),
                                                   ),
                                                 ),
-                                            ],
+                                                // Прямоугольник выделения
+                                                if (_isSelecting &&
+                                                    _selectionStart != null &&
+                                                    _selectionEnd != null)
+                                                  CustomPaint(
+                                                    painter:
+                                                        SelectionRectPainter(
+                                                          start:
+                                                              _selectionStart!,
+                                                          end: _selectionEnd!,
+                                                        ),
+                                                  ),
+                                              ],
+                                            ),
                                           ),
                                         ),
                                       ),
@@ -1394,7 +1506,6 @@ class _EditorScreenState extends State<EditorScreen>
                   ),
                 ),
               ),
-              // ),
             ],
           ),
 
@@ -1545,6 +1656,8 @@ class GridWithLabels extends StatelessWidget {
   final double nodeWidth;
   final double nodeHeight;
   final Offset? startPosition;
+  final bool showLines;
+  final bool showLabels;
 
   const GridWithLabels({
     super.key,
@@ -1554,6 +1667,8 @@ class GridWithLabels extends StatelessWidget {
     required this.nodeWidth,
     required this.nodeHeight,
     required this.startPosition,
+    this.showLines = true,
+    this.showLabels = true,
   });
 
   @override
@@ -1567,6 +1682,8 @@ class GridWithLabels extends StatelessWidget {
         nodeWidth: nodeWidth,
         nodeHeight: nodeHeight,
         startPosition: startPosition!,
+        showLines: showLines,
+        showLabels: showLabels,
       ),
     );
   }

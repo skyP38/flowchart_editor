@@ -40,6 +40,8 @@ class VerticalToolbar extends StatelessWidget {
 
   final Size currentNodeSize;
 
+  final VoidCallback onExportPng;
+
   const VerticalToolbar({
     super.key,
     required this.selectedPrototype,
@@ -57,6 +59,7 @@ class VerticalToolbar extends StatelessWidget {
     this.canSave = true,
     required this.onClear,
     required this.currentNodeSize,
+    required this.onExportPng,
   });
 
   @override
@@ -133,6 +136,11 @@ class VerticalToolbar extends StatelessWidget {
               ElevatedButton(
                 onPressed: onExport,
                 child: const Text('Экспорт в SVG'),
+              ),
+              const SizedBox(height: 8),
+              ElevatedButton(
+                onPressed: onExportPng,
+                child: const Text('Экспорт в PNG'),
               ),
               const SizedBox(height: 8),
               ElevatedButton(

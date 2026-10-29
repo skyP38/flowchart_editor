@@ -43,7 +43,9 @@ class InsertionPointsService {
           g.nodes[conn.targetNodeName]?.data is ForBlock;
       if (conn.targetPort == 'loopback' && !isBodyLoopback) continue;
       // if (conn.targetPort == 'loopback') continue;
-      final path = router.build(conn, g);
+      // final path = router.build(conn, g);
+      final routed = router.build(conn, g);
+      final path = routed.path;
       if (path.computeMetrics().isEmpty) continue;
 
       if (conn.sourcePort == 'exit') {
@@ -73,7 +75,8 @@ class InsertionPointsService {
                 c.sourcePort == 'no' && c.sourceNodeName == conn.sourceNodeName,
           );
           if (noConn != null) {
-            final noPath = router.build(noConn, g);
+            // final noPath_r = router.build(noConn, g);
+            final noPath = router.build(noConn, g).path;
             final intersectionY = _lastHorizontalY(noPath);
             // отсекаем вырожденные случаи (L-путь, когда возврата нет:
             // последняя горизонталь идёт на уровне exitY)
@@ -149,7 +152,9 @@ class InsertionPointsService {
     double? maxLandingY;
     ConnectionData? deepestEdge;
     for (final conn in incoming) {
-      final path = router.build(conn, g);
+      // final path = router.build(conn, g);
+      final routed = router.build(conn, g);
+      final path = routed.path;
       if (path.computeMetrics().isEmpty) {
         debugPrint(
           '[merge]   ${conn.sourceNodeName}--${conn.sourcePort}-->'

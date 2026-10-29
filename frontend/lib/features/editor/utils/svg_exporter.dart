@@ -20,6 +20,7 @@ class SvgExporter {
     required Size canvasSize,
     required bool showGrid,
     bool centerContent = false,
+    bool showLabels = true,
   }) {
     final buffer = StringBuffer();
 
@@ -63,8 +64,12 @@ class SvgExporter {
           _buildGridSvg(
             canvasSize: canvasSize,
             startPosition: start.position,
-            stepX: spacing.stepX - GridConstants.stepXExtra,
-            stepY: spacing.stepY - GridConstants.stepYExtra,
+            columnWidth: spacing.stepX,
+            rowHeight: spacing.stepY,
+            nodeWidth: nodeSize.width,
+            nodeHeight: nodeSize.height,
+            // stepX: spacing.stepX - GridConstants.stepXExtra,
+            // stepY: spacing.stepY - GridConstants.stepYExtra,
           ),
         );
       }
@@ -72,7 +77,8 @@ class SvgExporter {
 
     // Связи
     for (final conn in graph.connections) {
-      final path = router.build(conn, graph);
+      final routed = router.build(conn, graph);
+      final path = routed.path;
       final d = _pathToSvgPath(path);
       if (d.isNotEmpty) {
         buffer.writeln(
@@ -123,7 +129,9 @@ class SvgExporter {
     }
 
     for (final conn in graph.connections) {
-      final path = router.build(conn, graph);
+      // final path = router.build(conn, graph);
+      final routed = router.build(conn, graph);
+      final path = routed.path;
       if (path.computeMetrics().isEmpty) continue;
       final b = path.getBounds();
       if (b.isEmpty) continue;
@@ -297,39 +305,95 @@ class SvgExporter {
   static String _buildGridSvg({
     required Size canvasSize,
     required Offset startPosition,
-    required double stepX,
-    required double stepY,
+    required double columnWidth,
+    required double rowHeight,
+    required double nodeWidth,
+    required double nodeHeight,
+    // required double stepX,
+    // required double stepY,
   }) {
     final buffer = StringBuffer();
     const textStyle = 'font-family="Arial" font-size="18" fill="#666666"';
+    const lineStyle = 'stroke="#E5E7EB" stroke-width="1"';
 
-    // Подписи столбцов (цифры) сверху
-    int firstCol = ((startPosition.dx) / stepX).floor();
-    int lastCol = ((canvasSize.width - startPosition.dx) / stepX).ceil();
+    // Центр ячейки 0 и её границы (как в GridLabelsPainter)
+    final shiftX = (columnWidth - nodeWidth) / 2;
+    final shiftY = (rowHeight - nodeHeight) / 2;
+    final startBoundaryX = startPosition.dx - shiftX;
+    final startBoundaryY = startPosition.dy - shiftY;
+
+    // Вертикальные линии (границы столбцов) + подписи
+    int firstCol = (-startBoundaryX / columnWidth).floor();
+    int lastCol = ((canvasSize.width - startBoundaryX) / columnWidth).ceil();
     for (int col = firstCol; col <= lastCol; col++) {
-      final stepXgrid = stepX + GridConstants.stepXExtra;
-      final startCenterX = startPosition.dx + stepX / 2;
-      double x = startCenterX + col * stepXgrid;
-      if (x < 0 || x > canvasSize.width) continue;
-      final number = col + 1;
-      buffer.writeln(
-        '<text x="$x" y="20" text-anchor="middle" $textStyle>$number</text>',
-      );
+      final boundaryX = startBoundaryX + col * columnWidth;
+
+      // Линия
+      if (boundaryX >= 0 && boundaryX <= canvasSize.width) {
+        buffer.writeln(
+          '<line x1="$boundaryX" y1="0" x2="$boundaryX" y2="${canvasSize.height}" $lineStyle />',
+        );
+      }
+
+      // Подпись (по центру ячейки)
+      final labelX = boundaryX + columnWidth / 2;
+      if (labelX >= 0 && labelX <= canvasSize.width) {
+        final number = col + 1;
+        buffer.writeln(
+          '<text x="$labelX" y="20" text-anchor="middle" $textStyle>$number</text>',
+        );
+      }
     }
 
-    // Подписи строк (буквы) слева
-    final stepYgrid = stepY + GridConstants.stepYExtra;
-    final double startCenterY = startPosition.dy + stepY / 2;
-    int firstRow = ((0 - startCenterY) / stepY).floor();
-    int lastRow = ((canvasSize.height - startCenterY) / stepY).ceil();
+    // Горизонтальные линии (границы строк) + подписи
+    int firstRow = (-startBoundaryY / rowHeight).floor();
+    int lastRow = ((canvasSize.height - startBoundaryY) / rowHeight).ceil();
     for (int row = firstRow; row <= lastRow; row++) {
-      double y = startCenterY + row * stepYgrid;
-      if (y < 0 || y > canvasSize.height) continue;
-      String letter = numberToLetter(row);
-      buffer.writeln(
-        '<text x="20" y="$y" text-anchor="middle" dominant-baseline="middle" $textStyle>$letter</text>',
-      );
+      final boundaryY = startBoundaryY + row * rowHeight;
+
+      // Линия
+      if (boundaryY >= 0 && boundaryY <= canvasSize.height) {
+        buffer.writeln(
+          '<line x1="0" y1="$boundaryY" x2="${canvasSize.width}" y2="$boundaryY" $lineStyle />',
+        );
+      }
+      // Подпись (по центру ячейки)
+      final labelY = boundaryY + rowHeight / 2;
+      if (labelY >= 0 && labelY <= canvasSize.height) {
+        final letter = numberToLetter(row);
+        buffer.writeln(
+          '<text x="20" y="$labelY" text-anchor="middle" dominant-baseline="middle" $textStyle>$letter</text>',
+        );
+      }
     }
+
+    // // Подписи столбцов (цифры) сверху
+    // int firstCol = ((startPosition.dx) / stepX).floor();
+    // int lastCol = ((canvasSize.width - startPosition.dx) / stepX).ceil();
+    // for (int col = firstCol; col <= lastCol; col++) {
+    //   final stepXgrid = stepX + GridConstants.stepXExtra;
+    //   final startCenterX = startPosition.dx + stepX / 2;
+    //   double x = startCenterX + col * stepXgrid;
+    //   if (x < 0 || x > canvasSize.width) continue;
+    //   final number = col + 1;
+    //   buffer.writeln(
+    //     '<text x="$x" y="20" text-anchor="middle" $textStyle>$number</text>',
+    //   );
+    // }
+
+    // // Подписи строк (буквы) слева
+    // final stepYgrid = stepY + GridConstants.stepYExtra;
+    // final double startCenterY = startPosition.dy + stepY / 2;
+    // int firstRow = ((0 - startCenterY) / stepY).floor();
+    // int lastRow = ((canvasSize.height - startCenterY) / stepY).ceil();
+    // for (int row = firstRow; row <= lastRow; row++) {
+    //   double y = startCenterY + row * stepYgrid;
+    //   if (y < 0 || y > canvasSize.height) continue;
+    //   String letter = numberToLetter(row);
+    //   buffer.writeln(
+    //     '<text x="20" y="$y" text-anchor="middle" dominant-baseline="middle" $textStyle>$letter</text>',
+    //   );
+    // }
 
     return buffer.toString();
   }
