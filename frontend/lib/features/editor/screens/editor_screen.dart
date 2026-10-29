@@ -915,7 +915,8 @@ class _EditorScreenState extends State<EditorScreen>
         nodeSize: _controller.nodeSize,
         spacing: _controller.spacing,
         canvasSize: _getContentSize(),
-        showGrid: _controller.showGrid,
+        showGrid: false,
+        centerContent: true,
       );
       debugPrint('Generated SVG length: ${previewSvg.length}');
 

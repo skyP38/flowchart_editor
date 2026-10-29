@@ -19,17 +19,40 @@ class SvgExporter {
     required LayoutSpacing spacing,
     required Size canvasSize,
     required bool showGrid,
+    bool centerContent = false,
   }) {
     final buffer = StringBuffer();
+
+    double offsetX = 0;
+    double offsetY = 0;
+    Size actualCanvas = canvasSize;
+
+    if (centerContent) {
+      final bounds = _computeContentBounds(graph, router, nodeSize);
+      if (bounds.width > 0 && bounds.height > 0) {
+        const padding = 40.0;
+        offsetX = padding - bounds.left;
+        offsetY = padding - bounds.top;
+        actualCanvas = Size(
+          bounds.width + padding * 2,
+          bounds.height + padding * 2,
+        );
+      }
+    }
 
     buffer.writeln('<?xml version="1.0" encoding="utf-8"?>');
     buffer.writeln(
       '<svg xmlns="http://www.w3.org/2000/svg" '
-      'width="${canvasSize.width}" height="${canvasSize.height}">',
+      'width="${actualCanvas.width}" height="${actualCanvas.height}">',
     );
 
     // Фон
     buffer.writeln('<rect width="100%" height="100%" fill="white"/>');
+
+    // Сдвигаем весь контент в левый верхний угол
+    if (centerContent && (offsetX != 0 || offsetY != 0)) {
+      buffer.writeln('<g transform="translate($offsetX, $offsetY)">');
+    }
 
     // Сетка
     if (showGrid) {
@@ -72,8 +95,46 @@ class SvgExporter {
       );
     }
 
+    if (centerContent && (offsetX != 0 || offsetY != 0)) {
+      buffer.writeln('</g>');
+    }
+
     buffer.writeln('</svg>');
     return buffer.toString();
+  }
+
+  /// Границы всего содержимого: рамки узлов + bounding box всех путей связей.
+  static Rect _computeContentBounds(
+    FlowchartGraph graph,
+    ConnectionRouter router,
+    Size nodeSize,
+  ) {
+    double minX = double.infinity;
+    double minY = double.infinity;
+    double maxX = -double.infinity;
+    double maxY = -double.infinity;
+
+    for (final node in graph.nodes.values) {
+      final p = node.position;
+      if (p.dx < minX) minX = p.dx;
+      if (p.dy < minY) minY = p.dy;
+      if (p.dx + nodeSize.width > maxX) maxX = p.dx + nodeSize.width;
+      if (p.dy + nodeSize.height > maxY) maxY = p.dy + nodeSize.height;
+    }
+
+    for (final conn in graph.connections) {
+      final path = router.build(conn, graph);
+      if (path.computeMetrics().isEmpty) continue;
+      final b = path.getBounds();
+      if (b.isEmpty) continue;
+      if (b.left < minX) minX = b.left;
+      if (b.top < minY) minY = b.top;
+      if (b.right > maxX) maxX = b.right;
+      if (b.bottom > maxY) maxY = b.bottom;
+    }
+
+    if (minX == double.infinity) return Rect.zero;
+    return Rect.fromLTRB(minX, minY, maxX, maxY);
   }
 
   // Path в строку SVG
