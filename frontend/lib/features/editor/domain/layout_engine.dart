@@ -57,6 +57,20 @@ class LayoutEngine {
 
     computeLevel(start.name, 0);
 
+    // Кол-во yes-рёбер от Start до каждого узла (максимум по всем путям).
+    final yesDepth = <String, int>{};
+    void computeYesDepth(String n, int d) {
+      if (d > 100) return; // защита от патологических циклов
+      if ((yesDepth[n] ?? -1) >= d) return;
+      yesDepth[n] = d;
+      for (final c in g.outgoing[n] ?? const []) {
+        if (c.targetPort == 'loopback') continue;
+        computeYesDepth(c.targetNodeName, c.sourcePort == 'yes' ? d + 1 : d);
+      }
+    }
+
+    computeYesDepth(start.name, 0);
+
     // 2b. Собираем все no-ветки с интервалами
     final branches = <_NoBranch>[];
     for (final e in g.nodes.entries) {
@@ -98,6 +112,12 @@ class LayoutEngine {
     // внутри уровня - по убыванию rStart: глубокие нижние ветки занимают колонки
     // первыми, верхние подстраиваются под них
     branches.sort((a, b) {
+      // 1. Глубоко вложенные (yes-depth ↑) → innermost, размещаются первыми.
+      final da = yesDepth[a.branchName] ?? 0;
+      final db = yesDepth[b.branchName] ?? 0;
+      final byDepth = db.compareTo(da); // DESC
+      if (byDepth != 0) return byDepth;
+
       final la = nodeLevel[a.branchName] ?? 0;
       final lb = nodeLevel[b.branchName] ?? 0;
       final byLevel = la.compareTo(lb);
@@ -108,7 +128,8 @@ class LayoutEngine {
     final placed = <_PlacedBranch>[];
     for (final nb in branches) {
       if (cols.containsKey(nb.branchName)) continue;
-      final parentCol = cols[nb.parentName] ?? 0;
+      final parentCol = _eventualCol(g, cols, nb.parentName);
+      // final parentCol = cols[nb.parentName] ?? 0;
 
       int col = parentCol + 1;
       while (placed.any(
@@ -141,26 +162,6 @@ class LayoutEngine {
           .toList();
       if (incoming.isEmpty) continue;
 
-      // final isLoopbackSource = (g.outgoing[name] ?? const []).any(
-      //   (c) => c.targetPort == 'loopback',
-      // );
-      // if (isLoopbackSource) {
-      //   final mainIncoming = incoming
-      //       .where(
-      //         (c) =>
-      //             c.sourcePort == 'yes' ||
-      //             c.sourcePort == 'out' ||
-      //             c.sourcePort == 'body' ||
-      //             c.sourcePort == 'in',
-      //       )
-      //       .toList();
-      //   if (mainIncoming.isNotEmpty) {
-      //     cols[name] = mainIncoming
-      //         .map((c) => cols[c.sourceNodeName] ?? 0)
-      //         .reduce((a, b) => a < b ? a : b);
-      //     continue;
-      //   }
-      // }
       final mainIncoming = incoming
           .where(
             (c) =>
@@ -180,15 +181,6 @@ class LayoutEngine {
             .map((c) => cols[c.sourceNodeName] ?? 0)
             .reduce((a, b) => a > b ? a : b);
       }
-      //   final sourceCols = incoming
-      //       .map((c) => cols[c.sourceNodeName] ?? 0)
-      //       .toList();
-
-      //   if (sourceCols.contains(0)) {
-      //     cols[name] = 0;
-      //   } else {
-      //     cols[name] = sourceCols.reduce((a, b) => a > b ? a : b);
-      //   }
     }
 
     // 3. Сборка
@@ -211,6 +203,62 @@ class LayoutEngine {
         baseY + r * spacing.stepY + shiftY,
       );
     }
+    return result;
+  }
+
+  /// Предсказывает колонку узла до фактического размещения его ветки.
+  /// Нужно для корректного размещения внутренних no-веток, чьи родители
+  /// находятся в ещё не размеченных yes-поддеревьях.
+  int _eventualCol(
+    FlowchartGraph g,
+    Map<String, int> cols,
+    String name, [
+    Set<String>? visiting,
+  ]) {
+    final existing = cols[name];
+    if (existing != null) return existing;
+
+    visiting ??= <String>{};
+    if (!visiting.add(name)) return 0; // защита от циклов
+
+    final incoming = (g.incoming[name] ?? const <ConnectionData>[])
+        .where((c) => c.targetPort != 'loopback')
+        .toList();
+    if (incoming.isEmpty) {
+      visiting.remove(name);
+      return 0;
+    }
+
+    int result;
+    final noIn = incoming.firstWhereOrNull((c) => c.sourcePort == 'no');
+    final yesIn = incoming.firstWhereOrNull((c) => c.sourcePort == 'yes');
+
+    final isMergePair =
+        noIn != null &&
+        yesIn != null &&
+        noIn.sourceNodeName == yesIn.sourceNodeName;
+
+    if (noIn != null && !isMergePair) {
+      result = _eventualCol(g, cols, noIn.sourceNodeName, visiting) + 1;
+    } else {
+      final mainIn = incoming.firstWhereOrNull(
+        (c) =>
+            c.sourcePort == 'yes' ||
+            c.sourcePort == 'out' ||
+            c.sourcePort == 'body' ||
+            c.sourcePort == 'in',
+      );
+      if (mainIn != null) {
+        result = _eventualCol(g, cols, mainIn.sourceNodeName, visiting);
+      } else {
+        // merge-узел — берём минимум по источникам
+        result = incoming
+            .map((c) => _eventualCol(g, cols, c.sourceNodeName, visiting))
+            .reduce((a, b) => a < b ? a : b);
+      }
+    }
+
+    visiting.remove(name);
     return result;
   }
 
@@ -241,17 +289,19 @@ class LayoutEngine {
         final sourceRanks =
             incoming.map((c) => ranks[c.sourceNodeName] ?? 0).toList()
               ..sort((a, b) => b.compareTo(a));
-        // final maxPredRank = sourceRanks.first;
-        // final secondMaxPredRank = sourceRanks.length > 1
-        //     ? sourceRanks[1]
-        //     : maxPredRank;
 
         final maxPredRank = sourceRanks.first;
         final minPredRank = sourceRanks.last;
         if (maxPredRank - minPredRank < 2) continue;
-        // if (maxPredRank - secondMaxPredRank < 2) continue;
 
-        final desired = maxPredRank + 2;
+        final noCount = incoming.where((c) => c.sourcePort == 'no').length;
+        final pairGap = spacing.stepX / 12;
+        final neededCorridorSpace = noCount * 2 * pairGap;
+        final extraRanks = neededCorridorSpace > spacing.stepY
+            ? ((neededCorridorSpace - spacing.stepY) / spacing.stepY).ceil()
+            : 0;
+
+        final desired = maxPredRank + 2 + extraRanks;
         final current = ranks[name] ?? 0;
         if (current < desired) {
           final delta = desired - current;
@@ -270,8 +320,9 @@ class LayoutEngine {
     FlowchartGraph g,
     String name,
     int delta,
-    Map<String, int> ranks,
-  ) {
+    Map<String, int> ranks, {
+    String? skipEnd,
+  }) {
     final visited = <String>{name};
     final queue = <String>[];
     for (final c in g.outgoing[name] ?? const <ConnectionData>[]) {
@@ -281,6 +332,7 @@ class LayoutEngine {
     while (queue.isNotEmpty) {
       final cur = queue.removeAt(0);
       if (!visited.add(cur)) continue;
+      if (skipEnd != null && cur == skipEnd) continue;
       ranks[cur] = (ranks[cur] ?? 0) + delta;
       for (final c in g.outgoing[cur] ?? const <ConnectionData>[]) {
         if (c.targetPort == 'loopback') continue;
@@ -338,6 +390,8 @@ class LayoutEngine {
         continue; // вложенные no обрабатываются отдельно
       }
       if (c.targetPort == 'loopback') continue;
+
+      // final nextCol = c.sourcePort == 'body' ? column + 1 : column;
       _assignBranchSubtree(
         c.targetNodeName,
         column,
@@ -363,6 +417,11 @@ class LayoutEngine {
     ranks[node] = rank;
     for (final c in g.outgoing[node] ?? const []) {
       if (c.targetPort == 'loopback') continue;
+
+      final targetRank = ranks[c.targetNodeName];
+      final isBackwardExit =
+          c.sourcePort == 'exit' && targetRank != null && targetRank <= rank;
+      if (isBackwardExit) continue;
       _assignRanks(c.targetNodeName, rank + 1, g, ranks, inProgress);
     }
     inProgress.remove(node);
@@ -387,7 +446,13 @@ class LayoutEngine {
       );
       if (bodyConn == null || exitConn == null) continue;
 
-      final bodySubtree = _subtreeNodes(g, bodyConn.targetNodeName);
+      if (bodyConn.targetNodeName == forName) continue;
+
+      // final bodySubtree = _subtreeNodes(g, bodyConn.targetNodeName);
+      final bodySubtree = _bodySubtreeNodes(
+        g,
+        bodyConn.targetNodeName,
+      ); // было _subtreeNodes
       int maxBodyRank = ranks[forName] ?? 0;
       for (final n in bodySubtree) {
         final r = ranks[n] ?? 0;
@@ -405,6 +470,25 @@ class LayoutEngine {
         ranks[n] = (ranks[n] ?? 0) + delta;
       }
     }
+  }
+
+  /// Поддерево тела цикла: обходит ТОЛЬКО body-ветку,
+  /// не переходя по exit-рёбрам вложенных ForBlock'ов.
+  Set<String> _bodySubtreeNodes(FlowchartGraph g, String root) {
+    final result = <String>{};
+    void dfs(String n) {
+      if (result.contains(n)) return;
+      result.add(n);
+      if (g.isEnd(n)) return;
+      for (final c in g.outgoing[n] ?? const []) {
+        if (c.targetPort == 'loopback') continue;
+        if (c.sourcePort == 'exit') continue; // не выходим за пределы тела
+        dfs(c.targetNodeName);
+      }
+    }
+
+    dfs(root);
+    return result;
   }
 
   void _pushEndToBottom(FlowchartGraph g, Map<String, int> ranks) {
@@ -451,26 +535,48 @@ class LayoutEngine {
     }
     if (mergeSources.isEmpty) return;
 
+    final moving = <String>{};
+    for (final s in mergeSources) {
+      for (final c in g.outgoing[s] ?? const <ConnectionData>[]) {
+        if (c.targetPort == 'loopback') continue;
+        moving.addAll(_subtreeNodes(g, c.targetNodeName));
+      }
+    }
+
     // 2. Самый глубокий rank среди обычных узлов
     int maxOther = 0;
     for (final e in ranks.entries) {
       if (e.key == endName) continue;
       if (mergeSources.contains(e.key)) continue;
+      if (moving.contains(e.key)) continue;
       if (e.value > maxOther) maxOther = e.value;
     }
 
     final desiredMergeRank = maxOther + 1;
     for (final s in mergeSources) {
+      final node = g.nodes[s];
+      if (node == null) continue;
+      // For сам создаёт зазор через тело цикла; не толкаем заголовок вниз.
+      final hasBody = (g.outgoing[s] ?? const []).any(
+        (c) => c.sourcePort == 'body',
+      );
+      if (hasBody) continue;
+
       if ((ranks[s] ?? 0) < desiredMergeRank) {
-        debugPrint(
-          '[layout] pull-down $s: rank ${ranks[s]} → $desiredMergeRank',
-        );
+        final delta = desiredMergeRank - (ranks[s] ?? 0);
         ranks[s] = desiredMergeRank;
+        _pushDescendantsForSpace(g, s, delta, ranks, skipEnd: endName);
       }
     }
-    final desiredEndRank = desiredMergeRank + 1;
+    // Пересчитываем End по фактическим предшественникам.
+    int maxPredRank = 0;
+    for (final c in g.incoming[endName] ?? const <ConnectionData>[]) {
+      if (c.targetPort == 'loopback') continue;
+      final r = ranks[c.sourceNodeName] ?? 0;
+      if (r > maxPredRank) maxPredRank = r;
+    }
+    final desiredEndRank = maxPredRank + 1;
     if ((ranks[endName] ?? 0) < desiredEndRank) {
-      debugPrint('[layout] push-end ${ranks[endName]} → $desiredEndRank');
       ranks[endName] = desiredEndRank;
     }
   }
@@ -556,10 +662,11 @@ class LayoutEngine {
           .toList();
       if (outs.isEmpty) break;
       final next = outs.first.targetNodeName;
-      // Возврат в main - выходим, не заходя в чужие колонки.
-      if (cur != branchName && cols[next] == 0 && !g.isEnd(next)) break;
+
       final r = ranks[next] ?? 0;
       if (r > maxRank) maxRank = r;
+
+      if (cols[next] == 0) break;
       cur = next;
     }
     return maxRank;
