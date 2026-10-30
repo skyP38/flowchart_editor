@@ -35,6 +35,14 @@ func (s *FlowchartService) Delete(
 	return s.repository.Delete(ctx, userID, flowchartID)
 }
 
+func (s *FlowchartService) Update(
+	ctx context.Context,
+	userID, projectID, flowchartID int64,
+	name string,
+) (domains.Flowchart, error) {
+	return s.repository.Update(ctx, userID, projectID, flowchartID, name)
+}
+
 func (s *FlowchartService) GetContent(
 	ctx context.Context,
 	userID, projectID, flowchartID int64,

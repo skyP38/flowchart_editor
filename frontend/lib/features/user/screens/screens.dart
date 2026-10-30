@@ -67,6 +67,42 @@ class _ProjectsContentState extends State<ProjectsContent> {
     if (mounted) _reload();
   }
 
+  Future<void> _renameProject(Project project) async {
+    final controller = TextEditingController(text: project.name);
+    final newName = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Переименовать проект'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          decoration: const InputDecoration(labelText: 'Новое название'),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Отмена'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, controller.text.trim()),
+            child: const Text('Сохранить'),
+          ),
+        ],
+      ),
+    );
+    if (newName == null || newName.isEmpty || newName == project.name) return;
+
+    try {
+      await _api.renameProject(project.id, newName);
+      _reload();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Ошибка переименования: $e')));
+    }
+  }
+
   Future<void> _deleteProject(Project project) async {
     final confirmed = await showDialog<bool>(
       context: context,
@@ -265,6 +301,7 @@ class _ProjectsContentState extends State<ProjectsContent> {
                             child: ProjectCard(
                               project: project,
                               onDelete: () => _deleteProject(project),
+                              onRename: () => _renameProject(project),
                             ),
                           );
                         },

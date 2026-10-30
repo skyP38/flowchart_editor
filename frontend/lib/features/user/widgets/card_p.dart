@@ -5,8 +5,14 @@ import '../screens/project_screen.dart';
 class ProjectCard extends StatelessWidget {
   final Project project;
   final VoidCallback? onDelete;
+  final VoidCallback? onRename;
 
-  const ProjectCard({super.key, required this.project, this.onDelete});
+  const ProjectCard({
+    super.key,
+    required this.project,
+    this.onDelete,
+    this.onRename,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -78,6 +84,24 @@ class ProjectCard extends StatelessWidget {
                       style: const TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  InkWell(
+                    onTap: onRename,
+                    borderRadius: BorderRadius.circular(8),
+                    child: Container(
+                      width: 38,
+                      height: 38,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFE0E7FF),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Icon(
+                        Icons.edit_outlined,
+                        size: 20,
+                        color: Color(0xFF4338CA),
                       ),
                     ),
                   ),

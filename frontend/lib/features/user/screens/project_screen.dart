@@ -78,6 +78,42 @@ class _ProjectScreenState extends State<ProjectScreen> {
   // все тапы по карточкам идут через это
   void _openFlowchart(Flowchart f) => _openFlowchartEditor(f.id);
 
+  Future<void> _renameFlowchart(Flowchart f) async {
+    final controller = TextEditingController(text: f.name);
+    final newName = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Переименовать блок-схему'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          decoration: const InputDecoration(labelText: 'Новое название'),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Отмена'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, controller.text.trim()),
+            child: const Text('Сохранить'),
+          ),
+        ],
+      ),
+    );
+    if (newName == null || newName.isEmpty || newName == f.name) return;
+
+    try {
+      await _api.renameFlowchart(widget.projectId, f.id, newName);
+      _reload();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Ошибка переименования: $e')));
+    }
+  }
+
   void _reload() {
     setState(() {
       _projectFuture = _api.getProject(widget.projectId);
@@ -284,6 +320,7 @@ class _ProjectScreenState extends State<ProjectScreen> {
                               flowchart: f,
                               onTap: () => _openFlowchart(f),
                               onDelete: () => _deleteFlowchart(f.id),
+                              onRename: () => _renameFlowchart(f),
                             );
                           },
                         ),
