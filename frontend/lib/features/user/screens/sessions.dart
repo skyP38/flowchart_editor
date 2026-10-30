@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'dart:math' as Math;
+import 'dart:math' as math;
 
 import '../models/session.dart';
 import '../../auth/data/api/auth_api.dart';
@@ -201,7 +201,7 @@ class _SessionScreenState extends State<SessionScreen> {
   Widget _buildTableContent(List<Session> sessions) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final tableWidth = Math.max(constraints.maxWidth, 800.0);
+        final tableWidth = math.max(constraints.maxWidth, 800.0);
 
         return SingleChildScrollView(
           scrollDirection: Axis.horizontal,

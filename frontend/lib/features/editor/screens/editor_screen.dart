@@ -31,6 +31,7 @@ import '../utils/svg_exporter.dart';
 import '../../../core/storage/guest_diagram_storage.dart';
 import '../painters/headers_painters.dart';
 import '../domain/flowchart_graph.dart';
+import '../utils/scene_builder.dart';
 
 // Главный экран редактора блок-схем
 class EditorScreen extends StatefulWidget {
@@ -739,69 +740,6 @@ class _EditorScreenState extends State<EditorScreen>
     debugPrint('─────────────────────────');
   }
 
-  /// «Дети» по определению:
-  ///  • ForBlock    — всё, что лежит в body (без перехода по exit);
-  ///  • LogicBlock  — узлы по yes-ветке до слияния с no-веткой
-  ///                  (сама точка слияния — не ребёнок);
-  // ///  • остальные   — 0.
-  // static int _countChildren(FlowchartGraph g, String nodeName) {
-  //   final node = g.nodes[nodeName];
-  //   if (node == null) return 0;
-
-  //   if (node.data is ForBlock) {
-  //     return _countBodySubtree(g, nodeName);
-  //   }
-  //   if (node.data is LogicBlock) {
-  //     return _countYesBranchChildren(g, nodeName);
-  //   }
-  //   return 0;
-  // }
-
-  /// yes-ветка условия: BFS от yes-цели, с остановкой на любом узле,
-  /// достижимом из no-ветки (это и есть merge-точка), и на End.
-  // static int _countYesBranchChildren(FlowchartGraph g, String logicName) {
-  //   ConnectionData? yesConn;
-  //   ConnectionData? noConn;
-  //   for (final c in g.outgoing[logicName] ?? const <ConnectionData>[]) {
-  //     if (c.sourcePort == 'yes') yesConn = c;
-  //     if (c.sourcePort == 'no') noConn = c;
-  //   }
-  //   if (yesConn == null || noConn == null) return 0;
-
-  //   // Обе ветки сразу сходятся в одну и ту же точку → детей нет.
-  //   if (yesConn.targetNodeName == noConn.targetNodeName) return 0;
-
-  //   // Множество узлов, достижимых из no-ветки, — это «запрещённая зона».
-  //   final noReachable = <String>{};
-  //   final noQueue = <String>[noConn.targetNodeName];
-  //   while (noQueue.isNotEmpty) {
-  //     final cur = noQueue.removeAt(0);
-  //     if (!noReachable.add(cur)) continue;
-  //     if (g.isEnd(cur)) continue;
-  //     for (final c in g.outgoing[cur] ?? const <ConnectionData>[]) {
-  //       if (c.targetPort == 'loopback') continue;
-  //       noQueue.add(c.targetNodeName);
-  //     }
-  //   }
-
-  //   // Идём по yes-ветке, но упираемся на первом узле, который есть в no-зоне.
-  //   final visited = <String>{};
-  //   final queue = <String>[yesConn.targetNodeName];
-  //   int count = 0;
-  //   while (queue.isNotEmpty) {
-  //     final cur = queue.removeAt(0);
-  //     if (!visited.add(cur)) continue;
-  //     if (noReachable.contains(cur)) continue; // merge-точка — стоп
-  //     if (g.isEnd(cur)) continue;
-  //     count++;
-  //     for (final c in g.outgoing[cur] ?? const <ConnectionData>[]) {
-  //       if (c.targetPort == 'loopback') continue;
-  //       queue.add(c.targetNodeName);
-  //     }
-  //   }
-  //   return count;
-  // }
-
   /// Полное поддерево: BFS по исходящим рёбрам, без loopback,
   /// с остановкой на End. Возвращает количество потомков (без самого root).
   static int _countSubtree(FlowchartGraph g, String root) {
@@ -1241,33 +1179,20 @@ class _EditorScreenState extends State<EditorScreen>
     );
     final startPos = startNodeEntry?.value.position;
 
-    final renderGrid = showGrid || _capturing;
-
-    Widget gridWidget = const SizedBox.shrink();
-    if (showGrid && startNodeEntry != null) {
-      gridWidget = GridWithLabels(
-        canvasSize: contentSize,
-        columnWidth: _controller.spacing.stepX,
-        rowHeight: _controller.spacing.stepY,
-        nodeWidth: _controller.nodeSize.width,
-        nodeHeight: _controller.nodeSize.height,
-        startPosition: startNodeEntry.value.position,
-        showLines: true,
-        showLabels: _capturing,
-      );
-    }
-
-    // Widget gridWidget = const SizedBox.shrink();
-    // if (showGrid && startNodeEntry != null) {
-    //   gridWidget = GridWithLabels(
-    //     canvasSize: contentSize,
-    //     columnWidth: _controller.spacing.stepX,
-    //     rowHeight: _controller.spacing.stepY,
-    //     nodeWidth: _controller.nodeSize.width,
-    //     nodeHeight: _controller.nodeSize.height,
-    //     startPosition: startNodeEntry.value.position,
-    //   );
-    // }
+    // строим scene — единый источник всего, что рисуется на холсте
+    final scene =
+        SceneBuilder(
+          router: _router,
+          nodeSize: nodeSize,
+          spacing: _controller.spacing,
+        ).build(
+          graph: graph,
+          canvasSize: contentSize,
+          showGrid: showGrid,
+          // Подписи нужны только при съёмке PNG; в редакторе они —
+          // sticky-хедеры ColumnHeadersPainter/RowHeadersPainter.
+          showLabels: _capturing,
+        );
 
     final leftInset = toolbarVisible ? 200.0 : 40.0;
     final bottomInset = isMobile ? 20.0 : 0.0; // высота _BottomScrollBar
@@ -1442,12 +1367,13 @@ class _EditorScreenState extends State<EditorScreen>
                                             child: Stack(
                                               children: [
                                                 // Сетка
-                                                if (showGrid) gridWidget,
+                                                // if (showGrid) gridWidget,
                                                 // Линии соединений
                                                 CustomPaint(
                                                   painter: ConnectionPainter(
-                                                    graph: graph,
-                                                    router: _router,
+                                                    scene: scene,
+                                                    // graph: graph,
+                                                    // router: _router,
                                                     selectedConnectionId:
                                                         _capturing
                                                         ? null

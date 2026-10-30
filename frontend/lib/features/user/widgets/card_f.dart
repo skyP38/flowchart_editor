@@ -6,12 +6,14 @@ class FlowchartCard extends StatelessWidget {
   final Flowchart flowchart;
   final VoidCallback? onTap;
   final VoidCallback? onDelete;
+  final VoidCallback? onRename;
 
   const FlowchartCard({
     super.key,
     required this.flowchart,
     this.onTap,
     this.onDelete,
+    this.onRename,
   });
 
   @override
@@ -70,6 +72,25 @@ class FlowchartCard extends StatelessWidget {
                         ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    const SizedBox(width: 8),
+                    GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTap: onRename,
+                      child: Container(
+                        width: 40,
+                        height: 40,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFE0E7FF),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Icon(
+                          Icons.edit_outlined,
+                          size: 20,
+                          color: Color(0xFF4338CA),
+                        ),
                       ),
                     ),
                     const SizedBox(width: 8),

@@ -3,7 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../../../core/navigation/last_route_storage.dart';
 import '../../auth/domain/auth_repository.dart';
-import '../widgets/sidebar.dart';
+// import '../widgets/sidebar.dart';
 import 'screens.dart';
 import 'sessions.dart';
 import 'project_screen.dart';

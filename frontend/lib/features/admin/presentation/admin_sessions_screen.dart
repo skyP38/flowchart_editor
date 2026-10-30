@@ -89,7 +89,7 @@ class _AdminSessionsScreenState extends State<AdminSessionsScreen> {
   @override
   Widget build(BuildContext context) {
     final width = MediaQuery.sizeOf(context).width;
-    final compact = width < 900;
+    // final compact = width < 900;
     final narrow = width < 700;
     return Scaffold(
       appBar: AppBar(
