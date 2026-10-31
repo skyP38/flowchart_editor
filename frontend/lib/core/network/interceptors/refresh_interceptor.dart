@@ -39,15 +39,32 @@ class RefreshInterceptor extends Interceptor {
 
     final response = err.response;
     final alreadyRetried = err.requestOptions.extra['__retried'] == true;
-
     final status = response?.statusCode;
 
+    String? code;
+    String? message;
     final data = response?.data;
-    final code = data is Map ? data['code']?.toString() : null;
-    final message = data is Map ? data['message']?.toString() : null;
+    if (data is Map) {
+      final inner = data['error'];
+      if (inner is Map) {
+        code = inner['code']?.toString();
+        message = inner['message']?.toString();
+      }
+      code ??= data['code']?.toString();
+      message ??= data['message']?.toString();
+    }
+
+    debugPrint(
+      '=== [Refresh] ${err.requestOptions.method} '
+      '${err.requestOptions.path} status=$status '
+      'code=$code message=$message ===',
+    );
+
     final blocked =
         status == 403 &&
-        (code == 'user_blocked' || message == 'user is blocked');
+        (code == 'user_blocked' ||
+            code == 'forbidden' ||
+            message == 'user is blocked');
     if (blocked) {
       await _storage.clear();
       onUserBlocked?.call();
