@@ -1,4 +1,3 @@
-import 'package:flowchart_editor_frontend/core/network/api_error.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
