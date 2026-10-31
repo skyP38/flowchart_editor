@@ -50,7 +50,6 @@ class FlowController extends ChangeNotifier {
         final requiredExtra = requiredWidth - size.width;
         if (requiredExtra > extraX) extraX = requiredExtra;
       } else {
-        // fallback на случай очень глубокой вложенности
         extraX = baseExtraX + depth * LayoutConstants.loopbackChannelWidth;
       }
     }
@@ -209,29 +208,11 @@ class FlowController extends ChangeNotifier {
     isToolbarVisible: _isToolbarVisible,
   );
 
-  // загрузка
-  // void fromSnapshot(EditorSnapshot s) {
-  //   _pushHistory(); // загрузку можно отменить
-  //   final restored = GraphMapper.fromSnapshot(s);
-
-  //   _nodeSize = restored.nodeSize;
-
-  //   _graph = _relayout(restored.graph); // пересчет раскладки из данных
-  //   _showGrid = restored.showGrid;
-  //   _scale = restored.scale;
-  //   _isToolbarVisible = restored.isToolbarVisible;
-
-  //   notifyListeners();
-  // }
-  //
   void fromSnapshot(EditorSnapshot s) {
     _pushHistory();
     final restored = GraphMapper.fromSnapshot(s);
 
-    // Санитизация: у ForBlock'ов с self-loop на body
-    // заменяем body на свежий ProcessBlock «Тело цикла».
     var graph = restored.graph;
-    final fixes = <String, NodeModel>{};
     for (final e in graph.nodes.entries) {
       final n = e.value;
       if (n.data is! ForBlock) continue;
@@ -241,36 +222,6 @@ class FlowController extends ChangeNotifier {
       );
       if (bodyConn == null) continue;
       if (bodyConn.targetNodeName != n.name) continue;
-
-      // Нашли self-loop: создаём свежий placeholder
-      final placeholder = NodeFactory.createNode(
-        id: _uuid.v4(),
-        data: const ProcessBlock('Тело цикла'),
-        position: Offset.zero,
-      );
-      fixes[placeholder.name] = placeholder;
-
-      graph = graph
-          .withoutConnection(bodyConn.id!)
-          .withNode(placeholder)
-          .withConnection(
-            ConnectionData(
-              id: _uuid.v4(),
-              sourceNodeName: n.name,
-              sourcePort: 'body',
-              targetNodeName: placeholder.name,
-              targetPort: 'in',
-            ),
-          )
-          .withConnection(
-            ConnectionData(
-              id: _uuid.v4(),
-              sourceNodeName: placeholder.name,
-              sourcePort: 'out',
-              targetNodeName: n.name,
-              targetPort: 'loopback',
-            ),
-          );
     }
 
     _nodeSize = restored.nodeSize;
@@ -283,7 +234,6 @@ class FlowController extends ChangeNotifier {
 
   // helpers
   FlowchartGraph _relayout(FlowchartGraph g) {
-    // final depth = LayoutEngine.maxForDepth(g);
     _layoutEngine = _buildEngine(g, _nodeSize);
 
     final positions = _layoutEngine.compute(g);
@@ -386,8 +336,7 @@ class FlowController extends ChangeNotifier {
     );
   }
 
-  /// Удаляет узлы, недостижимые от Start по обычным рёбрам (loopback
-  /// не расширяет достижимость вперёд). Start и End сохраняются всегда.
+  // Удаляет узлы, недостижимые от Start по обычным ребрам
   FlowchartGraph _pruneUnreachable(FlowchartGraph g) {
     final start = g.findStart();
     if (start == null) return g;

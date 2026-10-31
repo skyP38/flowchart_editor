@@ -7,9 +7,7 @@ import '../factories/node_factory.dart';
 import '../utils/node_shape_geometry.dart';
 import 'diagram_scene.dart';
 
-/// Универсальный "калькулятор": graph + router + размеры → DiagramScene.
-/// Один и тот же результат используется и для on-screen отрисовки,
-/// и для экспорта в SVG/PNG.
+// Универсальный класс для рисования всего 
 class SceneBuilder {
   final ConnectionRouter router;
   final Size nodeSize;

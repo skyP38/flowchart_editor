@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import '../factories/node_factory.dart';
 import '../models/editor_models.dart';
 
-/// Что нужно нарисовать — независимо от рендерера.
 class DiagramScene {
   final Size canvasSize;
   final Offset? startPosition;
@@ -38,7 +37,7 @@ class ConnectionItem {
 
 class NodeItem {
   final NodeModel node;
-  final Path outline; // в абсолютных координатах
+  final Path outline; 
   final List<Path> extras;
   final Offset textCenter;
   const NodeItem({
@@ -66,6 +65,6 @@ class GridLineItem {
 class GridLabelItem {
   final Offset position; // позиция верхнего левого угла текста
   final String text;
-  final bool isColumn; // true — цифра (сверху), false — буква (слева)
+  final bool isColumn; // true - цифра (сверху), false - буква (слева)
   const GridLabelItem(this.position, this.text, {required this.isColumn});
 }

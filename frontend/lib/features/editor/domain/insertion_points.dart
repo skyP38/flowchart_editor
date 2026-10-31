@@ -16,14 +16,14 @@ class InsertionPointsService {
   List<InsertionPoint> compute(FlowchartGraph g) {
     final points = <InsertionPoint>[];
 
-    // 1. Все target с >= 2 входящими non-loopback.
+    // Все target с >= 2 входящими non-loopback
     final incomingByTarget = <String, List<ConnectionData>>{};
     for (final conn in g.connections) {
       if (conn.targetPort == 'loopback') continue;
       incomingByTarget.putIfAbsent(conn.targetNodeName, () => []).add(conn);
     }
 
-    // 2. Для каждого merge-target вычисляем точку слияния.
+    // Для каждого merge-target вычисляем точку слияния
     final mergeInfoByTarget = <String, _MergeInfo>{};
     for (final e in incomingByTarget.entries) {
       if (e.value.length < 2) continue;
@@ -33,17 +33,12 @@ class InsertionPointsService {
       if (info != null) mergeInfoByTarget[e.key] = info;
     }
 
-    // 3. Для каждой связи:
-    //    - если target - merge: "before" (на этой ветке до mergeY);
-    //    - иначе: обычный плюс (середина/специфика ветки).
     for (final conn in g.connections) {
       final isBodyLoopback =
           conn.targetPort == 'loopback' &&
           (conn.sourcePort == 'body' || conn.sourcePort == 'out') &&
           g.nodes[conn.targetNodeName]?.data is ForBlock;
       if (conn.targetPort == 'loopback' && !isBodyLoopback) continue;
-      // if (conn.targetPort == 'loopback') continue;
-      // final path = router.build(conn, g);
       final routed = router.build(conn, g);
       final path = routed.path;
       if (path.computeMetrics().isEmpty) continue;
@@ -75,17 +70,12 @@ class InsertionPointsService {
                 c.sourcePort == 'no' && c.sourceNodeName == conn.sourceNodeName,
           );
           if (noConn != null) {
-            // final noPath_r = router.build(noConn, g);
             final noPath = router.build(noConn, g).path;
             final intersectionY = _lastHorizontalY(noPath);
-            // отсекаем вырожденные случаи (L-путь, когда возврата нет:
-            // последняя горизонталь идёт на уровне exitY)
             if (intersectionY != null && intersectionY > exitY + 1.0) {
               y2 = (exitY + intersectionY) / 2;
             }
           }
-          // Fallback: если no-ветки от этого же источника нет (например,
-          // merge из нескольких yes-цепочек) — берём середину до landing.
           y2 ??= (exitY + mergeInfo.mergeY) / 2;
         }
 
@@ -113,7 +103,7 @@ class InsertionPointsService {
       if (plusPos != null) points.add(InsertionPoint(plusPos, conn));
     }
 
-    // 4. Для каждого merge-target - ровно один "after".
+    //Для каждого merge-target - ровно один after
     for (final info in mergeInfoByTarget.values) {
       final otherIds = info.incoming
           .where((c) => c.id != null && c.id != info.deepestEdge.id)
@@ -141,18 +131,15 @@ class InsertionPointsService {
     final centerX = target.position.dx + router.nodeSize.width / 2;
     final targetTop = target.position.dy;
 
-    // ═══════════════ ДИАГНОСТИКА: что видит каждая ветка ═══════════════
     debugPrint(
       '[merge] target=${target.name} '
       'centerX=$centerX targetTop=$targetTop '
       'inputs=${incoming.length}',
     );
-    // ═════════════════════════════════════════════════════════════════════
-
+    
     double? maxLandingY;
     ConnectionData? deepestEdge;
     for (final conn in incoming) {
-      // final path = router.build(conn, g);
       final routed = router.build(conn, g);
       final path = routed.path;
       if (path.computeMetrics().isEmpty) {
@@ -163,12 +150,10 @@ class InsertionPointsService {
         continue;
       }
       final y = _landingYAt(path, centerX, targetTop);
-      // ════════════ ДИАГНОСТИКА: landing каждой ветки ════════════
-      debugPrint(
+         debugPrint(
         '[merge]   ${conn.sourceNodeName}--${conn.sourcePort}-->'
         '${conn.targetNodeName}: landingY=$y',
       );
-      // ═══════════════════════════════════════════════════════════
       if (y != null && (maxLandingY == null || y > maxLandingY)) {
         maxLandingY = y;
         deepestEdge = conn;
@@ -214,12 +199,7 @@ class InsertionPointsService {
     return best;
   }
 
-  /// Плюс на exit-ветке:
-  /// X — строго центр блока-источника (без клампа);
-  /// Y — горизонтальный сегмент, чей X-диапазон накрывает srcCenterX
-  ///     (это и есть плечо «влево под блоком»). Если такого нет —
-  ///     последний горизонтальный сегмент (плюс всё равно на горизонтали,
-  ///     а не на вертикали).
+  /// Плюс на exit-ветке
   Offset? _exitPlusPosition(Path path, NodeModel src) {
     final srcCenterX = src.position.dx + router.nodeSize.width / 2;
     final segs = _extractSegments(path);
@@ -253,8 +233,7 @@ class InsertionPointsService {
     return Offset(srcCenterX, target.start.dy);
   }
 
-  /// Y последнего горизонтального сегмента пути.
-  /// Для exit-маршрута это turnY — горизонталь коридора обхода.
+  /// Y последнего горизонтального сегмента пути
   double? _lastHorizontalY(Path path) {
     final segs = _extractSegments(path);
     double? y;

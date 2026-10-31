@@ -13,7 +13,6 @@ String numberToLetter(int n) {
 }
 
 // Рисует подписи сетки: цифры сверху(столбцы), буквы слева (строки)
-// Нумерация привязана к расположению блока Start
 class GridLabelsPainter extends CustomPainter {
   final double columnWidth;
   final double rowHeight;
@@ -47,7 +46,7 @@ class GridLabelsPainter extends CustomPainter {
       fontWeight: FontWeight.w500,
     );
 
-    // Находим левую/верхнюю границу ячейки
+    // Левая/верхняя граница ячейки
     final shiftX = (columnWidth - nodeWidth) / 2;
     final shiftY = (rowHeight - nodeHeight) / 2;
     final startBoundaryX = startPosition.dx - shiftX;
@@ -75,7 +74,6 @@ class GridLabelsPainter extends CustomPainter {
       }
     }
 
-    // Строки: аналогично, центр строки 0 = центр Start-блока.
     int firstRow = (-startBoundaryY / rowHeight).floor();
     int lastRow = ((size.height - startBoundaryY) / rowHeight).ceil();
     // горизонтальные линии

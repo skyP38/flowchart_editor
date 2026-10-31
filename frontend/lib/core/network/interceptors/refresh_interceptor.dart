@@ -9,8 +9,8 @@ import '../token_storage.dart';
 // Ловит 401, пытается обновить access-токен через refresh-токен и повторить исходный запрос
 // Если обновить не удалось - зовет onUnauthorized
 // Ключевые моменты:
-//  - защита от рекурсии: refresh-запрос помечается `__skipInterceptors`;
-//  - защита от повторного повтора: `__retried` в extra;
+//  - защита от рекурсии: refresh-запрос помечается __skipInterceptors;
+//  - защита от повторного повтора: __retried в extra;
 //  - дедупликация: одновременные 401 ждут один общий future.
 class RefreshInterceptor extends Interceptor {
   final Dio _dio;
@@ -19,12 +19,6 @@ class RefreshInterceptor extends Interceptor {
   final void Function()? onUserBlocked;
 
   Future<String?>? _refreshFuture;
-
-  // static const _publicPaths = <String>[
-  //   '/api/auth/login',
-  //   '/api/auth/register',
-  //   '/api/auth/refresh',
-  // ];
 
   RefreshInterceptor({
     required Dio dio,

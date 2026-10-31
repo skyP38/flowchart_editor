@@ -10,17 +10,6 @@ import 'admin_logs_screen.dart';
 class AdminShell extends StatelessWidget {
   const AdminShell({super.key});
 
-  // bool _showEditor = false;
-  // bool _showSessions = false;
-  // bool _showLogs = false;
-  // bool _restored = false;
-
-  // @override
-  // void initState() {
-  //   super.initState();
-  //   _restore();
-  // }
-
   @override
   Widget build(BuildContext context) {
     final screen = context.select<LastRouteStorage, String>(
@@ -59,85 +48,4 @@ class AdminShell extends StatelessWidget {
         );
     }
   }
-  //   if (!_restored) {
-  //     return const Scaffold(body: Center(child: CircularProgressIndicator()));
-  //   }
-  //   if (_showEditor) {
-  //     return HomeShell(
-  //       onReturnToAdmin: () => _openScreen(
-  //         AdminRouteStorage.usersScreen,
-  //       ), //=> setState(() => _showEditor = false),
-  //     );
-  //   }
-  //   if (_showSessions) {
-  //     return AdminSessionsScreen(
-  //       onOpenEditor: () => _openScreen(AdminRouteStorage.editorScreen),
-  //       onOpenUsers: () => _openScreen(AdminRouteStorage.usersScreen),
-  //       onOpenLogs: () => _openScreen(AdminRouteStorage.logsScreen),
-  //     );
-  //   }
-  //   if (_showLogs) {
-  //     return AdminLogsScreen(
-  //       onOpenEditor: () => _openScreen(AdminRouteStorage.editorScreen),
-  //       onOpenUsers: () => _openScreen(AdminRouteStorage.usersScreen),
-  //       onOpenSessions: () => _openScreen(AdminRouteStorage.sessionsScreen),
-  //     );
-  //   }
-  //   return AdminUsersScreen(
-  //     onOpenEditor: () => _openScreen(AdminRouteStorage.editorScreen),
-  //     onOpenSessions: () => _openScreen(AdminRouteStorage.sessionsScreen),
-  //     onOpenLogs: () => _openScreen(AdminRouteStorage.logsScreen),
-  //   );
-  // }
-  //   return AdminSessionsScreen(
-  //     onOpenEditor: () => setState(() {
-  //       _showEditor = true;
-  //       _showSessions = false;
-  //       _showLogs = false;
-  //     }),
-  //     onOpenUsers: () => setState(() {
-  //       _showSessions = false;
-  //       _showLogs = false;
-  //     }),
-  //     onOpenLogs: () => setState(() {
-  //       _showSessions = false;
-  //       _showLogs = true;
-  //     }),
-  //   );
-  // }
-
-  // if (_showLogs) {
-  //   return AdminLogsScreen(
-  //     onOpenEditor: () => setState(() {
-  //       _showEditor = true;
-  //       _showSessions = false;
-  //       _showLogs = false;
-  //     }),
-  //     onOpenUsers: () => setState(() {
-  //       _showLogs = false;
-  //       _showSessions = false;
-  //     }),
-  //     onOpenSessions: () => setState(() {
-  //       _showLogs = false;
-  //       _showSessions = true;
-  //     }),
-  //   );
-  // }
-
-  //   return AdminUsersScreen(
-  //     onOpenEditor: () => setState(() {
-  //       _showEditor = true;
-  //       _showSessions = false;
-  //       _showLogs = false;
-  //     }),
-  //     onOpenSessions: () => setState(() {
-  //       _showSessions = true;
-  //       _showLogs = false;
-  //     }),
-  //     onOpenLogs: () => setState(() {
-  //       _showLogs = true;
-  //       _showSessions = false;
-  //     }),
-  //   );
-  // }
 }

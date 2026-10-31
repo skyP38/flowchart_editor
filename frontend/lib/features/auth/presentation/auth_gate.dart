@@ -43,12 +43,6 @@ class _AuthGateState extends State<AuthGate> {
         user.role?.toLowerCase() == 'admin'
             ? const AdminShell()
             : const HomeShell(), // _screenForRoute(
-      // _lastRoute,
-      // ), //const ProjectsScreen(),
-      //AuthUnauthenticated() => LoginScreen(onLoggedIn: () {}),
-
-      // AuthAuthenticated(:final user) =>
-      //  const ProjectsScreen(), // HomeScreen(user: user),
       AuthError(:final error) => _AuthErrorScreen(
         error: error,
         onRetry: () => context.read<AuthRepository>().init(),

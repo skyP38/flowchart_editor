@@ -71,7 +71,6 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Flowchart Editor',
-      // navigatorObservers: [routeObserver],
       theme: ThemeData(
         scaffoldBackgroundColor: const Color(0xFFFFFFFF),
         fontFamily: 'Inter',

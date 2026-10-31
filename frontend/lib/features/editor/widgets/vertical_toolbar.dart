@@ -170,7 +170,6 @@ class VerticalToolbar extends StatelessWidget {
 
               if (canSave) ...[
                 const SizedBox(height: 8),
-                // ElevatedButton(onPressed: onSave, child: const Text('Сохранить')),
                 ElevatedButton(
                   onPressed: isSaving ? null : onSave,
                   child: isSaving

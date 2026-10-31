@@ -277,11 +277,9 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
     return TextButton(
       onPressed: active ? null : onPressed,
       style: TextButton.styleFrom(
-        backgroundColor: active
-            ? const Color(0xFFF1EDFA) // фиолетовая подложка
-            : Colors.transparent,
+        backgroundColor: active ? const Color(0xFFF1EDFA) : Colors.transparent,
         foregroundColor: active
-            ? const Color(0xFF6750A4) // фиолетовый текст
+            ? const Color(0xFF6750A4)
             : const Color(0xFF1E1E1E),
         disabledForegroundColor: const Color(0xFF6750A4),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
@@ -450,7 +448,6 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
   }
 
   //  Desktop version
-
   Widget _buildDesktopTable(List<AdminUser> users) {
     return Container(
       decoration: BoxDecoration(

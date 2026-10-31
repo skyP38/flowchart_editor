@@ -32,8 +32,6 @@ class AuthRepository extends ChangeNotifier {
     super.dispose();
   }
 
-  // Публичный API
-
   /// Восстановление сессии при старте приложения
   Future<void> init() {
     final existing = _initFuture;
@@ -151,7 +149,6 @@ class AuthRepository extends ChangeNotifier {
       if (_state is! AuthUnauthenticated) {
         _setState(const AuthUnauthenticated());
       }
-      // _setState(const AuthUnauthenticated());
     }
   }
 

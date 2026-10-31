@@ -52,23 +52,3 @@ class Session {
         '${two(d.day)}.${two(d.month)}.${d.year.toString().substring(2)}';
   }
 }
-//   /// Активна, если не отозвана и не истекла.
-//   bool get isActive => revokedAt == null && expiresAt.isAfter(DateTime.now());
-
-//   String get statusLabel =>
-//       isActive ? 'The current session' : 'Inactive session';
-
-//   String get activityLabel {
-//     if (isActive) return 'Active now';
-//     final d = revokedAt ?? createdAt;
-//     return _formatDateTime(d);
-//   }
-
-//   String get createdLabel => _formatDateTime(createdAt);
-
-//   String _formatDateTime(DateTime d) {
-//     String two(int n) => n.toString().padLeft(2, '0');
-//     return '${two(d.hour)}:${two(d.minute)} '
-//         '${two(d.day)}.${two(d.month)}.${d.year.toString().substring(2)}';
-//   }
-// }

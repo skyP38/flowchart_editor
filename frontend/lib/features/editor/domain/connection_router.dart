@@ -74,7 +74,7 @@ class ConnectionRouter {
 
     final endPort = _portPosition(tgt, 'in', outgoing: false);
 
-    // Собираем все ГОРИЗОНТАЛЬНЫЕ источники к этому target
+    
     double minX = double.infinity;
     double maxX = -double.infinity;
     double maxSrcBottom = double.negativeInfinity;
@@ -88,7 +88,7 @@ class ConnectionRouter {
 
       final srcPort = _portPosition(src, c.sourcePort, outgoing: true);
       if ((srcPort.dx - endPort.dx).abs() < 0.5) {
-        continue; // вертикальная — не в шине
+        continue; 
       }
       hasHorizontal = true;
       if (srcPort.dx < minX) minX = srcPort.dx;
@@ -136,7 +136,7 @@ class ConnectionRouter {
       case 'in':
         return p + Offset(w / 2, 0);
 
-      // Выходы, идущие вниз по «главной» ветке
+      // Выходы, идущие вниз по главной ветке
       case 'out':
       case 'yes':
       case 'body':
@@ -157,9 +157,7 @@ class ConnectionRouter {
     }
   }
 
-  /// X стрелки на общей шине: ставим за [gap] до ближайшего вертикального
-  /// спуска (другого соединения к тому же target, либо самого target),
-  /// который встретится по пути от нашего спуска к target.
+  // стрелки на общей шине: ставим за gap до ближайшего вертикального спуска
   double _arrowXOnBus(
     FlowchartGraph g,
     ConnectionData c,
@@ -173,8 +171,7 @@ class ConnectionRouter {
     if (tgt == null) return myEndX;
     final tgtEnd = _portPosition(tgt, 'in', outgoing: false);
 
-    // «Следующая вертикаль» — минимум по расстоянию в направлении движения.
-    // Если между мной и target ничего нет, то это вертикаль самого target.
+    // Следующая вертикаль
     double best = myEndX;
 
     for (final other in g.connections) {
@@ -186,7 +183,7 @@ class ConnectionRouter {
 
       double dropX;
       if (other.sourcePort == 'no' && otherSrc.position.dx > tgtEnd.dx + 1) {
-        dropX = _noCorridorX(g, other.sourceNodeName); // реальный no-коридор
+        dropX = _noCorridorX(g, other.sourceNodeName); 
       } else {
         dropX = _portPosition(otherSrc, other.sourcePort, outgoing: true).dx;
       }
@@ -241,8 +238,8 @@ class ConnectionRouter {
     ConnectionData c,
   ) {
     final busY = _busY(g, c.targetNodeName);
-    // ── В пределах одного столбца: прямой L, без коридора и без шины ──
-    if ((start.dx - end.dx).abs() < nodeSize.width * 0.6) {
+    // В пределах одного столбца
+            if ((start.dx - end.dx).abs() < nodeSize.width * 0.6) {
       final y = (busY > start.dy && busY < end.dy)
           ? busY
           : start.dy + spacing.stepY / 4;
@@ -290,10 +287,8 @@ class ConnectionRouter {
     return RoutedConnection(path, []);
   }
 
-  //
-  /// Множество узлов yes-ветки от логики до первой merge-точки с no-веткой.
-  /// Нужен для построения правого коридора обхода (_noCorridorX).
-  Set<String> _yesBranchUntilMerge(FlowchartGraph g, String logicName) {
+  // Множество узлов yes-ветки от логики до первой merge-точки с no-веткой
+    Set<String> _yesBranchUntilMerge(FlowchartGraph g, String logicName) {
     ConnectionData? yesConn, noConn;
     for (final c in g.outgoing[logicName] ?? const <ConnectionData>[]) {
       if (c.sourcePort == 'yes') yesConn = c;
@@ -302,7 +297,7 @@ class ConnectionRouter {
     if (yesConn == null || noConn == null) return {};
     if (yesConn.targetNodeName == noConn.targetNodeName) return {};
 
-    // «Зона слияния» — всё, достижимое из no-ветки.
+    // все, достижимое из no-ветки
     final noReach = <String>{};
     final q1 = <String>[noConn.targetNodeName];
     while (q1.isNotEmpty) {
@@ -315,7 +310,7 @@ class ConnectionRouter {
       }
     }
 
-    // yes-ветка BFS с остановкой на первой merge-точке.
+    // yes-ветка BFS с остановкой на первой merge-точке
     final result = <String>{};
     final q2 = <String>[yesConn.targetNodeName];
     while (q2.isNotEmpty) {
@@ -331,8 +326,7 @@ class ConnectionRouter {
     return result;
   }
 
-  /// «Настоящая» no-ветка: цель левее источника и это не случай
-  /// yes+no одного родителя в одну цель (тот обрабатывается отдельно).
+  // цель левее источника и это не случай yes+no одного родителя в одну цель 
   bool _isRealNoBranch(FlowchartGraph g, ConnectionData c) {
     if (c.sourcePort != 'no') return false;
     if (c.targetPort == 'loopback') return false;
@@ -347,8 +341,6 @@ class ConnectionRouter {
     return !hasYesToSame;
   }
 
-  /// Слот logic-блока среди «настоящих» no-веток того же столбца, что выше его.
-  /// 0 — верхний в столбце; каждый следующий получает +1.
   int _noBranchSlot(FlowchartGraph g, String logicName) {
     final n = g.nodes[logicName];
     if (n == null) return 0;
@@ -390,8 +382,8 @@ class ConnectionRouter {
 
     double rightX = node.position.dx + nodeSize.width + bas / 2;
 
-    // Обходим всё yes-поддерево (до merge-точки) с учётом своих коридоров детей
-    final yesSubtree = _yesBranchUntilMerge(g, logicName);
+    // Обход yes-поддерево (до merge-точки)
+        final yesSubtree = _yesBranchUntilMerge(g, logicName);
     for (final childName in yesSubtree) {
       final child = g.nodes[childName];
       if (child == null) continue;
@@ -399,7 +391,7 @@ class ConnectionRouter {
       final blockRight = child.position.dx + nodeSize.width;
       double visualRight = blockRight;
 
-      // For: exit-коридор идёт правее правого края
+      // For: exit-коридор идет правее правого края
       if (child.data is ForBlock) {
         final ancestors = _forAncestorCount(g, childName);
         final levels = (maxDepth - ancestors).clamp(0, 10);
@@ -407,8 +399,6 @@ class ConnectionRouter {
         if (forCorridor > visualRight) visualRight = forCorridor;
       }
 
-      // Logic с «настоящей» no-веткой: рекурсивно берём её коридор.
-      // hasYesToSame обрабатывается отдельной схемой — здесь его не учитываем.
       if (child.data is LogicBlock) {
         final hasRealNo = (g.outgoing[childName] ?? const []).any(
           (c) => _isRealNoBranch(g, c),
@@ -429,7 +419,7 @@ class ConnectionRouter {
     return rightX;
   }
 
-  // exit: из правого порта For, обходим тело цикла справа и снизу
+  // exit: из правого порта For, обход тела цикла справа и снизу
   RoutedConnection _routeExit(
     Offset start,
     Offset end,
@@ -516,16 +506,7 @@ class ConnectionRouter {
     );
   }
 
-  /// Стрелки на горизонтальной шине: возвращает либо пустой список,
-  /// либо одну стрелку в правильном месте.
-  ///
-  /// Правила:
-  ///  * Если по пути есть другая вертикаль (другая связь в тот же target,
-  ///    чья вертикаль попадает в наш горизонтальный интервал) —
-  ///    стрелка **перед** этой вертикалью (со стороны движения).
-  ///  * Если других связей в тот же target нет — стрелка **посередине** шины.
-  ///  * Иначе (другой source, но его вертикаль вне интервала) —
-  ///    стрелка **перед входом в target**.
+  // Стрелки на горизонтальной шине: возвращает либо пустой список,  либо одну стрелку в правильном месте.
   List<ArrowMarker> _busArrows({
     required FlowchartGraph g,
     required ConnectionData c,
@@ -533,7 +514,7 @@ class ConnectionRouter {
     required double endX,
     required double busY,
   }) {
-    // Стрелки - только при движении справа налево.
+    // Стрелки - только при движении справа налево
     if (endX >= dropX - 0.5) return const [];
 
     final horizontalLen = (dropX - endX).abs();
@@ -569,14 +550,11 @@ class ConnectionRouter {
         ? firstCrossingX + gap
         : (xLo + xHi) / 2;
 
-    // Не позволяем стрелке выехать за пределы горизонтали.
     final clampedX = arrowX.clamp(xLo + 8.0, xHi - 8.0);
     return [ArrowMarker(Offset(clampedX, busY), math.pi)];
   }
 
-  /// Y-диапазон [start, end], который занимает вертикальная часть связи other.
-  /// null — если «вертикаль» other не является настоящей (например, no с парной yes,
-  /// у которого вертикаль — это линия yes, а не no).
+  // Y-диапазон start, end, который занимает вертикальная часть связи other
   ({double start, double end})? _otherVerticalSpan(
     FlowchartGraph g,
     ConnectionData other,
@@ -591,9 +569,7 @@ class ConnectionRouter {
         (x) =>
             x.sourcePort == 'yes' && x.targetNodeName == other.targetNodeName,
       );
-      // У no с парной yes вертикаль — это линия yes, а не наш коридор.
-      // Не считаем её «пересечением» нашего горизонтала.
-      if (hasYesToSame) return null;
+       if (hasYesToSame) return null;
 
       final noPortY = _portPosition(otherSrc, 'no', outgoing: true).dy;
       final otherBusY = _busY(g, other.targetNodeName);
@@ -611,10 +587,6 @@ class ConnectionRouter {
     return (start: math.min(y1, y2), end: math.max(y1, y2));
   }
 
-  /// X вертикального «спуска» другой связи.
-  ///  * для `no` без парной `yes` в тот же target — правый коридор (`_noCorridorX`);
-  ///  * для `no` с парной `yes` — прямой вход в target (target.dx);
-  ///  * для остальных портов — порт источника по X.
   double _dropXOf(FlowchartGraph g, ConnectionData other, NodeModel otherSrc) {
     if (other.sourcePort == 'no') {
       final hasYesToSame = (g.outgoing[other.sourceNodeName] ?? const []).any(
@@ -708,7 +680,7 @@ class ConnectionRouter {
       final b = n.position.dy + nodeSize.height;
       double r = n.position.dx + nodeSize.width;
 
-      // Габарит по X: правый край + коридор исходящей no-ветки.
+      // Габарит по X: правый край + коридор исходящей no-ветки
       final children = g.outgoing[cur] ?? const [];
       final hasNo = children.any(
         (c) => c.sourcePort == 'no' && c.targetNodeName != stopAt,

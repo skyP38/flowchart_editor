@@ -485,7 +485,7 @@ class _AdminLogsScreenState extends State<AdminLogsScreen> {
                 ),
               ),
 
-              // ── Экспорт ──
+              // Экспорт
               if (_isExporting)
                 const Padding(
                   padding: EdgeInsets.symmetric(horizontal: 12),
@@ -707,7 +707,7 @@ class _AdminLogsScreenState extends State<AdminLogsScreen> {
   }
 
   /// Подтягивает все логи с бэка, проходя страницы по 100, пока
-  /// не заберём `total` или пока страница не окажется пустой.
+  /// не заберет total или пока страница не окажется пустой.
   Future<List<AdminLog>> _fetchAllLogs() async {
     const pageSize = 100;
     const safetyCap = 100000; // защита от бесконечного цикла при баге бэка
@@ -730,7 +730,7 @@ class _AdminLogsScreenState extends State<AdminLogsScreen> {
     setState(() => _isExporting = true);
 
     try {
-      // При "filtered" — тянем всё и фильтруем локально.
+      // При filtered - тянем все и фильтруем локально.
       // Иначе экспорт ограничился бы только текущей страницей.
       final logs = onlyFiltered
           ? _filterLogs(await _fetchAllLogs())
@@ -771,7 +771,6 @@ class _AdminLogsScreenState extends State<AdminLogsScreen> {
   }
 
   String _buildCsv(List<AdminLog> logs) {
-    // BOM в начале — чтобы Excel открыл UTF-8 без плясок с кодировкой
     final sb = StringBuffer('\uFEFF');
     sb.writeln('ID,Time,User,Event,Object,Status,Details');
 
@@ -792,7 +791,6 @@ class _AdminLogsScreenState extends State<AdminLogsScreen> {
   }
 
   String _csvCell(String raw) {
-    // Перевод строки/запятая/кавычка → кавычим и экранируем кавычки как ""
     final needsQuotes =
         raw.contains(',') ||
         raw.contains('"') ||
@@ -804,7 +802,6 @@ class _AdminLogsScreenState extends State<AdminLogsScreen> {
 
   String _formatDateTimeCsv(DateTime d) {
     String two(int v) => v.toString().padLeft(2, '0');
-    // ISO-подобный формат: понятен Excel/LibreOffice/Sheets
     return '${d.year}-${two(d.month)}-${two(d.day)} '
         '${two(d.hour)}:${two(d.minute)}:${two(d.second)}';
   }

@@ -12,7 +12,7 @@ class LayoutSpacing {
 }
 
 // rank - длина самого длинного пути от Start (loopback игнорируется)
-// column - номер «ветки», out/yes/body - та же колонка;
+// column - номер ветки, out/yes/body - та же колонка;
 // no/exit - новая колонка справа от всего, что занято main-поддеревом
 class LayoutEngine {
   final Size nodeSize;
@@ -24,7 +24,7 @@ class LayoutEngine {
     final start = g.findStart();
     if (start == null) return const {};
 
-    // 1. Ранги (Y)
+    // Ранги (Y)
     final ranks = <String, int>{};
     _assignRanks(start.name, 0, g, ranks, {});
 
@@ -37,13 +37,13 @@ class LayoutEngine {
     _pushEndFeedersDown(g, ranks);
     _pushEndForMergeSpace(g, ranks);
 
-    // 2. Колонки (X)
+    // Колонки (X)
     final cols = <String, int>{};
 
-    // 2a. Main-линия: все узлы по основным ребрам получают колонку родителя.
+    // Main-линия: все узлы по основным ребрам получают колонку родителя
     _assignMainColumns(start.name, 0, g, cols);
 
-    // level узла = минимальное число no-ребер на пути от Start.
+    // level узла = минимальное число no-ребер на пути от Start
     // 0 - в main, 1 - внутри первой no-ветки, 2 - внутри no-ветки от no-ветки, и т.д.
     final nodeLevel = <String, int>{};
     void computeLevel(String n, int lvl) {
@@ -57,10 +57,10 @@ class LayoutEngine {
 
     computeLevel(start.name, 0);
 
-    // Кол-во yes-рёбер от Start до каждого узла (максимум по всем путям).
+    // Кол-во yes от Start до каждого узла (максимум по всем путям)
     final yesDepth = <String, int>{};
     void computeYesDepth(String n, int d) {
-      if (d > 100) return; // защита от патологических циклов
+      if (d > 100) return; // защита от циклов
       if ((yesDepth[n] ?? -1) >= d) return;
       yesDepth[n] = d;
       for (final c in g.outgoing[n] ?? const []) {
@@ -71,7 +71,7 @@ class LayoutEngine {
 
     computeYesDepth(start.name, 0);
 
-    // 2b. Собираем все no-ветки с интервалами
+    // Собираем все no-ветки с интервалами
     final branches = <_NoBranch>[];
     for (final e in g.nodes.entries) {
       final outs = g.outgoing[e.key] ?? const [];
@@ -102,17 +102,12 @@ class LayoutEngine {
             branchName: c.targetNodeName,
             parentName: e.key,
             rStart: ranks[c.targetNodeName] ?? 0,
-            rEnd: rEnd, //_exitRankOf(g, c.targetNodeName, ranks, cols),
-          ),
+            rEnd: rEnd,           ),
         );
       }
     }
 
-    // 2c. Сортируем по nodeLevel (min-уровень от main),
-    // внутри уровня - по убыванию rStart: глубокие нижние ветки занимают колонки
-    // первыми, верхние подстраиваются под них
     branches.sort((a, b) {
-      // 1. Глубоко вложенные (yes-depth ↑) → innermost, размещаются первыми.
       final da = yesDepth[a.branchName] ?? 0;
       final db = yesDepth[b.branchName] ?? 0;
       final byDepth = db.compareTo(da); // DESC
@@ -129,7 +124,6 @@ class LayoutEngine {
     for (final nb in branches) {
       if (cols.containsKey(nb.branchName)) continue;
       final parentCol = _eventualCol(g, cols, nb.parentName);
-      // final parentCol = cols[nb.parentName] ?? 0;
 
       int col = parentCol + 1;
       while (placed.any(
@@ -152,7 +146,6 @@ class LayoutEngine {
     }
 
     // rejoin-узлы, у которых walk не установил колонку, берут max колонки source
-    // Если среди источников есть main (col 0) - узел остается на col 0
     for (final name in g.nodes.keys) {
       if (cols.containsKey(name)) continue;
       if (g.isEnd(name)) continue;
@@ -183,7 +176,7 @@ class LayoutEngine {
       }
     }
 
-    // 3. Сборка
+    // Сборка
     final result = <String, Offset>{};
     // Сдвиг для центровки блоков в ячейках сетки
     final shiftX = (spacing.stepX - nodeSize.width) / 2;
@@ -193,7 +186,6 @@ class LayoutEngine {
     const leftMargin = 20.0;
     final baseX = math.max(50.0, insetOuter - shiftX + leftMargin);
 
-    // const baseX = 50.0;
     const baseY = 50.0;
     for (final name in g.nodes.keys) {
       final r = ranks[name] ?? 0;
@@ -206,9 +198,7 @@ class LayoutEngine {
     return result;
   }
 
-  /// Предсказывает колонку узла до фактического размещения его ветки.
-  /// Нужно для корректного размещения внутренних no-веток, чьи родители
-  /// находятся в ещё не размеченных yes-поддеревьях.
+  // Предсказывает колонку узла до фактического размещения его ветки
   int _eventualCol(
     FlowchartGraph g,
     Map<String, int> cols,
@@ -313,9 +303,7 @@ class LayoutEngine {
     }
   }
 
-  /// Сдвигает всех потомков [name] на [delta] рангов вниз.
-  /// Используется вместе с _pushMergeNodesForSpace, чтобы после переноса
-  /// merge-точки её подграф остался ниже её новой позиции.
+  // Сдвигает всех потомков name на delta рангов вниз
   void _pushDescendantsForSpace(
     FlowchartGraph g,
     String name,
@@ -379,7 +367,6 @@ class LayoutEngine {
         .toList();
 
     // Rejoin = входы из разных узлов
-    // Если это yes и no от одного и того же родителя - узел все еще "наш", просто к нему сходятся две линии
     final distinctSources = incoming.map((c) => c.sourceNodeName).toSet();
     if (!isRoot && distinctSources.length > 1) return;
 
@@ -391,7 +378,6 @@ class LayoutEngine {
       }
       if (c.targetPort == 'loopback') continue;
 
-      // final nextCol = c.sourcePort == 'body' ? column + 1 : column;
       _assignBranchSubtree(
         c.targetNodeName,
         column,
@@ -413,8 +399,8 @@ class LayoutEngine {
     if ((ranks[node] ?? -1) >= rank) return;
     if (!inProgress.add(node)) {
       return;
-    } // защита от циклов (loopback уже отфильтрован)
-    ranks[node] = rank;
+    } // защита от циклов
+        ranks[node] = rank;
     for (final c in g.outgoing[node] ?? const []) {
       if (c.targetPort == 'loopback') continue;
 
@@ -427,8 +413,7 @@ class LayoutEngine {
     inProgress.remove(node);
   }
 
-  // Для каждого For: exit-цель должна быть на ранг ниже, чем самый
-  // глубокий узел тела
+  // Для каждого For: exit-цель должна быть на ранг ниже, чем самый глубокий узел тела
   void _adjustForExitRanks(FlowchartGraph g, Map<String, int> ranks) {
     final fors =
         g.nodes.entries
@@ -448,11 +433,10 @@ class LayoutEngine {
 
       if (bodyConn.targetNodeName == forName) continue;
 
-      // final bodySubtree = _subtreeNodes(g, bodyConn.targetNodeName);
       final bodySubtree = _bodySubtreeNodes(
         g,
         bodyConn.targetNodeName,
-      ); // было _subtreeNodes
+      );
       int maxBodyRank = ranks[forName] ?? 0;
       for (final n in bodySubtree) {
         final r = ranks[n] ?? 0;
@@ -472,8 +456,7 @@ class LayoutEngine {
     }
   }
 
-  /// Поддерево тела цикла: обходит ТОЛЬКО body-ветку,
-  /// не переходя по exit-рёбрам вложенных ForBlock'ов.
+  // Поддерево тела цикла: обходит body-ветку,
   Set<String> _bodySubtreeNodes(FlowchartGraph g, String root) {
     final result = <String>{};
     void dfs(String n) {
@@ -509,7 +492,6 @@ class LayoutEngine {
     ranks[endName] = maxOther + 1;
   }
 
-  // Подтягивает merge-точки, идущие напрямую в End, к rank[End] - 1
   void _pushEndFeedersDown(FlowchartGraph g, Map<String, int> ranks) {
     String? endName;
     for (final e in g.nodes.entries) {
@@ -520,7 +502,7 @@ class LayoutEngine {
     }
     if (endName == null) return;
 
-    // 1. Найти все merge-точки, которые напрямую идут в End
+    // Найти все merge-точки, которые напрямую идут в End
     final mergeSources = <String>{};
     for (final c in g.connections) {
       if (c.targetNodeName != endName) continue;
@@ -543,7 +525,7 @@ class LayoutEngine {
       }
     }
 
-    // 2. Самый глубокий rank среди обычных узлов
+    // Самый глубокий rank среди обычных узлов
     int maxOther = 0;
     for (final e in ranks.entries) {
       if (e.key == endName) continue;
@@ -556,7 +538,6 @@ class LayoutEngine {
     for (final s in mergeSources) {
       final node = g.nodes[s];
       if (node == null) continue;
-      // For сам создаёт зазор через тело цикла; не толкаем заголовок вниз.
       final hasBody = (g.outgoing[s] ?? const []).any(
         (c) => c.sourcePort == 'body',
       );
@@ -568,8 +549,8 @@ class LayoutEngine {
         _pushDescendantsForSpace(g, s, delta, ranks, skipEnd: endName);
       }
     }
-    // Пересчитываем End по фактическим предшественникам.
-    int maxPredRank = 0;
+    // Пересчет End
+        int maxPredRank = 0;
     for (final c in g.incoming[endName] ?? const <ConnectionData>[]) {
       if (c.targetPort == 'loopback') continue;
       final r = ranks[c.sourceNodeName] ?? 0;
@@ -581,9 +562,6 @@ class LayoutEngine {
     }
   }
 
-  /// Если End имеет ≥2 входящих non-loopback рёбер, отодвигаем его на
-  /// дополнительный ранг, чтобы между точкой слияния и End был запас
-  /// по вертикали под плюс «после слияния».
   void _pushEndForMergeSpace(FlowchartGraph g, Map<String, int> ranks) {
     String? endName;
     for (final e in g.nodes.entries) {
@@ -642,10 +620,7 @@ class LayoutEngine {
     }
   }
 
-  // Идем по цепочке out от branch до тех пор, пока не упремся в End  или не вернемся в main (узел с уже размеченной col 0)
-  // Возвращаем  максимальный rank, который эта линия займет - он нужен как правый
-  // край интервала [rStart, rEnd] для проверки пересечений по колонке.
-  int _exitRankOf(
+   int _exitRankOf(
     FlowchartGraph g,
     String branchName,
     Map<String, int> ranks,

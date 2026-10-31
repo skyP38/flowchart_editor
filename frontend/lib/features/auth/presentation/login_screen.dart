@@ -8,7 +8,6 @@ import 'registration_screen.dart';
 import 'widgets/auth_widgets.dart';
 
 class LoginScreen extends StatefulWidget {
-  //final VoidCallback? onLoggedIn;
   const LoginScreen({super.key});
 
   @override

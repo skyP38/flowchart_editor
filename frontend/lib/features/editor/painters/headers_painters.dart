@@ -12,7 +12,7 @@ String numberToLetter(int n) {
   return result;
 }
 
-/// Подписи столбцов (цифры сверху).
+/// Подписи столбцов (цифры сверху)
 class ColumnHeadersPainter extends CustomPainter {
   final double scrollOffset;
   final double columnWidth;
@@ -68,7 +68,7 @@ class ColumnHeadersPainter extends CustomPainter {
       old.textStyle != textStyle;
 }
 
-/// Подписи строк (буквы слева).
+/// Подписи строк (буквы слева)
 class RowHeadersPainter extends CustomPainter {
   final double scrollOffset;
   final double rowHeight;

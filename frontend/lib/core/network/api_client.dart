@@ -9,7 +9,6 @@ import 'interceptors/logging_interceptor.dart';
 // Обертка над Dio
 class ApiClient {
   final Dio _dio;
-  // final TokenStorage _storage;
 
   ApiClient({
     required String baseUrl,
@@ -30,7 +29,6 @@ class ApiClient {
              'Accept': 'application/json',
            },
            responseType: ResponseType.json,
-           // validateStatus по умолчанию: 200..299 - успех, остальное - DioException
          ),
        ) {
     _dio.interceptors.addAll([

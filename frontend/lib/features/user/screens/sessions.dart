@@ -47,7 +47,6 @@ class _SessionScreenState extends State<SessionScreen> {
   Widget build(BuildContext context) {
     return Column(
       children: [
-        // _buildTopBar(),
         Expanded(
           child: SingleChildScrollView(
             padding: EdgeInsets.all(_isNarrow ? 12 : 40),

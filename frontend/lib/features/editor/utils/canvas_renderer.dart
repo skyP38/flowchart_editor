@@ -23,9 +23,6 @@ class SceneCanvasRenderer {
         text: TextSpan(text: lab.text, style: style),
         textDirection: TextDirection.ltr,
       )..layout();
-      // Выравнивание:
-      //  - цифры сверху — по центру ячейки (position — центр по X);
-      //  - буквы слева — по центру по Y.
       final pos = lab.isColumn
           ? Offset(lab.position.dx - tp.width / 2, lab.position.dy)
           : Offset(lab.position.dx, lab.position.dy - tp.height / 2);

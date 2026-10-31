@@ -29,7 +29,7 @@ class SceneSvgRenderer {
       buf.writeln('<g transform="translate($offsetX, $offsetY)">');
     }
 
-    // Сетка: сначала линии, потом подписи — чтобы текст был поверх.
+    // Сетка
     for (final l in scene.grid.lines) {
       buf.writeln(
         '<line x1="${l.from.dx}" y1="${l.from.dy}" '

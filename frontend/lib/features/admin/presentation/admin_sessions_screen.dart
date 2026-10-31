@@ -131,36 +131,8 @@ class _AdminSessionsScreenState extends State<AdminSessionsScreen> {
             : [
                 _navButton('Flowchart editor', widget.onOpenEditor),
                 _navButton('Users', widget.onOpenUsers),
-                _navButton('Sessions', _reload, active: true), // ← текущий
+                _navButton('Sessions', _reload, active: true),
                 _navButton('Logs', widget.onOpenLogs),
-                // TextButton.icon(
-                //   onPressed: widget.onOpenEditor,
-                //   label: const Text(
-                //     'Flowchart editor',
-                //     style: TextStyle(color: Color(0xFF1E1E1E)),
-                //   ),
-                // ),
-                // TextButton.icon(
-                //   onPressed: widget.onOpenUsers,
-                //   label: const Text(
-                //     'Users',
-                //     style: TextStyle(color: Color(0xFF1E1E1E)),
-                //   ),
-                // ),
-                // TextButton.icon(
-                //   onPressed: null,
-                //   label: const Text(
-                //     'Sessions',
-                //     style: TextStyle(color: Color(0xFF1E1E1E)),
-                //   ),
-                // ),
-                // TextButton.icon(
-                //   onPressed: widget.onOpenLogs,
-                //   label: const Text(
-                //     'Logs',
-                //     style: TextStyle(color: Color(0xFF1E1E1E)),
-                //   ),
-                // ),
                 TextButton.icon(
                   onPressed: _logout,
                   label: const Text(
@@ -213,11 +185,9 @@ class _AdminSessionsScreenState extends State<AdminSessionsScreen> {
     return TextButton(
       onPressed: active ? null : onPressed,
       style: TextButton.styleFrom(
-        backgroundColor: active
-            ? const Color(0xFFF1EDFA) // фиолетовая подложка
-            : Colors.transparent,
+        backgroundColor: active ? const Color(0xFFF1EDFA) : Colors.transparent,
         foregroundColor: active
-            ? const Color(0xFF6750A4) // фиолетовый текст
+            ? const Color(0xFF6750A4)
             : const Color(0xFF1E1E1E),
         disabledForegroundColor: const Color(0xFF6750A4),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
@@ -521,7 +491,6 @@ class _AdminSessionsScreenState extends State<AdminSessionsScreen> {
   }
 
   //  Mobile version
-
   Widget _buildSessionCardMobile(AdminSession session) {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -668,88 +637,3 @@ class _HeaderCell extends StatelessWidget {
     );
   }
 }
-
-//         ),
-//         created: Text(
-//           session.createdLabel,
-//           maxLines: 1,
-//           overflow: TextOverflow.ellipsis,
-//           style: const TextStyle(fontSize: 13, color: Color(0xFF4B5563)),
-//         ),
-//         actions: Align(
-//           alignment: Alignment.centerRight,
-//           child: session.active
-//               ? TextButton(
-//                   onPressed: () => _terminate(session),
-//                   style: TextButton.styleFrom(
-//                     foregroundColor: const Color(0xFFEF4444),
-//                     backgroundColor: const Color(0xFFFEF2F2),
-//                     padding: const EdgeInsets.symmetric(
-//                       horizontal: 10,
-//                       vertical: 8,
-//                     ),
-//                     minimumSize: Size.zero,
-//                     tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-//                     shape: RoundedRectangleBorder(
-//                       borderRadius: BorderRadius.circular(6),
-//                       side: const BorderSide(color: Color(0xFFFEE2E2)),
-//                     ),
-//                   ),
-//                   child: const Text(
-//                     'End session',
-//                     maxLines: 1,
-//                     style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
-//                   ),
-//                 )
-//               : const Text('—', style: TextStyle(color: Color(0xFF6B7280))),
-//         ),
-//       ),
-//     );
-//   }
-
-//   Widget _columns({
-//     required Widget name,
-//     required Widget device,
-//     required Widget location,
-//     required Widget status,
-//     required Widget created,
-//     required Widget actions,
-//   }) {
-//     return Row(
-//       children: [
-//         Expanded(flex: 3, child: name),
-//         const SizedBox(width: 12),
-//         Expanded(flex: 3, child: device),
-//         const SizedBox(width: 12),
-//         Expanded(flex: 2, child: location),
-//         const SizedBox(width: 12),
-//         Expanded(flex: 2, child: status),
-//         const SizedBox(width: 12),
-//         Expanded(flex: 2, child: created),
-//         const SizedBox(width: 12),
-//         SizedBox(width: 120, child: actions),
-//       ],
-//     );
-//   }
-// }
-
-// class _HeaderCell extends StatelessWidget {
-//   final String text;
-//   final TextAlign align;
-//   const _HeaderCell(this.text, {this.align = TextAlign.left});
-
-//   @override
-//   Widget build(BuildContext context) {
-//     return Text(
-//       text,
-//       textAlign: align,
-//       maxLines: 1,
-//       style: const TextStyle(
-//         fontSize: 12,
-//         fontWeight: FontWeight.w600,
-//         color: Color(0xFF4B5563),
-//         letterSpacing: .3,
-//       ),
-//     );
-//   }
-// }.

@@ -241,7 +241,6 @@ class _EditorScreenState extends State<EditorScreen>
         _insertionPoints = _insertionPointsService.compute(_controller.graph);
       });
     } else {
-      // только scale / grid / toolbar — граф не менялся
       setState(() {});
     }
 
@@ -312,10 +311,9 @@ class _EditorScreenState extends State<EditorScreen>
       return;
     }
 
-    // сглаживание; 0.3 ≈ ~5 кадров до цели
     final next = oldScale + diff * 0.3;
     _controller.setScale(next);
-    _applyZoomScroll(oldScale, next); // синхронно
+    _applyZoomScroll(oldScale, next);
   }
 
   void _applyZoomScroll(double oldScale, double newScale) {
@@ -344,7 +342,7 @@ class _EditorScreenState extends State<EditorScreen>
     }
   }
 
-  // Вычисляет размер области холста с учётом всех блоков и padding
+  // Вычисляет размер области холста с учетом всех блоков и padding
   Size _getContentSize() {
     final nodes = _controller.nodes;
     final nodeSize = _controller.nodeSize;
@@ -368,8 +366,6 @@ class _EditorScreenState extends State<EditorScreen>
     return Size(width, height);
   }
 
-  /// Безопасно читает offset у ScrollController, даже если к нему
-  /// прицеплено 0 или 2+ позиций (транзиентные состояния при rebuild).
   double _safeOffset(ScrollController controller) {
     final positions = controller.positions;
     if (positions.isEmpty) return 0;
@@ -503,17 +499,13 @@ class _EditorScreenState extends State<EditorScreen>
     double minDistance = 15.0;
 
     final graph = _controller.graph;
-    // final nodes = _controller.nodes;
     final connections = _controller.connections;
-    // final nodeSize = _controller.nodeSize;
 
     for (final conn in connections) {
-      // final path = _router.build(conn, graph);
       // Разбиение пути на сегменты и поиск минимальное расстояние
       double minDistForConn = double.infinity;
       final routed = _router.build(conn, graph);
       final metrics = routed.path.computeMetrics();
-      // final metrics = path.computeMetrics();
       for (final metric in metrics) {
         const double step = 2.0; // шаг для дискретизации
         for (double dist = 0; dist <= metric.length; dist += step) {
@@ -624,7 +616,7 @@ class _EditorScreenState extends State<EditorScreen>
   //   Rank 0:  Start         (col 0)
   //   Rank 1:  Cond1         (col 0)
   //   Rank 2:  A             (col 0)
-  //            └─ no → X     (col 1)
+  //            └─ no -> X    (col 1)
   //   Rank 3:  End           (col 0)
   //
   // Rank считается из вертикальной позиции, col - из горизонтальной.
@@ -641,7 +633,7 @@ class _EditorScreenState extends State<EditorScreen>
       return;
     }
 
-    // ── Счётчики детей для каждого узла ──────────────────────────────
+    // Счетчики детей для каждого узла
     final directChildren = <String, int>{};
     final subtreeSize = <String, int>{};
     final bodySubtreeSize = <String, int>{};
@@ -699,7 +691,7 @@ class _EditorScreenState extends State<EditorScreen>
 
     const rankPrefixWidth = 10; // 'Rank 00:  '
 
-    debugPrint('────── Layout dump ──────');
+    debugPrint('--------- Layout dump ----------');
     final ranks = byRank.keys.toList()..sort();
     for (final r in ranks) {
       final row = byRank[r]!..sort((a, b) => a.$3.compareTo(b.$3));
@@ -707,7 +699,7 @@ class _EditorScreenState extends State<EditorScreen>
         final (nodeName, label, col) = row[i];
         final namePadded = label.padRight(labelWidth);
 
-        // Счётчики детей
+        // Счетчики детей
         final sb = StringBuffer();
         sb.write(' ch=${directChildren[nodeName]}');
         sb.write(' sub=${subtreeSize[nodeName]}');
@@ -737,11 +729,11 @@ class _EditorScreenState extends State<EditorScreen>
         '  ${c.sourceNodeName} --${c.sourcePort}--> ${c.targetNodeName}',
       );
     }
-    debugPrint('─────────────────────────');
+    debugPrint('------------------');
   }
 
-  /// Полное поддерево: BFS по исходящим рёбрам, без loopback,
-  /// с остановкой на End. Возвращает количество потомков (без самого root).
+  // Полное поддерево: BFS по исходящим ребрам, без loopback, с остановкой на End
+  //  Возвращает количество потомков (без самого root)
   static int _countSubtree(FlowchartGraph g, String root) {
     final visited = <String>{};
     final queue = <String>[root];
@@ -757,8 +749,7 @@ class _EditorScreenState extends State<EditorScreen>
     return visited.length - 1; // без root
   }
 
-  /// Поддерево тела For-блока: обходит только body-ветку,
-  /// не переходя по exit-рёбрам вложенных For.
+  // Поддерево тела For-блока: обходит только body-ветку
   static int _countBodySubtree(FlowchartGraph g, String forName) {
     ConnectionData? bodyConn;
     for (final c in g.outgoing[forName] ?? const <ConnectionData>[]) {
@@ -784,8 +775,7 @@ class _EditorScreenState extends State<EditorScreen>
     return visited.length;
   }
 
-  /// Поддерево выхода For-блока: BFS от exit-цели,
-  /// до первого End или merge-точки (incoming > 1).
+  // Поддерево выхода For-блока: BFS от exit-цели
   static int _countExitSubtree(FlowchartGraph g, String forName) {
     ConnectionData? exitConn;
     for (final c in g.outgoing[forName] ?? const <ConnectionData>[]) {
@@ -802,7 +792,6 @@ class _EditorScreenState extends State<EditorScreen>
       final cur = queue.removeAt(0);
       if (!visited.add(cur)) continue;
       if (g.isEnd(cur)) continue;
-      // Останавливаемся на merge-точке — за ней начинается общий хвост
       if ((g.incoming[cur] ?? const []).length > 1) continue;
       for (final c in g.outgoing[cur] ?? const <ConnectionData>[]) {
         if (c.targetPort == 'loopback') continue;
@@ -865,8 +854,6 @@ class _EditorScreenState extends State<EditorScreen>
       debugPrint('Generated SVG length: ${previewSvg.length}');
 
       await onSave(snapshot, previewSvg);
-      // FlowchartEditorPage уже показывает snackbar «Схема сохранена»,
-      // но на всякий случай продублируем — необязательно.
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(
@@ -988,8 +975,6 @@ class _EditorScreenState extends State<EditorScreen>
     setState(() => _capturing = true);
 
     try {
-      // Ждём, пока кадр отрисуется полностью. Иногда одного endOfFrame
-      // не хватает — RenderRepaintBoundary получает слой чуть позже.
       RenderRepaintBoundary? boundary;
       for (var attempt = 0; attempt < 10; attempt++) {
         await WidgetsBinding.instance.endOfFrame;
@@ -1189,8 +1174,6 @@ class _EditorScreenState extends State<EditorScreen>
           graph: graph,
           canvasSize: contentSize,
           showGrid: showGrid,
-          // Подписи нужны только при съёмке PNG; в редакторе они —
-          // sticky-хедеры ColumnHeadersPainter/RowHeadersPainter.
           showLabels: _capturing,
         );
 
@@ -1285,7 +1268,6 @@ class _EditorScreenState extends State<EditorScreen>
                                           ? null
                                           : () {
                                               setState(() {
-                                                // _selectedNodeName = null;
                                                 _selectedNodeNames.clear();
                                                 _selectedConnectionId = null;
                                                 _selectionStart = null;
@@ -1366,14 +1348,10 @@ class _EditorScreenState extends State<EditorScreen>
                                           child: CustomPaint(
                                             child: Stack(
                                               children: [
-                                                // Сетка
-                                                // if (showGrid) gridWidget,
                                                 // Линии соединений
                                                 CustomPaint(
                                                   painter: ConnectionPainter(
                                                     scene: scene,
-                                                    // graph: graph,
-                                                    // router: _router,
                                                     selectedConnectionId:
                                                         _capturing
                                                         ? null

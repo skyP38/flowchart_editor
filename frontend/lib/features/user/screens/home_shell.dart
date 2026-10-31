@@ -3,7 +3,6 @@ import 'package:provider/provider.dart';
 
 import '../../../core/navigation/last_route_storage.dart';
 import '../../auth/domain/auth_repository.dart';
-// import '../widgets/sidebar.dart';
 import 'screens.dart';
 import 'sessions.dart';
 import 'project_screen.dart';
@@ -113,20 +112,9 @@ class _HomeShellState extends State<HomeShell> {
           bottom: BorderSide(color: Color(0xFFD9D9D9), width: 1),
         ),
 
-        //   actions: isAdminMode
-        //       ? null
-        //       : [
-        //           IconButton(
-        //             icon: const Icon(Icons.logout, color: Color(0xFF1E1E1E)),
-        //             tooltip: 'Log out',
-        //             onPressed: _logout,
-        //           ),
-        //           const SizedBox(width: 8),
-        //         ],
-        // ),
         actions: isMobile
             ? [
-                // Мобилка: только logout-иконка (навигация — в bottom nav).
+                // Мобилка: только logout-иконка
                 if (!isAdminMode)
                   IconButton(
                     icon: const Icon(Icons.logout, color: Color(0xFF1E1E1E)),
@@ -140,7 +128,7 @@ class _HomeShellState extends State<HomeShell> {
                 ),
               ]
             : [
-                // Десктоп: горизонтальная полоса кнопок.
+                // Десктоп: горизонтальная полоса кнопок
                 TextButton.icon(
                   onPressed: () => _selectTab(_projects),
                   icon: const Icon(
@@ -217,20 +205,6 @@ class _HomeShellState extends State<HomeShell> {
               ],
       ),
 
-      // body: Column(
-      //   children: [
-      //     if (!isMobile && !inSessions)
-      //       Sidebar(currentIndex: _tab, onSelect: _selectTab),
-      //     Expanded(
-      //       child: _drillDownActive
-      //           ? const SizedBox.shrink()
-      //           : IndexedStack(
-      //               index: _tab,
-      //               children: const [ProjectsContent(), SessionScreen()],
-      //             ),
-      //     ),
-      //   ],
-      // ),
       body: _drillDownActive
           ? const SizedBox.shrink()
           : IndexedStack(

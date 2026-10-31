@@ -1,7 +1,7 @@
 import 'package:dio/dio.dart';
 import '../api_error.dart';
 
-// Перехватчик, который превращает DioException в DioException с ApiError внутри `error`
+// Перехватчик, который превращает DioException в DioException с ApiError внутри error
 class ErrorInterceptor extends Interceptor {
   @override
   void onError(DioException err, ErrorInterceptorHandler handler) {
