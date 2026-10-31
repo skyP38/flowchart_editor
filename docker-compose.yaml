@@ -9,7 +9,6 @@ services:
       - "5433:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
-      # - ./backend/SQL_scripts/create_tables.sql:/docker-entrypoint-initdb.d/init.sql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
       interval: 10s
@@ -25,7 +24,7 @@ services:
       - "-path"
       - "/db"
       - "-database"
-      - "postgres://postgres:password@db:5432/flowchart_db?sslmode=disable"
+      - "postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}?sslmode=disable"
       - "up"
     depends_on:
       db:
@@ -57,8 +56,7 @@ services:
       args:
         - API_BASE_URL=
     ports:
-      - "80:80"
-      - "443:443"
+      - "8443:443"
     volumes:
       - ./certs:/etc/nginx/certs:ro
     depends_on:
