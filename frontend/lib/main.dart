@@ -4,12 +4,11 @@ import 'package:provider/provider.dart';
 import 'core/network/api_client.dart';
 import 'core/network/api_service.dart';
 import 'core/navigation/last_route_storage.dart';
-// import 'core/navigation/route_observer.dart';
 import 'features/auth/data/api/auth_api.dart';
 import 'features/admin/data/admin_api.dart';
 import 'features/auth/data/storage/secure_token_storage.dart';
 import 'features/auth/domain/auth_repository.dart';
-import 'features/auth/presentation/auth_gate.dart';
+import 'app/auth_gate.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();

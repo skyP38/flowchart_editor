@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../../core/navigation/last_route_storage.dart';
-import '../../user/screens/home_shell.dart';
 import 'admin_sessions_screen.dart';
 import 'admin_users_screen.dart';
 import 'admin_logs_screen.dart';
@@ -20,11 +19,6 @@ class AdminShell extends StatelessWidget {
     void go(String target) => storage.setAdminScreen(target);
 
     switch (screen) {
-      case LastRouteStorage.adminEditorScreen:
-        return HomeShell(
-          onReturnToAdmin: () => go(LastRouteStorage.adminUsersScreen),
-        );
-
       case LastRouteStorage.adminSessionsScreen:
         return AdminSessionsScreen(
           onOpenEditor: () => go(LastRouteStorage.adminEditorScreen),

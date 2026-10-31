@@ -5,7 +5,7 @@ import '../../../core/navigation/last_route_storage.dart';
 import '../../auth/domain/auth_repository.dart';
 import '../data/admin_api.dart';
 import '../models/admin_session.dart';
-import '../../user/widgets/user.dart';
+import '../../../shared/widgets/user_chip.dart';
 
 class AdminSessionsScreen extends StatefulWidget {
   final VoidCallback onOpenUsers;

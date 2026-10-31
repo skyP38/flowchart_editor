@@ -74,7 +74,6 @@ class ConnectionRouter {
 
     final endPort = _portPosition(tgt, 'in', outgoing: false);
 
-    
     double minX = double.infinity;
     double maxX = -double.infinity;
     double maxSrcBottom = double.negativeInfinity;
@@ -88,7 +87,7 @@ class ConnectionRouter {
 
       final srcPort = _portPosition(src, c.sourcePort, outgoing: true);
       if ((srcPort.dx - endPort.dx).abs() < 0.5) {
-        continue; 
+        continue;
       }
       hasHorizontal = true;
       if (srcPort.dx < minX) minX = srcPort.dx;
@@ -183,7 +182,7 @@ class ConnectionRouter {
 
       double dropX;
       if (other.sourcePort == 'no' && otherSrc.position.dx > tgtEnd.dx + 1) {
-        dropX = _noCorridorX(g, other.sourceNodeName); 
+        dropX = _noCorridorX(g, other.sourceNodeName);
       } else {
         dropX = _portPosition(otherSrc, other.sourcePort, outgoing: true).dx;
       }
@@ -239,7 +238,7 @@ class ConnectionRouter {
   ) {
     final busY = _busY(g, c.targetNodeName);
     // В пределах одного столбца
-            if ((start.dx - end.dx).abs() < nodeSize.width * 0.6) {
+    if ((start.dx - end.dx).abs() < nodeSize.width * 0.6) {
       final y = (busY > start.dy && busY < end.dy)
           ? busY
           : start.dy + spacing.stepY / 4;
@@ -288,7 +287,7 @@ class ConnectionRouter {
   }
 
   // Множество узлов yes-ветки от логики до первой merge-точки с no-веткой
-    Set<String> _yesBranchUntilMerge(FlowchartGraph g, String logicName) {
+  Set<String> _yesBranchUntilMerge(FlowchartGraph g, String logicName) {
     ConnectionData? yesConn, noConn;
     for (final c in g.outgoing[logicName] ?? const <ConnectionData>[]) {
       if (c.sourcePort == 'yes') yesConn = c;
@@ -326,7 +325,7 @@ class ConnectionRouter {
     return result;
   }
 
-  // цель левее источника и это не случай yes+no одного родителя в одну цель 
+  // цель левее источника и это не случай yes+no одного родителя в одну цель
   bool _isRealNoBranch(FlowchartGraph g, ConnectionData c) {
     if (c.sourcePort != 'no') return false;
     if (c.targetPort == 'loopback') return false;
@@ -383,7 +382,7 @@ class ConnectionRouter {
     double rightX = node.position.dx + nodeSize.width + bas / 2;
 
     // Обход yes-поддерево (до merge-точки)
-        final yesSubtree = _yesBranchUntilMerge(g, logicName);
+    final yesSubtree = _yesBranchUntilMerge(g, logicName);
     for (final childName in yesSubtree) {
       final child = g.nodes[childName];
       if (child == null) continue;
@@ -569,7 +568,7 @@ class ConnectionRouter {
         (x) =>
             x.sourcePort == 'yes' && x.targetNodeName == other.targetNodeName,
       );
-       if (hasYesToSame) return null;
+      if (hasYesToSame) return null;
 
       final noPortY = _portPosition(otherSrc, 'no', outgoing: true).dy;
       final otherBusY = _busY(g, other.targetNodeName);

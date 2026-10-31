@@ -969,46 +969,35 @@ class _EditorScreenState extends State<EditorScreen>
       return;
     }
 
+    final canvasRenderObj = _canvasKey.currentContext?.findRenderObject();
+    if (canvasRenderObj is! RenderRepaintBoundary) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Canvas is not ready yet, try again')),
+      );
+      return;
+    }
+
     final name = await _askFileName('Экспорт в PNG');
     if (name == null) return;
+    if (!mounted) return;
 
     setState(() => _capturing = true);
 
     try {
-      RenderRepaintBoundary? boundary;
       for (var attempt = 0; attempt < 10; attempt++) {
         await WidgetsBinding.instance.endOfFrame;
         if (!mounted) return;
-
-        final ctx = _canvasKey.currentContext;
-        if (ctx == null) {
-          debugPrint('[png] attempt=$attempt: context=null');
-          await Future.delayed(const Duration(milliseconds: 16));
-          continue;
-        }
-        final obj = ctx.findRenderObject();
-        debugPrint('[png] attempt=$attempt: obj=${obj?.runtimeType}');
-        if (obj is RenderRepaintBoundary) {
-          if (!obj.debugNeedsPaint) {
-            boundary = obj;
-            break;
-          }
-        }
+        if (!canvasRenderObj.debugNeedsPaint) break;
         await Future.delayed(const Duration(milliseconds: 16));
       }
-
-      if (boundary == null) {
-        throw Exception(
-          'Не удалось дождаться отрисовки холста. '
-          'Проверьте, что RepaintBoundary с key: _canvasKey '
-          'оборачивает CustomPaint с холстом.',
-        );
+      if (canvasRenderObj.debugNeedsPaint) {
+        throw Exception('Canvas is not ready yet');
       }
 
-      final image = await boundary.toImage(pixelRatio: 2.0);
+      final image = await canvasRenderObj.toImage(pixelRatio: 2.0);
       final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
       if (byteData == null) {
-        throw Exception('Не удалось получить PNG байты');
+        throw Exception('Cannot get PNG bytes');
       }
       final bytes = byteData.buffer.asUint8List();
 

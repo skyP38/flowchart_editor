@@ -37,7 +37,7 @@ class ConnectionItem {
 
 class NodeItem {
   final NodeModel node;
-  final Path outline; 
+  final Path outline;
   final List<Path> extras;
   final Offset textCenter;
   const NodeItem({

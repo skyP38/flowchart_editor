@@ -6,7 +6,7 @@ import '../../auth/domain/auth_repository.dart';
 import 'screens.dart';
 import 'sessions.dart';
 import 'project_screen.dart';
-import '../widgets/user.dart';
+import '../../../shared/widgets/user_chip.dart';
 
 class HomeShell extends StatefulWidget {
   final VoidCallback? onReturnToAdmin;

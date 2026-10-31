@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'dart:math' as math;
 
-import '../models/session.dart';
+import '../../../../shared/models/session.dart';
 import '../../auth/data/api/auth_api.dart';
 
 class SessionScreen extends StatefulWidget {

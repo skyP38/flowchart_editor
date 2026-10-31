@@ -7,7 +7,7 @@ import '../factories/node_factory.dart';
 import '../utils/node_shape_geometry.dart';
 import 'diagram_scene.dart';
 
-// Универсальный класс для рисования всего 
+// Универсальный класс для рисования всего
 class SceneBuilder {
   final ConnectionRouter router;
   final Size nodeSize;

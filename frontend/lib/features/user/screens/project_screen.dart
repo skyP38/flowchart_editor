@@ -8,7 +8,7 @@ import '../models/project.dart';
 import '../models/flowchart.dart';
 import '../widgets/card_f.dart';
 import 'flowchart_editor_page.dart';
-import '../widgets/user.dart';
+import '../../../shared/widgets/user_chip.dart';
 
 class ProjectScreen extends StatefulWidget {
   final int projectId;
@@ -152,6 +152,8 @@ class _ProjectScreenState extends State<ProjectScreen> {
 
   Future<void> _deleteFlowchart(int id) async {
     final project = await _projectFuture;
+    if (!mounted) return;
+
     final target = project.flowcharts.where((f) => f.id == id).firstOrNull;
     final name = target?.name ?? 'this flowchart';
 

@@ -9,7 +9,7 @@ import '../../../core/navigation/last_route_storage.dart';
 import '../../auth/domain/auth_repository.dart';
 import '../data/admin_api.dart';
 import '../models/admin_log.dart';
-import '../../user/widgets/user.dart';
+import '../../../shared/widgets/user_chip.dart';
 
 class AdminLogsScreen extends StatefulWidget {
   final VoidCallback onOpenUsers;

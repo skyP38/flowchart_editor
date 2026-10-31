@@ -136,7 +136,7 @@ class InsertionPointsService {
       'centerX=$centerX targetTop=$targetTop '
       'inputs=${incoming.length}',
     );
-    
+
     double? maxLandingY;
     ConnectionData? deepestEdge;
     for (final conn in incoming) {
@@ -150,7 +150,7 @@ class InsertionPointsService {
         continue;
       }
       final y = _landingYAt(path, centerX, targetTop);
-         debugPrint(
+      debugPrint(
         '[merge]   ${conn.sourceNodeName}--${conn.sourcePort}-->'
         '${conn.targetNodeName}: landingY=$y',
       );

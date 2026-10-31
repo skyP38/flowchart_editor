@@ -6,7 +6,7 @@ import '../../auth/domain/auth_repository.dart';
 import '../data/admin_api.dart';
 import '../models/admin_user.dart';
 import '../../../core/network/api_error.dart';
-import '../../user/widgets/user.dart';
+import '../../../shared/widgets/user_chip.dart';
 
 class AdminUsersScreen extends StatefulWidget {
   final VoidCallback onOpenEditor;

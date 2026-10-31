@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../../auth/domain/auth_repository.dart';
-import '../../auth/domain/auth_state.dart';
+import '../../features/auth/domain/auth_repository.dart';
+import '../../features/auth/domain/auth_state.dart';
 
 /// Показывает текущего пользователя: аватар с инициалом + имя/логин.
 /// На узких экранах — компактный режим (аватар + короткий логин).

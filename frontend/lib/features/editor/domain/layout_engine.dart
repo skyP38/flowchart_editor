@@ -102,7 +102,8 @@ class LayoutEngine {
             branchName: c.targetNodeName,
             parentName: e.key,
             rStart: ranks[c.targetNodeName] ?? 0,
-            rEnd: rEnd,           ),
+            rEnd: rEnd,
+          ),
         );
       }
     }
@@ -400,7 +401,7 @@ class LayoutEngine {
     if (!inProgress.add(node)) {
       return;
     } // защита от циклов
-        ranks[node] = rank;
+    ranks[node] = rank;
     for (final c in g.outgoing[node] ?? const []) {
       if (c.targetPort == 'loopback') continue;
 
@@ -433,10 +434,7 @@ class LayoutEngine {
 
       if (bodyConn.targetNodeName == forName) continue;
 
-      final bodySubtree = _bodySubtreeNodes(
-        g,
-        bodyConn.targetNodeName,
-      );
+      final bodySubtree = _bodySubtreeNodes(g, bodyConn.targetNodeName);
       int maxBodyRank = ranks[forName] ?? 0;
       for (final n in bodySubtree) {
         final r = ranks[n] ?? 0;
@@ -550,7 +548,7 @@ class LayoutEngine {
       }
     }
     // Пересчет End
-        int maxPredRank = 0;
+    int maxPredRank = 0;
     for (final c in g.incoming[endName] ?? const <ConnectionData>[]) {
       if (c.targetPort == 'loopback') continue;
       final r = ranks[c.sourceNodeName] ?? 0;
@@ -620,7 +618,7 @@ class LayoutEngine {
     }
   }
 
-   int _exitRankOf(
+  int _exitRankOf(
     FlowchartGraph g,
     String branchName,
     Map<String, int> ranks,
