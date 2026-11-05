@@ -1,6 +1,4 @@
 import 'dart:math' as math;
-
-import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 
 import '../factories/node_factory.dart';
@@ -38,7 +36,12 @@ class InsertionPointsService {
           conn.targetPort == 'loopback' &&
           (conn.sourcePort == 'body' || conn.sourcePort == 'out') &&
           g.nodes[conn.targetNodeName]?.data is ForBlock;
-      if (conn.targetPort == 'loopback' && !isBodyLoopback) continue;
+      // if (conn.targetPort == 'loopback' && !isBodyLoopback) continue;
+      final isExitLoopback =
+          conn.targetPort == 'loopback' && conn.sourcePort == 'exit';
+      if (conn.targetPort == 'loopback' && !isBodyLoopback && !isExitLoopback) {
+        continue;
+      }
       final routed = router.build(conn, g);
       final path = routed.path;
       if (path.computeMetrics().isEmpty) continue;
@@ -46,7 +49,7 @@ class InsertionPointsService {
       if (conn.sourcePort == 'exit') {
         final src = g.nodes[conn.sourceNodeName];
         final plusPos = src != null
-            ? _exitPlusPosition(path, src)
+            ? _exitPlusPosition(path, src, g)
             : (_firstVerticalMidpoint(path) ?? _midOfPath(path));
         if (plusPos != null) points.add(InsertionPoint(plusPos, conn));
         continue;
@@ -56,40 +59,121 @@ class InsertionPointsService {
         final src = g.nodes[conn.sourceNodeName];
         if (src == null) continue;
 
-        final centerX = src.position.dx + router.nodeSize.width / 2;
-        final exitY = src.position.dy + router.nodeSize.height;
+        const double offset = 20.0;
+        final mergeNode = _findYesMergeTarget(
+          g,
+          conn.sourceNodeName,
+          mergeInfoByTarget,
+        );
 
-        final firstVertMid = _firstVerticalMidpoint(path);
-        final y1 = firstVertMid?.dy;
+        var placed = false;
 
-        double? y2;
-        final mergeInfo = mergeInfoByTarget[conn.targetNodeName];
-        if (mergeInfo != null) {
-          final noConn = mergeInfo.incoming.firstWhereOrNull(
-            (c) =>
-                c.sourcePort == 'no' && c.sourceNodeName == conn.sourceNodeName,
-          );
-          if (noConn != null) {
-            final noPath = router.build(noConn, g).path;
-            final intersectionY = _lastHorizontalY(noPath);
-            if (intersectionY != null && intersectionY > exitY + 1.0) {
-              y2 = (exitY + intersectionY) / 2;
+        if (mergeNode != null) {
+          final mergeInfo = mergeInfoByTarget[mergeNode]!;
+          final lastEdge = _findLastYesEdge(g, conn.sourceNodeName, mergeNode);
+          if (lastEdge != null && lastEdge.id != null) {
+            final targetY = mergeInfo.mergeY - offset;
+            final alreadyHas = points.any(
+              (p) =>
+                  p.connection.id == lastEdge.id &&
+                  (p.position.dy - targetY).abs() < 5,
+            );
+            if (!alreadyHas) {
+              final lastPath = router.build(lastEdge, g).path;
+              final lastX = _pathXAtY(lastPath, targetY);
+              if (lastX != null) {
+                // final lastX = _pathXAtY(lastPath, targetY) ?? mergeInfo.centerX;
+                debugPrint(
+                  '[yesPlus] ${conn.sourceNodeName}--yes->${conn.targetNodeName}: '
+                  'merge=$mergeNode '
+                  'lastEdge=${lastEdge.sourceNodeName}.${lastEdge.sourcePort} '
+                  'x=${lastX.toStringAsFixed(1)} '
+                  'y=${targetY.toStringAsFixed(1)}',
+                );
+                points.add(InsertionPoint(Offset(lastX, targetY), lastEdge));
+                // placed = true;
+              } else {
+                debugPrint(
+                  '[yesPlus/beforeMerge FAILED] ${conn.sourceNodeName}--yes->'
+                  '${conn.targetNodeName}: lastX null '
+                  'edge=${lastEdge.sourceNodeName}.${lastEdge.sourcePort} '
+                  'targetY=${targetY.toStringAsFixed(1)}',
+                );
+              }
+            } else {
+              final isOwnEdge =
+                  lastEdge.sourceNodeName == conn.sourceNodeName &&
+                  lastEdge.sourcePort == 'yes';
+
+              if (isOwnEdge) {
+                debugPrint(
+                  '[yesPlus/beforeMerge DEDUP] ${conn.sourceNodeName}--yes->'
+                  '${conn.targetNodeName}: '
+                  'lastEdge=${lastEdge.sourceNodeName}.${lastEdge.sourcePort} '
+                  'already placed (shared edge)',
+                );
+                placed = true;
+              }
             }
+          } else {
+            debugPrint(
+              '[yesPlus/beforeMerge FAILED] ${conn.sourceNodeName}--yes->'
+              '${conn.targetNodeName}: lastEdge null for merge=$mergeNode',
+            );
           }
-          y2 ??= (exitY + mergeInfo.mergeY) / 2;
-        }
-
-        double? y;
-        if (y1 != null && y2 != null) {
-          y = math.min(y1, y2);
         } else {
-          y = y1 ?? y2;
+          debugPrint(
+            '[yesPlus/noMerge] ${conn.sourceNodeName}--yes->'
+            '${conn.targetNodeName}: no merge in yes branch',
+          );
         }
-
-        if (y != null) {
-          points.add(InsertionPoint(Offset(centerX, y), conn));
+        if (!placed) {
+          final plusPos = _firstVerticalMidpoint(path) ?? _midOfPath(path);
+          if (plusPos != null) {
+            debugPrint(
+              '[yesPlus/ownMidpoint] ${conn.sourceNodeName}--yes->'
+              '${conn.targetNodeName}: '
+              'x=${plusPos.dx.toStringAsFixed(1)} '
+              'y=${plusPos.dy.toStringAsFixed(1)}',
+            );
+            points.add(InsertionPoint(plusPos, conn));
+          } else {
+            debugPrint(
+              '[yesPlus/ownMidpoint FAILED] ${conn.sourceNodeName}--yes->'
+              '${conn.targetNodeName}: midpoint null',
+            );
+          }
         }
         continue;
+      }
+
+      for (final entry in mergeInfoByTarget.entries) {
+        final targetName = entry.key;
+        final info = entry.value;
+
+        final otherIds = info.incoming
+            .where((c) => c.id != null && c.id != info.deepestEdge.id)
+            .map((c) => c.id!)
+            .toList();
+
+        final afterY = (info.maxLandingY + info.targetTop) / 2;
+        debugPrint(
+          '[afterPlus] target=$targetName '
+          'mergeY=${info.maxLandingY.toStringAsFixed(1)} '
+          'targetTop=${info.targetTop.toStringAsFixed(1)} '
+          'afterY=${afterY.toStringAsFixed(1)} '
+          'deepest=${info.deepestEdge.sourceNodeName}.${info.deepestEdge.sourcePort} '
+          'others=${otherIds.length}',
+        );
+
+        points.add(
+          InsertionPoint(
+            Offset(info.centerX, afterY),
+            info.deepestEdge,
+            isAfterMerge: true,
+            mergeOtherConnIds: otherIds,
+          ),
+        );
       }
 
       Offset? plusPos;
@@ -97,30 +181,117 @@ class InsertionPointsService {
         plusPos = _firstVerticalMidpoint(path);
         if (plusPos != null) points.add(InsertionPoint(plusPos, conn));
         continue;
+      } else if (conn.sourcePort == 'out' &&
+          mergeInfoByTarget.containsKey(conn.targetNodeName)) {
+        continue;
       } else {
         plusPos ??= _firstVerticalMidpoint(path) ?? _midOfPath(path);
       }
       if (plusPos != null) points.add(InsertionPoint(plusPos, conn));
     }
 
-    //Для каждого merge-target - ровно один after
-    for (final info in mergeInfoByTarget.values) {
-      final otherIds = info.incoming
-          .where((c) => c.id != null && c.id != info.deepestEdge.id)
-          .map((c) => c.id!)
-          .toList();
-      final y = (info.maxLandingY + info.targetTop) / 2;
-      points.add(
-        InsertionPoint(
-          Offset(info.centerX, y),
-          info.deepestEdge,
-          isAfterMerge: true,
-          mergeOtherConnIds: otherIds,
-        ),
-      );
+    return points;
+  }
+
+  /// Фактический X пути в заданном Y (около 0.75 px). null — Y не на пути.
+  double? _pathXAtY(Path path, double targetY, {double eps = 0.75}) {
+    for (final metric in path.computeMetrics()) {
+      for (double d = 0; d <= metric.length; d += 0.5) {
+        final t = metric.getTangentForOffset(d);
+        if (t == null) continue;
+        if ((t.position.dy - targetY).abs() < eps) return t.position.dx;
+      }
+    }
+    return null;
+  }
+
+  String? _findYesMergeTarget(
+    FlowchartGraph g,
+    String logicName,
+    Map<String, _MergeInfo> mergeInfoByTarget,
+  ) {
+    ConnectionData? yesConn, noConn;
+    for (final c in g.outgoing[logicName] ?? const <ConnectionData>[]) {
+      if (c.sourcePort == 'yes') yesConn = c;
+      if (c.sourcePort == 'no') noConn = c;
+    }
+    if (yesConn == null) return null;
+
+    // Прямой случай: yes-таргет сам merge-точка
+    if (mergeInfoByTarget.containsKey(yesConn.targetNodeName)) {
+      return yesConn.targetNodeName;
+    }
+    if (noConn == null) return null;
+
+    // 1) Всё, что достижимо из no-ветки
+    final noReach = <String>{};
+    final q1 = <String>[noConn.targetNodeName];
+    while (q1.isNotEmpty) {
+      final cur = q1.removeAt(0);
+      if (!noReach.add(cur)) continue;
+      for (final c in g.outgoing[cur] ?? const <ConnectionData>[]) {
+        if (c.targetPort == 'loopback') continue;
+        q1.add(c.targetNodeName);
+      }
     }
 
-    return points;
+    // 2) BFS от yes-ветки: первая merge-точка, достижимая и из no
+    //    (т.е. реальная точка слияния веток этого логического блока)
+    final yesVisited = <String>{};
+    final q2 = <String>[yesConn.targetNodeName];
+    while (q2.isNotEmpty) {
+      final cur = q2.removeAt(0);
+      if (!yesVisited.add(cur)) continue;
+      if (noReach.contains(cur) && mergeInfoByTarget.containsKey(cur)) {
+        debugPrint(
+          '[findYesMerge] $logicName: yes=${yesConn.targetNodeName} '
+          'no=${noConn.targetNodeName} -> merge=$cur',
+        );
+        return cur;
+      }
+      for (final c in g.outgoing[cur] ?? const <ConnectionData>[]) {
+        if (c.targetPort == 'loopback') continue;
+        q2.add(c.targetNodeName);
+      }
+    }
+
+    debugPrint(
+      '[findYesMerge] $logicName: yes=${yesConn.targetNodeName} '
+      'no=${noConn.targetNodeName} -> merge=none',
+    );
+    return null;
+  }
+
+  ConnectionData? _findLastYesEdge(
+    FlowchartGraph g,
+    String logicName,
+    String mergeName,
+  ) {
+    ConnectionData? yesConn;
+    for (final c in g.outgoing[logicName] ?? const <ConnectionData>[]) {
+      if (c.sourcePort == 'yes') yesConn = c;
+    }
+    if (yesConn == null) return null;
+    if (yesConn.targetNodeName == mergeName) return yesConn;
+
+    String cur = yesConn.targetNodeName;
+    final visited = <String>{logicName};
+    ConnectionData? lastYesOut;
+
+    while (visited.add(cur)) {
+      ConnectionData? nextYes;
+      for (final c in g.outgoing[cur] ?? const <ConnectionData>[]) {
+        if (c.targetPort == 'loopback') continue;
+        if (c.sourcePort == 'yes' || c.sourcePort == 'out') {
+          if (c.targetNodeName == mergeName) return c;
+          nextYes ??= c;
+        }
+      }
+      if (nextYes == null) return lastYesOut;
+      lastYesOut = nextYes;
+      cur = nextYes.targetNodeName;
+    }
+    return lastYesOut;
   }
 
   _MergeInfo? _computeMergeInfo(
@@ -199,51 +370,82 @@ class InsertionPointsService {
     return best;
   }
 
-  /// Плюс на exit-ветке
-  Offset? _exitPlusPosition(Path path, NodeModel src) {
+  // / Плюс на exit-ветке
+  Offset? _exitPlusPosition(Path path, NodeModel src, FlowchartGraph g) {
     final srcCenterX = src.position.dx + router.nodeSize.width / 2;
+    final srcBottom = src.position.dy + router.nodeSize.height;
     final segs = _extractSegments(path);
     if (segs.isEmpty) return null;
 
     final horzs = <_Seg>[];
+    _Seg? deepest;
     for (final s in segs) {
       final isHorz =
           (s.start.dy - s.end.dy).abs() < 0.5 &&
           (s.start.dx - s.end.dx).abs() > 0.5;
       if (isHorz) horzs.add(s);
-    }
-    if (horzs.isEmpty) return null;
-
-    _Seg? covering;
-    for (final s in horzs) {
-      final xLo = math.min(s.start.dx, s.end.dx);
-      final xHi = math.max(s.start.dx, s.end.dx);
-      if (srcCenterX >= xLo - 0.5 && srcCenterX <= xHi + 0.5) {
-        covering = s;
+      if (!isHorz) continue;
+      if (deepest == null || s.start.dy > deepest.start.dy) {
+        deepest = s;
       }
     }
+    if (horzs.isEmpty) return null;
+    // if (deepest == null) return null;
+    //
+    if (deepest == null || deepest.start.dy < srcBottom) {
+      final branchBottom = _branchBottom(g, src.name);
+      debugPrint(
+        '[exit+ FALLBACK] src=${src.name} '
+        'deepestY=${deepest?.start.dy.toStringAsFixed(1) ?? "null"} '
+        'srcBottom=${srcBottom.toStringAsFixed(1)} '
+        '→ placing at srcBottom+24',
+      );
+      return Offset(srcCenterX, branchBottom + 45);
+    }
 
-    final target = covering ?? horzs.last;
+    final xLo = math.min(deepest.start.dx, deepest.end.dx);
+    final xHi = math.max(deepest.start.dx, deepest.end.dx);
+    final x = srcCenterX.clamp(xLo, xHi);
+
     debugPrint(
-      '[exit+] srcCenterX=$srcCenterX covering=${covering != null} '
-      'y=${target.start.dy} '
-      'xRange=[${math.min(target.start.dx, target.end.dx)},'
-      '${math.max(target.start.dx, target.end.dx)}]',
+      '[exit+] src=${src.name} srcCenterX=$srcCenterX '
+      'segments=${segs.length} '
+      'deepestY=${deepest.start.dy.toStringAsFixed(1)} '
+      'xRange=[${xLo.toStringAsFixed(1)},${xHi.toStringAsFixed(1)}] '
+      'plusX=${x.toStringAsFixed(1)}',
     );
-    return Offset(srcCenterX, target.start.dy);
+
+    return Offset(srcCenterX, deepest.start.dy);
   }
 
-  /// Y последнего горизонтального сегмента пути
-  double? _lastHorizontalY(Path path) {
-    final segs = _extractSegments(path);
-    double? y;
-    for (final s in segs) {
-      final isHorz =
-          (s.start.dy - s.end.dy).abs() < 0.5 &&
-          (s.start.dx - s.end.dx).abs() > 0.5;
-      if (isHorz) y = s.start.dy;
+  double _branchBottom(FlowchartGraph g, String rootName) {
+    final root = g.nodes[rootName];
+    if (root == null) return 0;
+
+    double maxBottom = root.position.dy + router.nodeSize.height;
+    final visited = <String>{rootName};
+    final queue = <String>[];
+
+    for (final c in g.outgoing[rootName] ?? const <ConnectionData>[]) {
+      if (c.sourcePort == 'exit') continue;
+      if (c.targetPort == 'loopback') continue;
+      queue.add(c.targetNodeName);
     }
-    return y;
+
+    while (queue.isNotEmpty) {
+      final cur = queue.removeAt(0);
+      if (!visited.add(cur)) continue;
+      final n = g.nodes[cur];
+      if (n == null) continue;
+      final b = n.position.dy + router.nodeSize.height;
+      if (b > maxBottom) maxBottom = b;
+      if (g.isEnd(cur)) continue;
+      for (final c in g.outgoing[cur] ?? const <ConnectionData>[]) {
+        if (c.targetPort == 'loopback') continue;
+        queue.add(c.targetNodeName);
+      }
+    }
+    return maxBottom;
   }
 
   //  Общие хелперы

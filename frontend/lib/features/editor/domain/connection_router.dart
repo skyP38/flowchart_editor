@@ -1,3 +1,4 @@
+import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 import '../factories/node_factory.dart';
 import '../models/editor_models.dart';
@@ -5,7 +6,6 @@ import 'flowchart_graph.dart';
 import 'layout_engine.dart';
 import 'dart:math' as math;
 import 'dart:core';
-import 'dart:ui';
 import '../models/flow_models.dart';
 
 class ArrowMarker {
@@ -217,6 +217,13 @@ class ConnectionRouter {
     }
 
     final busY = _busY(g, c.targetNodeName);
+    debugPrint(
+      '[routeDefault] ${c.sourceNodeName}--${c.sourcePort}->'
+      '${c.targetNodeName}: '
+      'dropX=${start.dx.toStringAsFixed(1)} '
+      'busY=${busY.toStringAsFixed(1)} '
+      'endX=${end.dx.toStringAsFixed(1)}',
+    );
     final path = Path()
       ..moveTo(start.dx, start.dy)
       ..lineTo(start.dx, busY)
@@ -237,29 +244,20 @@ class ConnectionRouter {
     ConnectionData c,
   ) {
     final busY = _busY(g, c.targetNodeName);
-    // В пределах одного столбца
-    if ((start.dx - end.dx).abs() < nodeSize.width * 0.6) {
-      final y = (busY > start.dy && busY < end.dy)
-          ? busY
-          : start.dy + spacing.stepY / 4;
 
-      final path = Path()
-        ..moveTo(start.dx, start.dy)
-        ..lineTo(start.dx, y)
-        ..lineTo(end.dx, y)
-        ..lineTo(end.dx, end.dy);
+    final rightX = _noCorridorX(g, c.sourceNodeName);
 
-      final arrows = _busArrows(
-        g: g,
-        c: c,
-        dropX: start.dx,
-        endX: end.dx,
-        busY: y,
+    // Цель слева
+    if (end.dx < rightX - 1.0) {
+      debugPrint(
+        '[routeNo] ${c.sourceNodeName}--no->${c.targetNodeName} '
+        'RDL: start=(${start.dx.toStringAsFixed(1)},'
+        '${start.dy.toStringAsFixed(1)}) '
+        // 'dropX=${rightX.toStringAsFixed(1)} '
+        'busY=${busY.toStringAsFixed(1)} '
+        'end=(${end.dx.toStringAsFixed(1)},'
+        '${end.dy.toStringAsFixed(1)})',
       );
-      return RoutedConnection(path, arrows);
-    }
-
-    if (end.dx < start.dx - 1.0) {
       final rightX = _noCorridorX(g, c.sourceNodeName);
       final path = Path()
         ..moveTo(start.dx, start.dy)
@@ -278,6 +276,14 @@ class ConnectionRouter {
       return RoutedConnection(path, arrows);
     }
 
+    debugPrint(
+      '[routeNo] ${c.sourceNodeName}--no->${c.targetNodeName} '
+      'RD: start=(${start.dx.toStringAsFixed(1)},'
+      '${start.dy.toStringAsFixed(1)}) '
+      'dropX=${end.dx.toStringAsFixed(1)} '
+      'end=(${end.dx.toStringAsFixed(1)},'
+      '${end.dy.toStringAsFixed(1)})',
+    );
     // Цель справа: вправо-вниз
     final path = Path()
       ..moveTo(start.dx, start.dy)
@@ -399,9 +405,14 @@ class ConnectionRouter {
       }
 
       if (child.data is LogicBlock) {
-        final hasRealNo = (g.outgoing[childName] ?? const []).any(
-          (c) => _isRealNoBranch(g, c),
-        );
+        final hasRealNo = (g.outgoing[childName] ?? const []).any((c) {
+          if (c.sourcePort != 'no') return false;
+          if (c.targetPort == 'loopback') return false;
+          final tgt = g.nodes[c.targetNodeName];
+          if (tgt == null) return false;
+          if (tgt.position.dx > child.position.dx + 1.0) return false;
+          return true;
+        });
         if (hasRealNo) {
           final childCorridor = _noCorridorX(g, childName, visiting: visiting);
           if (childCorridor > visualRight) visualRight = childCorridor;
@@ -442,7 +453,6 @@ class ConnectionRouter {
     final cap = end.dy - spacing.stepY / 8;
     final turnY = desired < cap ? desired : cap;
 
-    // Цель правее правого края - обходить нечего
     if (end.dx >= rightX) {
       final path = Path()
         ..moveTo(start.dx, start.dy)
@@ -476,14 +486,26 @@ class ConnectionRouter {
     FlowchartGraph g,
     ConnectionData c,
   ) {
-    final bas = spacing.stepX / 6;
+    final bas = spacing.stepX / 12;
+    final source = g.nodes[c.sourceNodeName];
+
+    // Базовый turnY - чуть ниже источника.
+    // double turnY = start.dy + math.max(bas / 2, spacing.stepY / 3);
+    double turnY = start.dy + bas / 2;
+
+    if (source != null && source.data is ForBlock && c.sourcePort == 'exit') {
+      final bodyBottom = _bodySubtreeBottom(g, c.sourceNodeName);
+      final desired = bodyBottom + bas;
+      if (desired > turnY) turnY = desired;
+    }
 
     final ancestors = _forAncestorCount(g, c.targetNodeName);
     final maxDepth = LayoutEngine.maxForDepth(g);
     final levelsFromInner = maxDepth - ancestors; // 0 у самого внутреннего
     final inset = bas / 2 * (levelsFromInner + 1);
 
-    final vertTopY = start.dy + bas / 2;
+    // final vertTopY = start.dy + bas / 2;
+    final vertTopY = turnY;
     final vertBottomY = end.dy;
     final midVertY = (vertTopY + vertBottomY) / 2;
 
@@ -505,6 +527,35 @@ class ConnectionRouter {
     );
   }
 
+  double _bodySubtreeBottom(FlowchartGraph g, String forName) {
+    final bodyConn = (g.outgoing[forName] ?? const []).firstWhereOrNull(
+      (c) => c.sourcePort == 'body',
+    );
+    if (bodyConn == null) return 0;
+    if (bodyConn.targetNodeName == forName) {
+      final n = g.nodes[forName];
+      return n == null ? 0 : n.position.dy + nodeSize.height;
+    }
+    final visited = <String>{};
+    final queue = <String>[bodyConn.targetNodeName];
+    double maxBottom = 0;
+    while (queue.isNotEmpty) {
+      final cur = queue.removeAt(0);
+      if (!visited.add(cur)) continue;
+      final n = g.nodes[cur];
+      if (n == null) continue;
+      final bottom = n.position.dy + nodeSize.height;
+      if (bottom > maxBottom) maxBottom = bottom;
+      if (g.isEnd(cur)) continue;
+      for (final c in g.outgoing[cur] ?? const <ConnectionData>[]) {
+        if (c.targetPort == 'loopback') continue;
+        if (c.sourcePort == 'exit' && c.sourceNodeName == forName) continue;
+        queue.add(c.targetNodeName);
+      }
+    }
+    return maxBottom;
+  }
+
   // Стрелки на горизонтальной шине: возвращает либо пустой список,  либо одну стрелку в правильном месте.
   List<ArrowMarker> _busArrows({
     required FlowchartGraph g,
@@ -519,7 +570,6 @@ class ConnectionRouter {
     final horizontalLen = (dropX - endX).abs();
     if (horizontalLen < 24) return const [];
 
-    final gap = spacing.stepX / 6;
     final xLo = endX;
     final xHi = dropX;
 
@@ -540,16 +590,39 @@ class ConnectionRouter {
       if (span == null) continue;
       if (busY < span.start - 0.5 || busY > span.end + 0.5) continue;
 
+      debugPrint(
+        '[busArrow] ${c.sourceNodeName}--${c.sourcePort}->'
+        '${c.targetNodeName}: crossing with '
+        '${other.sourceNodeName}--${other.sourcePort} '
+        'dropX=${otherDropX.toStringAsFixed(1)} '
+        'span=[${span.start.toStringAsFixed(1)},'
+        '${span.end.toStringAsFixed(1)}]',
+      );
+
       if (firstCrossingX == null || otherDropX > firstCrossingX) {
         firstCrossingX = otherDropX;
       }
     }
 
-    final arrowX = firstCrossingX != null
-        ? firstCrossingX + gap
-        : (xLo + xHi) / 2;
+    double arrowX;
+    if (firstCrossingX != null) {
+      arrowX = firstCrossingX;
+    } else {
+      arrowX = (xLo + xHi) / 2;
+    }
 
     final clampedX = arrowX.clamp(xLo + 8.0, xHi - 8.0);
+
+    debugPrint(
+      '[busArrow] ${c.sourceNodeName}--${c.sourcePort}->'
+      '${c.targetNodeName}: '
+      'busY=${busY.toStringAsFixed(1)} '
+      'xLo=${xLo.toStringAsFixed(1)} xHi=${xHi.toStringAsFixed(1)} '
+      'nearest=${firstCrossingX?.toStringAsFixed(1) ?? 'none'} '
+      'arrowX=${arrowX.toStringAsFixed(1)} '
+      'clamped=${clampedX.toStringAsFixed(1)}'
+      '${clampedX != arrowX ? " (CLAMPED)" : ""}',
+    );
     return [ArrowMarker(Offset(clampedX, busY), math.pi)];
   }
 
@@ -564,11 +637,9 @@ class ConnectionRouter {
     final targetTop = _portPosition(tgt, 'in', outgoing: false).dy;
 
     if (other.sourcePort == 'no') {
-      final hasYesToSame = (g.outgoing[other.sourceNodeName] ?? const []).any(
-        (x) =>
-            x.sourcePort == 'yes' && x.targetNodeName == other.targetNodeName,
-      );
-      if (hasYesToSame) return null;
+      final endX = _portPosition(tgt, 'in', outgoing: false).dx;
+      final rightX = _noCorridorX(g, other.sourceNodeName);
+      if (endX >= rightX - 1.0) return null;
 
       final noPortY = _portPosition(otherSrc, 'no', outgoing: true).dy;
       final otherBusY = _busY(g, other.targetNodeName);
@@ -588,17 +659,11 @@ class ConnectionRouter {
 
   double _dropXOf(FlowchartGraph g, ConnectionData other, NodeModel otherSrc) {
     if (other.sourcePort == 'no') {
-      final hasYesToSame = (g.outgoing[other.sourceNodeName] ?? const []).any(
-        (x) =>
-            x.sourcePort == 'yes' && x.targetNodeName == other.targetNodeName,
-      );
-      if (hasYesToSame) {
-        final tgt = g.nodes[other.targetNodeName];
-        return tgt != null
-            ? _portPosition(tgt, 'in', outgoing: false).dx
-            : otherSrc.position.dx + nodeSize.width / 2;
-      }
-      return _noCorridorX(g, other.sourceNodeName);
+      final tgt = g.nodes[other.targetNodeName];
+      if (tgt == null) return otherSrc.position.dx + nodeSize.width;
+      final endX = _portPosition(tgt, 'in', outgoing: false).dx;
+      final rightX = _noCorridorX(g, other.sourceNodeName);
+      return endX < rightX - 1.0 ? rightX : endX;
     }
     return _portPosition(otherSrc, other.sourcePort, outgoing: true).dx;
   }

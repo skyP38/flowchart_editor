@@ -432,9 +432,15 @@ class LayoutEngine {
       );
       if (bodyConn == null || exitConn == null) continue;
 
+      if (exitConn.targetPort == 'loopback') continue;
+
       if (bodyConn.targetNodeName == forName) continue;
 
-      final bodySubtree = _bodySubtreeNodes(g, bodyConn.targetNodeName);
+      final bodySubtree = _bodySubtreeNodes(
+        g,
+        bodyConn.targetNodeName,
+        stopExitOf: forName,
+      );
       int maxBodyRank = ranks[forName] ?? 0;
       for (final n in bodySubtree) {
         final r = ranks[n] ?? 0;
@@ -455,7 +461,11 @@ class LayoutEngine {
   }
 
   // Поддерево тела цикла: обходит body-ветку,
-  Set<String> _bodySubtreeNodes(FlowchartGraph g, String root) {
+  Set<String> _bodySubtreeNodes(
+    FlowchartGraph g,
+    String root, {
+    required String stopExitOf,
+  }) {
     final result = <String>{};
     void dfs(String n) {
       if (result.contains(n)) return;
@@ -463,7 +473,9 @@ class LayoutEngine {
       if (g.isEnd(n)) return;
       for (final c in g.outgoing[n] ?? const []) {
         if (c.targetPort == 'loopback') continue;
-        if (c.sourcePort == 'exit') continue; // не выходим за пределы тела
+        if (c.sourcePort == 'exit' && c.sourceNodeName == stopExitOf) {
+          continue; // не выходим за пределы тела
+        }
         dfs(c.targetNodeName);
       }
     }
