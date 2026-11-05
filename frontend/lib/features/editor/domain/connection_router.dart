@@ -504,24 +504,70 @@ class ConnectionRouter {
     final levelsFromInner = maxDepth - ancestors; // 0 у самого внутреннего
     final inset = bas / 2 * (levelsFromInner + 1);
 
+    final isExitPort = c.sourcePort == 'exit';
+    double startJogX = start.dx;
+    // final startJogX = isEx/2itPort ? start.dx + bas / 2 : start.dx;
+    if (isExitPort) {
+      final srcAncestors = _forAncestorCount(g, c.sourceNodeName);
+      final srcLevelsFromInner = math.max(0, maxDepth - srcAncestors);
+      startJogX = start.dx + bas * (srcLevelsFromInner + 1);
+    }
+
     // final vertTopY = start.dy + bas / 2;
     final vertTopY = turnY;
     final vertBottomY = end.dy;
     final midVertY = (vertTopY + vertBottomY) / 2;
+    final leftVertX = end.dx - inset;
+
+    double arrowX;
+    if (isExitPort) {
+      final xLo = math.min(leftVertX, startJogX);
+      final xHi = math.max(leftVertX, startJogX);
+      double? firstCrossingX;
+      for (final other in g.connections) {
+        if (identical(other, c)) continue;
+        if (other.sourcePort != 'exit' || other.targetPort != 'loopback') {
+          continue;
+        }
+        final otherSrc = g.nodes[other.sourceNodeName];
+        if (otherSrc == null || otherSrc.data is! ForBlock) continue;
+        final otherStartY = otherSrc.position.dy + nodeSize.height / 2;
+        if (otherStartY >= turnY) continue;
+        final otherAncestors = _forAncestorCount(g, other.sourceNodeName);
+        final otherLevels = math.max(0, maxDepth - otherAncestors);
+        final otherJogX =
+            _portPosition(otherSrc, 'exit', outgoing: true).dx +
+            bas * (otherLevels + 1);
+        if (otherJogX <= xLo + 0.5 || otherJogX >= xHi - 0.5) continue;
+        if (firstCrossingX == null || otherJogX > firstCrossingX) {
+          firstCrossingX = otherJogX;
+        }
+      }
+      arrowX = firstCrossingX != null
+          ? (firstCrossingX).clamp(xLo + 8.0, xHi - 8.0)
+          : (xLo + xHi) / 2;
+      debugPrint(
+        '[loopbackArrow] ${c.sourceNodeName}--exit->'
+        '${c.targetNodeName}.loopback: '
+        'turnY=${turnY.toStringAsFixed(1)} '
+        'crossing=${firstCrossingX?.toStringAsFixed(1) ?? "none"} '
+        'arrowX=${arrowX.toStringAsFixed(1)}',
+      );
+    } else {
+      arrowX = (startJogX + leftVertX) / 2;
+    }
 
     return RoutedConnection(
       Path()
         ..moveTo(start.dx, start.dy)
-        ..lineTo(start.dx, vertTopY)
-        ..lineTo(end.dx - inset, vertTopY)
-        ..lineTo(end.dx - inset, vertBottomY)
+        ..lineTo(startJogX, start.dy)
+        ..lineTo(startJogX, vertTopY)
+        ..lineTo(leftVertX, vertTopY)
+        ..lineTo(leftVertX, vertBottomY)
         ..lineTo(end.dx, vertBottomY),
       [
-        ArrowMarker(
-          Offset((start.dx + end.dx - inset) / 2, vertTopY),
-          -math.pi,
-        ),
-        ArrowMarker(Offset(end.dx - inset, midVertY), -math.pi / 2),
+        ArrowMarker(Offset(arrowX, vertTopY), -math.pi),
+        ArrowMarker(Offset(leftVertX, midVertY), -math.pi / 2),
         ArrowMarker(Offset(end.dx, vertBottomY), 0.0),
       ],
     );
