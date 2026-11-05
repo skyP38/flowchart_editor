@@ -56,7 +56,7 @@ func (r *FlowchartRepository) Create(
 	)
 	if err != nil {
 		return f, err
-	}	
+	}
 	return f, nil
 }
 
@@ -89,6 +89,38 @@ func (r *FlowchartRepository) Delete(
 		return domains.ErrNotFound
 	}
 	return nil
+}
+
+func (r *FlowchartRepository) Update(
+	ctx context.Context,
+	userID, projectID, flowchartID int64,
+	name string,
+) (domains.Flowchart, error) {
+	var f domains.Flowchart
+	var data []byte
+	err := r.db.QueryRow(ctx,
+		`UPDATE flowcharts f
+		    SET name_f = $1, updated_at = NOW()
+		   FROM projects p
+		  WHERE f.id_flowchart = $2
+		    AND f.id_project   = $3
+		    AND p.id_project   = f.id_project
+		    AND p.owner_id     = $4
+		 RETURNING f.id_flowchart, f.name_f, f.data_f,
+		           f.created_at, f.updated_at`,
+		name, flowchartID, projectID, userID).Scan(
+		&f.ID, &f.Name, &data, &f.DateCreate, &f.DateUpdate,
+	)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return domains.Flowchart{}, domains.ErrNotFound
+	}
+	if err != nil {
+		return domains.Flowchart{}, fmt.Errorf("update flowchart: %w", err)
+	}
+	if len(data) > 0 {
+		_ = json.Unmarshal(data, &f.Data)
+	}
+	return f, nil
 }
 
 func (r *FlowchartRepository) GetContent(

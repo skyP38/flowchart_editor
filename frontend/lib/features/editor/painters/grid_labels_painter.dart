@@ -1,4 +1,3 @@
-import 'package:flowchart_editor_frontend/features/editor/constants/diagram_constants.dart';
 import 'package:flutter/material.dart';
 
 // Преобразует номер колонки(цифру) в букву
@@ -14,104 +13,87 @@ String numberToLetter(int n) {
 }
 
 // Рисует подписи сетки: цифры сверху(столбцы), буквы слева (строки)
-// Нумерация привязана к расположению блока Start
 class GridLabelsPainter extends CustomPainter {
-  final double columnWidth; // = spacing.stepX
-  final double rowHeight; // = spacing.stepY
-  final double nodeWidth; // = nodeSize.width
-  final double nodeHeight; // = nodeSize.height
-  // final double? stepX;
-  // final double? stepY;
+  final double columnWidth;
+  final double rowHeight;
+  final double nodeWidth;
+  final double nodeHeight;
   final Offset startPosition;
+
+  final bool showLines;
+  final bool showLabels;
 
   GridLabelsPainter({
     required this.columnWidth,
     required this.rowHeight,
     required this.nodeWidth,
     required this.nodeHeight,
-    // required this.stepX,
-    // required this.stepY,
     required this.startPosition,
+    this.showLines = true,
+    this.showLabels = true,
   });
 
   @override
   void paint(Canvas canvas, Size size) {
-    // if (stepX == null || stepY == null) return;
+    // Стиль для линий сетки
+    final linePaint = Paint()
+      ..color = Colors.grey.withValues(alpha: 0.2)
+      ..strokeWidth = 1.0;
 
     final textStyle = TextStyle(
       color: Colors.grey.shade700,
-      fontSize: GridConstants.fontSize,
+      fontSize: 18,
       fontWeight: FontWeight.w500,
     );
 
-    // Колонки: центр колонки 0 совпадает с центром Start-блока.
-    final startCenterX = startPosition.dx + nodeWidth / 2;
-    final startCenterY = startPosition.dy + nodeHeight / 2;
+    // Левая/верхняя граница ячейки
+    final shiftX = (columnWidth - nodeWidth) / 2;
+    final shiftY = (rowHeight - nodeHeight) / 2;
+    final startBoundaryX = startPosition.dx - shiftX;
+    final startBoundaryY = startPosition.dy - shiftY;
 
-    // int firstCol = (startPosition.dx / columnWidth).floor();
-    int firstCol = (-startCenterX / columnWidth).floor();
-    int lastCol = ((size.width - startCenterX) / columnWidth).ceil();
+    int firstCol = (-startBoundaryX / columnWidth).floor();
+    int lastCol = ((size.width - startBoundaryX) / columnWidth).ceil();
+    //  вертикальные линии
     for (int col = firstCol; col <= lastCol; col++) {
-      final x = startCenterX + col * columnWidth;
-      if (x < 0 || x > size.width) continue;
-      // final number = col + 1;
-      final tp = TextPainter(
-        text: TextSpan(text: '${col + 1}', style: textStyle),
-        textDirection: TextDirection.ltr,
-      )..layout();
-      tp.paint(canvas, Offset(x - tp.width / 2, 2));
+      // Линия сетки на границе
+      final x = startBoundaryX + col * columnWidth;
+      if (x >= 0 && x <= size.width) {
+        canvas.drawLine(Offset(x, 0), Offset(x, size.height), linePaint);
+      }
+
+      if (showLabels) {
+        final labelX = x + columnWidth / 2;
+        if (labelX >= 0 && labelX <= size.width) {
+          final tp = TextPainter(
+            text: TextSpan(text: '${col + 1}', style: textStyle),
+            textDirection: TextDirection.ltr,
+          )..layout();
+          tp.paint(canvas, Offset(labelX - tp.width / 2, 4));
+        }
+      }
     }
 
-    // Строки: аналогично, центр строки 0 = центр Start-блока.
-
-    // int firstRow = (st gartPosition.dy / rowHeight).floor();
-    int firstRow = (-startCenterY / rowHeight).floor();
-    int lastRow = ((size.height - startCenterY) / rowHeight).ceil();
+    int firstRow = (-startBoundaryY / rowHeight).floor();
+    int lastRow = ((size.height - startBoundaryY) / rowHeight).ceil();
+    // горизонтальные линии
     for (int row = firstRow; row <= lastRow; row++) {
-      final y = startCenterY + row * rowHeight;
-      if (y < 0 || y > size.height) continue;
-      final tp = TextPainter(
-        text: TextSpan(text: numberToLetter(row), style: textStyle),
-        textDirection: TextDirection.ltr,
-      )..layout();
-      tp.paint(canvas, Offset(2, y - tp.height / 2));
+      final y = startBoundaryY + row * rowHeight;
+      if (y >= 0 && y <= size.height) {
+        canvas.drawLine(Offset(0, y), Offset(size.width, y), linePaint);
+      }
+
+      if (showLabels) {
+        final labelY = y + rowHeight / 2;
+        if (labelY >= 0 && labelY <= size.height) {
+          final tp = TextPainter(
+            text: TextSpan(text: numberToLetter(row), style: textStyle),
+            textDirection: TextDirection.ltr,
+          )..layout();
+          tp.paint(canvas, Offset(4, labelY - tp.height / 2));
+        }
+      }
     }
-
-    // // Подписи столбцов (цифры) сверху
-    // int firstCol = ((startPosition.dx) / stepX!).floor();
-    // int lastCol = ((size.width - startPosition.dx) / stepX!).ceil();
-    // for (int col = firstCol; col <= lastCol; col++) {
-    //   final double stepXgrid = stepX! + GridConstants.stepXExtra;
-    //   final double startCenterX = startPosition.dx + stepX! / 2;
-    //   double x = startCenterX + col * stepXgrid;
-    //   if (x < 0 || x > size.width) continue;
-    //   final number = col + 1;
-    //   final textSpan = TextSpan(text: '$number', style: textStyle);
-    //   final textPainter = TextPainter(
-    //     text: textSpan,
-    //     textDirection: TextDirection.ltr,
-    //   );
-    //   textPainter.layout();
-    //   textPainter.paint(canvas, Offset(x, 2));
-    // }
-
-    // // Подписи строк (буквы) слева
-    // final double stepYgrid = stepY! + GridConstants.stepYExtra;
-    // final double startCenterY = startPosition.dy + stepY! / 2;
-    // int firstRow = ((0 - startCenterY) / stepY!).floor();
-    // int lastRow = ((size.height - startCenterY) / stepY!).ceil();
-    // for (int row = firstRow; row <= lastRow; row++) {
-    //   double y = startCenterY + row * stepYgrid;
-    //   if (y < 0 || y > size.height) continue;
-    //   String letter = numberToLetter(row);
-    //   final textSpan = TextSpan(text: letter, style: textStyle);
-    //   final textPainter = TextPainter(
-    //     text: textSpan,
-    //     textDirection: TextDirection.ltr,
-    //   );
-    //   textPainter.layout();
-    //   textPainter.paint(canvas, Offset(2, y - textPainter.height / 2));
-    // }
   }
 
   @override
@@ -121,8 +103,4 @@ class GridLabelsPainter extends CustomPainter {
       old.nodeWidth != nodeWidth ||
       old.nodeHeight != nodeHeight ||
       old.startPosition != startPosition;
-  // retur`n oldDelegate.stepX != stepX ||
-  //       oldDelegate.stepY != stepY ||
-  //       oldDelegate.startPosition != startPosition;
-  // }
 }

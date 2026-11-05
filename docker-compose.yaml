@@ -2,14 +2,13 @@ services:
   db:
     image: postgres:17-alpine
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: password
-      POSTGRES_DB: flowchart_db
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
     ports:
       - "5433:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
-      # - ./backend/SQL_scripts/create_tables.sql:/docker-entrypoint-initdb.d/init.sql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
       interval: 10s
@@ -25,7 +24,7 @@ services:
       - "-path"
       - "/db"
       - "-database"
-      - "postgres://postgres:password@db:5432/flowchart_db?sslmode=disable"
+      - "postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}?sslmode=disable"
       - "up"
     depends_on:
       db:
@@ -38,12 +37,12 @@ services:
     ports:
       - "8080:8080"
     environment:
-      - DATABASE_URL=postgres://postgres:password@db:5432/flowchart_db
-      - APP_PORT=8080
-      - JWT_SECRET=change-me
-      - PASSWORD_PEPPER=change-me
-      - ADMIN_LOGIN=admin
-      - ADMIN_PASSWORD=admin
+      - DATABASE_URL=postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      - APP_PORT=${APP_PORT}
+      - JWT_SECRET=${JWT_SECRET}
+      - PASSWORD_PEPPER=${PASSWORD_PEPPER}
+      - ADMIN_LOGIN=${ADMIN_LOGIN}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD}
     depends_on:
       db:
         condition: service_healthy
@@ -55,9 +54,11 @@ services:
     build:
       context: ./frontend
       args:
-        - API_BASE_URL=http://localhost:8080
+        - API_BASE_URL=
     ports:
-      - "80:80"
+      - "8443:443"
+    volumes:
+      - ./certs:/etc/nginx/certs:ro
     depends_on:
       - backend
 

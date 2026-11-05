@@ -3,7 +3,7 @@ import 'package:geolocator/geolocator.dart';
 
 class BrowserLocationService {
   static Future<Position?> getCurrentPosition() async {
-    // В этом варианте геолокация собирается только в браузере.
+    // геолокация собирается только в браузере
     if (!kIsWeb) return null;
 
     try {
@@ -22,7 +22,7 @@ class BrowserLocationService {
   static String? formatLocation(Position? position) {
     if (position == null) return null;
 
-    // Округляем координаты, чтобы не хранить лишнюю точность.
+    // Округляем координаты, чтобы не хранить лишнюю точность
     return '${position.latitude.toStringAsFixed(3)}, '
         '${position.longitude.toStringAsFixed(3)}';
   }

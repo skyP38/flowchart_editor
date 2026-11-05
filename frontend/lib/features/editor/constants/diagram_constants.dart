@@ -16,9 +16,9 @@ class LayoutConstants {
   LayoutConstants._();
   static const double stepXExtra = 70;
   static const double stepYExtra = 48;
-  // Дополнительный горизонтальный шаг на каждый уровень вложенности For.
+  // Дополнительный горизонтальный шаг на каждый уровень вложенности For
   static const double loopbackChannelWidth = 15;
-  // Дополнительный вертикальный шаг на каждый уровень вложенности For.
+  // Дополнительный вертикальный шаг на каждый уровень вложенности For
   static const double loopbackChannelHeight = 8;
   static const double startPadding = 70;
   static const double rankGap = 50;

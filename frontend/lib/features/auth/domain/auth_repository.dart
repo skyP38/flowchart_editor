@@ -32,8 +32,6 @@ class AuthRepository extends ChangeNotifier {
     super.dispose();
   }
 
-  // Публичный API
-
   /// Восстановление сессии при старте приложения
   Future<void> init() {
     final existing = _initFuture;
@@ -107,20 +105,25 @@ class AuthRepository extends ChangeNotifier {
     _setState(const AuthUnauthenticated());
   }
 
-  void onSessionExpired() {
+  void onSessionExpired({String? reason}) {
     debugPrint('AuthRepository: onSessionExpired() called');
     unawaited(_storage.clear());
-    _setState(const AuthUnauthenticated(message: 'Session expired'));
+    _setState(
+      AuthUnauthenticated(
+        message: reason ?? 'Your session has expired. Please sign in again.',
+      ),
+    );
+  }
+
+  void clearMessage() {
+    final current = _state;
+    if (current is AuthUnauthenticated && current.message != null) {
+      _setState(const AuthUnauthenticated());
+    }
   }
 
   // Внутренняя логика
   Future<void> _doInit() async {
-    // final refreshToken = await _storage.getRefreshToken();
-    // if (refreshToken == null || refreshToken.isEmpty) {
-    //   _setState(const AuthUnauthenticated());
-    //   return;
-    // }
-
     final accessToken = await _storage.getAccessToken();
     final refreshToken = await _storage.getRefreshToken();
 
@@ -143,7 +146,9 @@ class AuthRepository extends ChangeNotifier {
       _setState(AuthAuthenticated(user));
     } catch (_) {
       await _storage.clear();
-      _setState(const AuthUnauthenticated());
+      if (_state is! AuthUnauthenticated) {
+        _setState(const AuthUnauthenticated());
+      }
     }
   }
 

@@ -1,6 +1,10 @@
 import 'dart:convert';
 import 'dart:async';
-
+import 'dart:math' as math;
+import 'dart:ui' as ui;
+import 'package:flutter/rendering.dart';
+import 'package:flutter/scheduler.dart';
+import 'package:flutter/gestures.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:file_saver/file_saver.dart';
 import '../factories/node_factory.dart';
@@ -25,6 +29,9 @@ import '../domain/insertion_points.dart';
 import '../constants/diagram_constants.dart';
 import '../utils/svg_exporter.dart';
 import '../../../core/storage/guest_diagram_storage.dart';
+import '../painters/headers_painters.dart';
+import '../domain/flowchart_graph.dart';
+import '../utils/scene_builder.dart';
 
 // Главный экран редактора блок-схем
 class EditorScreen extends StatefulWidget {
@@ -46,7 +53,8 @@ class EditorScreen extends StatefulWidget {
   State<EditorScreen> createState() => _EditorScreenState();
 }
 
-class _EditorScreenState extends State<EditorScreen> {
+class _EditorScreenState extends State<EditorScreen>
+    with TickerProviderStateMixin {
   final FlowController _controller = FlowController();
 
   Set<String> _selectedNodeNames = {};
@@ -57,7 +65,6 @@ class _EditorScreenState extends State<EditorScreen> {
   List<InsertionPoint> _insertionPoints = [];
   GostNodeData? _selectedPrototype;
   String? _selectedConnectionId;
-  LayoutSpacing? _lastSpacing;
 
   final FocusNode _focusNode = FocusNode();
   final ScrollController _verticalScrollController = ScrollController();
@@ -68,7 +75,6 @@ class _EditorScreenState extends State<EditorScreen> {
 
   late ConnectionRouter _router;
   late InsertionPointsService _insertionPointsService;
-  Size _lastNodeSize = Size.zero;
 
   Timer? _saveDebounce;
   bool _autoSaveEnabled = false;
@@ -76,9 +82,21 @@ class _EditorScreenState extends State<EditorScreen> {
   String? _hoveredConnectionId;
   InsertionPoint? _hoveredPoint;
 
+  late final Ticker _zoomTicker;
+  double _zoomTarget = 1.0;
+  bool _zoomTickerRunning = false;
+  Offset _zoomAnchorScreen = Offset.zero;
+  Offset _zoomAnchorContent = Offset.zero;
+
+  bool _isSaving = false;
+  final GlobalKey _canvasKey = GlobalKey();
+  bool _capturing = false;
+
   @override
   void initState() {
     super.initState();
+    _zoomTicker = createTicker(_onZoomTick);
+    _zoomTarget = _controller.scale;
     if (widget.initialSnapshot != null) {
       _controller.fromSnapshot(widget.initialSnapshot!);
       _controller.clearHistory();
@@ -187,8 +205,6 @@ class _EditorScreenState extends State<EditorScreen> {
 
   // Пересобирает роутер и сервис точек вставки под текущий размер блока
   void _rebuildRouter() {
-    _lastNodeSize = _controller.nodeSize;
-    _lastSpacing = _controller.spacing;
     _router = ConnectionRouter(
       nodeSize: _controller.nodeSize,
       spacing: _controller.spacing,
@@ -196,24 +212,39 @@ class _EditorScreenState extends State<EditorScreen> {
     _insertionPointsService = InsertionPointsService(router: _router);
   }
 
-  // Реакция на изменение контроллера
+  FlowchartGraph? _lastGraph;
+  Size? _lastRouterNodeSize;
+  double? _lastStepX, _lastStepY;
+
   void _onControllerChanged() {
     if (!mounted) return;
 
     final spacing = _controller.spacing;
-    if (_controller.nodeSize != _lastNodeSize ||
-        spacing.stepX != _lastSpacing?.stepX ||
-        spacing.stepY != _lastSpacing?.stepY) {
+    final nodeSize = _controller.nodeSize;
+
+    final graphChanged = !identical(_controller.graph, _lastGraph);
+    final sizeChanged =
+        nodeSize != _lastRouterNodeSize ||
+        spacing.stepX != _lastStepX ||
+        spacing.stepY != _lastStepY;
+
+    if (sizeChanged) {
       _rebuildRouter();
+      _lastRouterNodeSize = nodeSize;
+      _lastStepX = spacing.stepX;
+      _lastStepY = spacing.stepY;
     }
 
-    setState(() {
-      _insertionPoints = _insertionPointsService.compute(_controller.graph);
-    });
-
-    if (_autoSaveEnabled) {
-      _scheduleAutoSave();
+    if (graphChanged || sizeChanged) {
+      _lastGraph = _controller.graph;
+      setState(() {
+        _insertionPoints = _insertionPointsService.compute(_controller.graph);
+      });
+    } else {
+      setState(() {});
     }
+
+    if (_autoSaveEnabled) _scheduleAutoSave();
   }
 
   @override
@@ -224,10 +255,94 @@ class _EditorScreenState extends State<EditorScreen> {
     _focusNode.dispose();
     _verticalScrollController.dispose();
     _horizontalScrollController.dispose();
+    _zoomTicker.dispose();
     super.dispose();
   }
 
-  // Вычисляет размер области холста с учётом всех блоков и padding
+  void _handleZoomSignal(PointerSignalEvent event) {
+    final hw = HardwareKeyboard.instance;
+    final ctrl = hw.isControlPressed || hw.isMetaPressed;
+
+    double? newTarget;
+    if (event is PointerScrollEvent) {
+      if (!ctrl) return;
+      final delta = event.scrollDelta.dy;
+      if (delta == 0) return;
+      newTarget = (_zoomTarget - delta * 0.001).clamp(_minScale, _maxScale);
+    } else if (event is PointerScaleEvent) {
+      if ((event.scale - 1.0).abs() < 1e-4) return;
+      newTarget = (_zoomTarget * event.scale).clamp(_minScale, _maxScale);
+    } else {
+      return;
+    }
+
+    if ((newTarget - _zoomTarget).abs() < 1e-5) return;
+
+    final scrollX = _safeOffset(_verticalScrollController);
+    final scrollY = _safeOffset(_horizontalScrollController);
+
+    final lp = event.localPosition;
+    final scale = _controller.scale;
+
+    final anchorContent = Offset(lp.dx / scale, lp.dy / scale);
+    final anchorScreen = Offset(lp.dx - scrollX, lp.dy - scrollY);
+    final target = newTarget;
+
+    GestureBinding.instance.pointerSignalResolver.register(event, (_) {
+      _zoomAnchorContent = anchorContent;
+      _zoomAnchorScreen = anchorScreen;
+      _zoomTarget = target;
+      if (!_zoomTickerRunning) {
+        _zoomTicker.start();
+        _zoomTickerRunning = true;
+      }
+    });
+  }
+
+  void _onZoomTick(Duration _) {
+    final oldScale = _controller.scale;
+    final diff = _zoomTarget - oldScale;
+
+    if (diff.abs() < 0.0008) {
+      _controller.setScale(_zoomTarget);
+      _applyZoomScroll(oldScale, _zoomTarget);
+      _zoomTicker.stop();
+      _zoomTickerRunning = false;
+      return;
+    }
+
+    final next = oldScale + diff * 0.3;
+    _controller.setScale(next);
+    _applyZoomScroll(oldScale, next);
+  }
+
+  void _applyZoomScroll(double oldScale, double newScale) {
+    for (final pos in _verticalScrollController.positions) {
+      if (!pos.hasContentDimensions || !pos.hasViewportDimension) continue;
+      final oldContentW = pos.maxScrollExtent + pos.viewportDimension;
+      final newMaxScroll =
+          oldContentW * (newScale / oldScale) - pos.viewportDimension;
+      final targetPx = _zoomAnchorContent.dx * newScale - _zoomAnchorScreen.dx;
+      final clamped = targetPx
+          .clamp(0.0, math.max(0.0, newMaxScroll))
+          .toDouble();
+      if (pos.hasPixels) pos.jumpTo(clamped);
+    }
+
+    for (final pos in _horizontalScrollController.positions) {
+      if (!pos.hasContentDimensions || !pos.hasViewportDimension) continue;
+      final oldContentH = pos.maxScrollExtent + pos.viewportDimension;
+      final newMaxScroll =
+          oldContentH * (newScale / oldScale) - pos.viewportDimension;
+      final targetPx = _zoomAnchorContent.dy * newScale - _zoomAnchorScreen.dy;
+      final clamped = targetPx
+          .clamp(0.0, math.max(0.0, newMaxScroll))
+          .toDouble();
+      if (pos.hasPixels) pos.jumpTo(clamped);
+    }
+  }
+
+  // Вычисляет размер области холста с учетом всех блоков и padding
   Size _getContentSize() {
     final nodes = _controller.nodes;
     final nodeSize = _controller.nodeSize;
@@ -248,8 +363,15 @@ class _EditorScreenState extends State<EditorScreen> {
     width = width < 1200 ? 1200 : width;
     height = height < 800 ? 800 : height;
 
-    // return Size(width * _scale, height * _scale);
     return Size(width, height);
+  }
+
+  double _safeOffset(ScrollController controller) {
+    final positions = controller.positions;
+    if (positions.isEmpty) return 0;
+    final pos = positions.first;
+    if (!pos.hasContentDimensions || !pos.hasPixels) return 0;
+    return pos.pixels;
   }
 
   // Проверяет, попадает ли точка в прямоугольник какого-либо узла
@@ -272,8 +394,6 @@ class _EditorScreenState extends State<EditorScreen> {
   // Обработка удаления блока
   void _handleKeyEvent(KeyEvent event) {
     if (event is! KeyDownEvent) return;
-    // final hw = HardwareKeyboard.instance;
-    // _pushState();
 
     // Ctrl+Z (отмена)
     if (event.logicalKey == LogicalKeyboardKey.keyZ &&
@@ -350,44 +470,71 @@ class _EditorScreenState extends State<EditorScreen> {
     if (point != null) {
       debugPrint(
         '[tap+] pos=${point.position} '
-        'afterMerge=${point.isAfterMerge} '
+        'type=${point.runtimeType} '
         'connId=${point.connection.id}',
       );
-      if (_selectedPrototype != null) {
-        if (point.isAfterMerge) {
+
+      if (_selectedPrototype == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Выберите тип блока на панели слева')),
+        );
+        _isSelectingFromEmpty = false;
+        return;
+      }
+
+      switch (point) {
+        case AfterMergePoint(:final mergeOtherConnIds):
           _controller.insertAfterLogicMerge(
             point.connection.id!,
-            point.mergeOtherConnIds,
+            mergeOtherConnIds,
             _selectedPrototype!,
           );
-        } else {
+
+        case OnConnectionPoint():
+        case ExitLoopbackPoint():
           _controller.insertNodeOnConnection(
             point.connection.id!,
             _selectedPrototype!,
           );
-        }
-        setState(() => _selectedPrototype = null);
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Выберите тип блока на панели слева')),
-        );
       }
+
+      setState(() => _selectedPrototype = null);
       _isSelectingFromEmpty = false;
       return;
+      // }
+      // if (_selectedPrototype != null) {
+      //   if (point.isAfterMerge) {
+      //     _controller.insertAfterLogicMerge(
+      //       point.connection.id!,
+      //       point.mergeOtherConnIds,
+      //       _selectedPrototype!,
+      //     );
+      //   } else {
+      //     _controller.insertNodeOnConnection(
+      //       point.connection.id!,
+      //       _selectedPrototype!,
+      //     );
+      //   }
+      // setState(() => _selectedPrototype = null);
+      // } else {
+      //   ScaffoldMessenger.of(context).showSnackBar(
+      //     const SnackBar(content: Text('Выберите тип блока на панели слева')),
+      //   );
+      // }
+      // _isSelectingFromEmpty = false;
+      // return;
     }
     ConnectionData? tappedConnection;
     double minDistance = 15.0;
 
     final graph = _controller.graph;
-    // final nodes = _controller.nodes;
     final connections = _controller.connections;
-    // final nodeSize = _controller.nodeSize;
 
     for (final conn in connections) {
-      final path = _router.build(conn, graph);
       // Разбиение пути на сегменты и поиск минимальное расстояние
       double minDistForConn = double.infinity;
-      final metrics = path.computeMetrics();
+      final routed = _router.build(conn, graph);
+      final metrics = routed.path.computeMetrics();
       for (final metric in metrics) {
         const double step = 2.0; // шаг для дискретизации
         for (double dist = 0; dist <= metric.length; dist += step) {
@@ -493,14 +640,12 @@ class _EditorScreenState extends State<EditorScreen> {
     }
   }
 
-  bool _isSaving = false;
-
   // Печатает текущую раскладку блок-схемы в консоль в виде дерева:
   //
   //   Rank 0:  Start         (col 0)
   //   Rank 1:  Cond1         (col 0)
   //   Rank 2:  A             (col 0)
-  //            └─ no → X     (col 1)
+  //            └─ no -> X    (col 1)
   //   Rank 3:  End           (col 0)
   //
   // Rank считается из вертикальной позиции, col - из горизонтальной.
@@ -516,6 +661,25 @@ class _EditorScreenState extends State<EditorScreen> {
       debugPrint('[layout] empty graph');
       return;
     }
+
+    // Счетчики детей для каждого узла
+    final directChildren = <String, int>{};
+    final subtreeSize = <String, int>{};
+    final bodySubtreeSize = <String, int>{};
+    final exitSubtreeSize = <String, int>{};
+
+    for (final name in nodes.keys) {
+      final outs = (graph.outgoing[name] ?? const <ConnectionData>[])
+          .where((c) => c.targetPort != 'loopback')
+          .toList();
+      directChildren[name] = outs.length;
+      subtreeSize[name] = _countSubtree(graph, name);
+      if (nodes[name]!.data is ForBlock) {
+        bodySubtreeSize[name] = _countBodySubtree(graph, name);
+        exitSubtreeSize[name] = _countExitSubtree(graph, name);
+      }
+    }
+
     final start = graph.findStart();
     if (start == null) {
       debugPrint('[layout] no Start node');
@@ -556,7 +720,7 @@ class _EditorScreenState extends State<EditorScreen> {
 
     const rankPrefixWidth = 10; // 'Rank 00:  '
 
-    debugPrint('────── Layout dump ──────');
+    debugPrint('--------- Layout dump ----------');
     final ranks = byRank.keys.toList()..sort();
     for (final r in ranks) {
       final row = byRank[r]!..sort((a, b) => a.$3.compareTo(b.$3));
@@ -564,16 +728,26 @@ class _EditorScreenState extends State<EditorScreen> {
         final (nodeName, label, col) = row[i];
         final namePadded = label.padRight(labelWidth);
 
+        // Счетчики детей
+        final sb = StringBuffer();
+        sb.write(' ch=${directChildren[nodeName]}');
+        sb.write(' sub=${subtreeSize[nodeName]}');
+        if (nodes[nodeName]!.data is ForBlock) {
+          sb.write(' body=${bodySubtreeSize[nodeName] ?? 0}');
+          sb.write(' exit=${exitSubtreeSize[nodeName] ?? 0}');
+        }
+        final stats = sb.toString();
+
         if (i == 0) {
           // main-строка ранга
           final prefix = 'Rank $r:'.padRight(rankPrefixWidth);
-          debugPrint('$prefix$namePadded (col $col)');
+          debugPrint('$prefix$namePadded (col $col)$stats');
         } else {
           // no
           final port = inPort[nodeName] ?? '?';
           final branch = i == row.length - 1 ? '└─' : '├─';
           final indent = ' ' * rankPrefixWidth;
-          debugPrint('$indent$branch $port → $namePadded (col $col)');
+          debugPrint('$indent$branch $port → $namePadded (col $col)$stats');
         }
       }
     }
@@ -584,7 +758,76 @@ class _EditorScreenState extends State<EditorScreen> {
         '  ${c.sourceNodeName} --${c.sourcePort}--> ${c.targetNodeName}',
       );
     }
-    debugPrint('─────────────────────────');
+    debugPrint('------------------');
+  }
+
+  // Полное поддерево: BFS по исходящим ребрам, без loopback, с остановкой на End
+  //  Возвращает количество потомков (без самого root)
+  static int _countSubtree(FlowchartGraph g, String root) {
+    final visited = <String>{};
+    final queue = <String>[root];
+    while (queue.isNotEmpty) {
+      final cur = queue.removeAt(0);
+      if (!visited.add(cur)) continue;
+      if (g.isEnd(cur)) continue;
+      for (final c in g.outgoing[cur] ?? const <ConnectionData>[]) {
+        if (c.targetPort == 'loopback') continue;
+        queue.add(c.targetNodeName);
+      }
+    }
+    return visited.length - 1; // без root
+  }
+
+  // Поддерево тела For-блока: обходит только body-ветку
+  static int _countBodySubtree(FlowchartGraph g, String forName) {
+    ConnectionData? bodyConn;
+    for (final c in g.outgoing[forName] ?? const <ConnectionData>[]) {
+      if (c.sourcePort == 'body') {
+        bodyConn = c;
+        break;
+      }
+    }
+    if (bodyConn == null) return 0;
+
+    final visited = <String>{};
+    final queue = <String>[bodyConn.targetNodeName];
+    while (queue.isNotEmpty) {
+      final cur = queue.removeAt(0);
+      if (!visited.add(cur)) continue;
+      if (g.isEnd(cur)) continue;
+      for (final c in g.outgoing[cur] ?? const <ConnectionData>[]) {
+        if (c.targetPort == 'loopback') continue;
+        if (c.sourcePort == 'exit') continue;
+        queue.add(c.targetNodeName);
+      }
+    }
+    return visited.length;
+  }
+
+  // Поддерево выхода For-блока: BFS от exit-цели
+  static int _countExitSubtree(FlowchartGraph g, String forName) {
+    ConnectionData? exitConn;
+    for (final c in g.outgoing[forName] ?? const <ConnectionData>[]) {
+      if (c.sourcePort == 'exit') {
+        exitConn = c;
+        break;
+      }
+    }
+    if (exitConn == null) return 0;
+
+    final visited = <String>{};
+    final queue = <String>[exitConn.targetNodeName];
+    while (queue.isNotEmpty) {
+      final cur = queue.removeAt(0);
+      if (!visited.add(cur)) continue;
+      if (g.isEnd(cur)) continue;
+      if ((g.incoming[cur] ?? const []).length > 1) continue;
+      for (final c in g.outgoing[cur] ?? const <ConnectionData>[]) {
+        if (c.targetPort == 'loopback') continue;
+        queue.add(c.targetNodeName);
+      }
+    }
+    return visited.length;
   }
 
   Future<void> _confirmClear() async {
@@ -634,13 +877,12 @@ class _EditorScreenState extends State<EditorScreen> {
         nodeSize: _controller.nodeSize,
         spacing: _controller.spacing,
         canvasSize: _getContentSize(),
-        showGrid: _controller.showGrid,
+        showGrid: false,
+        centerContent: true,
       );
       debugPrint('Generated SVG length: ${previewSvg.length}');
 
       await onSave(snapshot, previewSvg);
-      // FlowchartEditorPage уже показывает snackbar «Схема сохранена»,
-      // но на всякий случай продублируем — необязательно.
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(
@@ -748,6 +990,67 @@ class _EditorScreenState extends State<EditorScreen> {
     return name.isEmpty ? 'diagram' : name;
   }
 
+  Future<void> _exportToPng() async {
+    if (_controller.nodes.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Нет элементов для экспорта')),
+      );
+      return;
+    }
+
+    final canvasRenderObj = _canvasKey.currentContext?.findRenderObject();
+    if (canvasRenderObj is! RenderRepaintBoundary) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Canvas is not ready yet, try again')),
+      );
+      return;
+    }
+
+    final name = await _askFileName('Экспорт в PNG');
+    if (name == null) return;
+    if (!mounted) return;
+
+    setState(() => _capturing = true);
+
+    try {
+      for (var attempt = 0; attempt < 10; attempt++) {
+        await WidgetsBinding.instance.endOfFrame;
+        if (!mounted) return;
+        if (!canvasRenderObj.debugNeedsPaint) break;
+        await Future.delayed(const Duration(milliseconds: 16));
+      }
+      if (canvasRenderObj.debugNeedsPaint) {
+        throw Exception('Canvas is not ready yet');
+      }
+
+      final image = await canvasRenderObj.toImage(pixelRatio: 2.0);
+      final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+      if (byteData == null) {
+        throw Exception('Cannot get PNG bytes');
+      }
+      final bytes = byteData.buffer.asUint8List();
+
+      await FileSaver.instance.saveFile(
+        name: name,
+        bytes: bytes,
+        ext: 'png',
+        mimeType: MimeType.png,
+      );
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Файл $name.png сохранён')));
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Ошибка экспорта: $e')));
+    } finally {
+      if (mounted) setState(() => _capturing = false);
+    }
+  }
+
   Future<void> _exportToSvg() async {
     if (_controller.nodes.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -821,29 +1124,36 @@ class _EditorScreenState extends State<EditorScreen> {
   }
 
   // Строит виджет одного узла
-  Widget _buildNodeWidget(String nodeName, NodeModel data) {
-    final isSelected = _selectedNodeNames.contains(nodeName);
+  Widget _buildNodeWidget(String nodeName, NodeModel data, bool readOnly) {
+    final isSelected = !readOnly && _selectedNodeNames.contains(nodeName);
 
     return Positioned(
       left: data.position.dx,
       top: data.position.dy,
       child: GestureDetector(
-        onTap: () {
-          setState(() {
-            _selectedNodeNames = {nodeName};
-            _selectedConnectionId = null;
-          });
-          _focusNode.requestFocus();
-        },
-        onDoubleTap: () => _editNodeText(nodeName),
-        onSecondaryTapDown: (details) =>
-            _showNodeContextMenu(details, nodeName),
+        onTap: readOnly
+            ? null
+            : () {
+                setState(() {
+                  _selectedNodeNames = {nodeName};
+                  _selectedConnectionId = null;
+                });
+                _focusNode.requestFocus();
+              },
+        onDoubleTap: readOnly ? null : () => _editNodeText(nodeName),
+        onSecondaryTapDown: readOnly
+            ? null
+            : (details) => _showNodeContextMenu(details, nodeName),
         child: GostNodeBuilder(
           nodeSize: _controller.nodeSize,
           isSelected: isSelected,
-          onResize: (newSize) => _controller.setNodeSize(newSize),
-          onPositionChange: (name, newPosition) =>
-              _controller.updateNodePosition(name, newPosition),
+          onResize: readOnly
+              ? (_) {}
+              : (newSize) => _controller.setNodeSize(newSize),
+          onPositionChange: readOnly
+              ? (_, _) {}
+              : (name, newPosition) =>
+                    _controller.updateNodePosition(name, newPosition),
 
           nodeName: nodeName,
         ).build(data),
@@ -853,37 +1163,42 @@ class _EditorScreenState extends State<EditorScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // мобильное ли устройство
+    final isMobile = MediaQuery.sizeOf(context).width < 800;
+    // В мобильном режиме - только для чтения
+    final readOnly = isMobile;
+
     final contentSize = _getContentSize();
     final graph = _controller.graph;
     final nodes = graph.nodes;
-    // final connections = graph.connections;
     final nodeSize = _controller.nodeSize;
     final showGrid = _controller.showGrid;
     final scale = _controller.scale;
-    final toolbarVisible = _controller.isToolbarVisible;
+    final toolbarVisible = !readOnly && _controller.isToolbarVisible;
 
     // Виджет сетки с подписями
-    Widget gridWidget = const SizedBox.shrink();
-    if (showGrid) {
-      final startNodeEntry = nodes.entries.firstWhereOrNull(
-        (e) => e.value.data is TerminalBlock && e.value.data.text == 'Start',
-      );
-      if (startNodeEntry != null) {
-        gridWidget = GridWithLabels(
-          canvasSize: contentSize,
-          columnWidth: _controller.spacing.stepX,
-          rowHeight: _controller.spacing.stepY,
-          nodeWidth: _controller.nodeSize.width,
-          nodeHeight: _controller.nodeSize.height,
-          startPosition: startNodeEntry.value.position,
-        );
-      }
-    }
+    final startNodeEntry = nodes.entries.firstWhereOrNull(
+      (e) => e.value.data is TerminalBlock && e.value.data.text == 'Start',
+    );
+    final startPos = startNodeEntry?.value.position;
 
-    // Создание контроллера для вертикальной прокрутки
-    // final verticalScrollController = ScrollController();
-    // Для горизонтальной прокрутки
-    // final horizontalScrollController = ScrollController();
+    // строим scene — единый источник всего, что рисуется на холсте
+    final scene =
+        SceneBuilder(
+          router: _router,
+          nodeSize: nodeSize,
+          spacing: _controller.spacing,
+        ).build(
+          graph: graph,
+          canvasSize: contentSize,
+          showGrid: showGrid,
+          showLabels: _capturing,
+        );
+
+    final leftInset = toolbarVisible ? 200.0 : 40.0;
+    final bottomInset = isMobile ? 20.0 : 0.0; // высота _BottomScrollBar
+    final showSticky = showGrid && startNodeEntry != null;
+
     return Scaffold(
       body: Stack(
         children: [
@@ -904,13 +1219,14 @@ class _EditorScreenState extends State<EditorScreen> {
                     isGridVisible: showGrid,
                     onGridToggle: _controller.setShowGrid,
                     onExport: _exportToSvg,
+                    onExportPng: _exportToPng,
                     onExportJson: _exportToJson,
                     onUndo: _controller.undo,
                     onRedo: _controller.redo,
+
                     onSave: _saveToDb,
                     canSave: widget.canSave && widget.onSave != null,
                     onLoad: _loadFromFile,
-                    // onClear: _controller.resetToDefault,
                     isSaving: _isSaving,
                     onClear: _confirmClear,
                     currentNodeSize: _controller.nodeSize,
@@ -919,19 +1235,6 @@ class _EditorScreenState extends State<EditorScreen> {
               ),
             ),
 
-          // Кнопка сворачивания/разворачивания панели
-          Positioned(
-            top: 18,
-            left: toolbarVisible ? 200 - 40 : 8,
-            child: FloatingActionButton.small(
-              heroTag: null,
-              onPressed: () => _controller.setToolbarVisible(!toolbarVisible),
-              child: Icon(
-                toolbarVisible ? Icons.chevron_left : Icons.chevron_right,
-              ),
-            ),
-          ),
-
           // Область холста
           Row(
             children: [
@@ -939,172 +1242,179 @@ class _EditorScreenState extends State<EditorScreen> {
               Expanded(
                 // Двухуровневая прокрутка: вертикальная + горизонтальная
                 child: Scrollbar(
-                  thumbVisibility: true,
-                  trackVisibility: true, // всегда показывать дорожку полосы
-                  controller: _verticalScrollController,
+                  thumbVisibility: !isMobile,
+                  trackVisibility: !isMobile,
+                  controller: _horizontalScrollController,
                   child: SingleChildScrollView(
-                    controller: _verticalScrollController,
+                    controller: _horizontalScrollController,
                     scrollDirection: Axis.vertical,
                     child: Scrollbar(
-                      thumbVisibility: true,
-                      trackVisibility:
-                          true, // дорожка для горизонтальной полосы
-                      controller: _horizontalScrollController,
+                      thumbVisibility: !isMobile,
+                      trackVisibility: !isMobile,
+                      controller: _verticalScrollController,
                       child: SingleChildScrollView(
-                        controller: _horizontalScrollController,
+                        controller: _verticalScrollController,
                         scrollDirection: Axis.horizontal,
                         child: SizedBox(
-                          width: contentSize.width,
-                          height: contentSize.height,
+                          width: contentSize.width * scale,
+                          height: contentSize.height * scale,
                           child: Listener(
-                            onPointerSignal: (event) {
-                              final hw = HardwareKeyboard.instance;
-                              if (!(hw.isControlPressed || hw.isMetaPressed)) {
-                                return;
-                              }
-
-                              double delta = 0;
-                              bool handled = false;
-
-                              try {
-                                final dynamic sd =
-                                    (event as dynamic).scrollDelta;
-                                if (sd != null) {
-                                  delta = (sd.dy as num).toDouble();
-                                  handled = true;
-                                }
-                              } catch (_) {}
-                              if (!handled) {
-                                try {
-                                  final dynamic s = (event as dynamic).scale;
-                                  if (s != null) {
-                                    delta = (1.0 - (s as num).toDouble()) * 100;
-                                    handled = true;
-                                  }
-                                } catch (_) {}
-                              }
-
-                              if (!handled || delta == 0) return;
-
-                              final newScale = (scale + delta * -0.01).clamp(
-                                _minScale,
-                                _maxScale,
-                              );
-                              _controller.setScale(newScale);
-                            },
-                            child: Transform(
-                              transform: Matrix4.diagonal3Values(
-                                scale,
-                                scale,
-                                1.0,
-                              ),
-                              child: MouseRegion(
-                                onHover: (event) =>
-                                    _handleCanvasHover(event.localPosition),
-                                onExit: (_) => _handleCanvasHover(null),
-                                child: GestureDetector(
-                                  // Тап по холсту: выбор точки вставки, линии или сброс выделения
-                                  onTapDown: _handleCanvasTapDown,
-                                  onTap: () {
-                                    setState(() {
-                                      // _selectedNodeName = null;
-                                      _selectedNodeNames.clear();
-                                      _selectedConnectionId = null;
-                                      _selectionStart = null;
-                                      _selectionEnd = null;
-                                      _isSelecting = false;
-                                    });
-                                    _focusNode.requestFocus();
-                                  },
-                                  onPanStart: (details) {
-                                    // Начинаем выделение, только если касание было по пустой области
-                                    if (!_isSelectingFromEmpty) return;
-                                    setState(() {
-                                      _isSelecting = true;
-                                      _selectionStart = details.localPosition;
-                                      _selectionEnd = details.localPosition;
-                                    });
-                                  },
-                                  onPanUpdate: (details) {
-                                    if (!_isSelecting) return;
-                                    setState(() {
-                                      _selectionEnd = details.localPosition;
-                                    });
-                                  },
-                                  // Завершение выделения - выбрать все блоки, пересекающиеся с рамкой
-                                  onPanEnd: (details) {
-                                    if (!_isSelecting) return;
-                                    final rect = Rect.fromPoints(
-                                      _selectionStart!,
-                                      _selectionEnd!,
-                                    );
-                                    // Выделить все блоки, пересекающиеся с rect
-                                    final newSelection = <String>{};
-                                    for (final entry in nodes.entries) {
-                                      final nodePos = entry.value.position;
-                                      final nodeRect = Rect.fromLTWH(
-                                        nodePos.dx,
-                                        nodePos.dy,
-                                        nodeSize.width,
-                                        nodeSize.height,
-                                      );
-                                      if (rect.overlaps(nodeRect)) {
-                                        newSelection.add(entry.key);
-                                      }
-                                    }
-                                    setState(() {
-                                      _selectedNodeNames = newSelection;
-                                      _selectionStart = null;
-                                      _selectionEnd = null;
-                                      _isSelecting = false;
-                                    });
-                                    _focusNode.requestFocus();
-                                  },
-                                  child: Focus(
-                                    focusNode: _focusNode,
-                                    autofocus: true,
-                                    onKeyEvent: (node, event) {
-                                      _handleKeyEvent(event);
-                                      return KeyEventResult.ignored;
-                                    },
-                                    child: CustomPaint(
-                                      child: Stack(
-                                        children: [
-                                          // Сетка
-                                          if (showGrid) gridWidget,
-                                          // Линии соединений
-                                          CustomPaint(
-                                            painter: ConnectionPainter(
-                                              graph: graph,
-                                              router: _router,
-                                              selectedConnectionId:
-                                                  _selectedConnectionId,
-                                              hoveredConnectionId:
-                                                  _hoveredConnectionId,
-                                              insertionPoints: _insertionPoints,
-                                            ),
+                            behavior: HitTestBehavior.opaque,
+                            onPointerSignal: _handleZoomSignal,
+                            child: OverflowBox(
+                              alignment: Alignment.topLeft,
+                              minWidth: 0,
+                              maxWidth: double.infinity,
+                              minHeight: 0,
+                              maxHeight: double.infinity,
+                              child: Transform.scale(
+                                scale: scale,
+                                alignment: Alignment.topLeft,
+                                child: SizedBox(
+                                  width: contentSize.width,
+                                  height: contentSize.height,
+                                  child: MouseRegion(
+                                    onHover: (event) =>
+                                        _handleCanvasHover(event.localPosition),
+                                    onExit: (_) => _handleCanvasHover(null),
+                                    child: GestureDetector(
+                                      // Тап по холсту: выбор точки вставки, линии или сброс выделения
+                                      onTapDown: readOnly
+                                          ? null
+                                          : _handleCanvasTapDown,
+                                      onTap: readOnly
+                                          ? null
+                                          : () {
+                                              setState(() {
+                                                _selectedNodeNames.clear();
+                                                _selectedConnectionId = null;
+                                                _selectionStart = null;
+                                                _selectionEnd = null;
+                                                _isSelecting = false;
+                                              });
+                                              _focusNode.requestFocus();
+                                            },
+                                      onPanStart: readOnly
+                                          ? null
+                                          : (details) {
+                                              // Начинаем выделение, только если касание было по пустой области
+                                              if (!_isSelectingFromEmpty) {
+                                                return;
+                                              }
+                                              setState(() {
+                                                _isSelecting = true;
+                                                _selectionStart =
+                                                    details.localPosition;
+                                                _selectionEnd =
+                                                    details.localPosition;
+                                              });
+                                            },
+                                      onPanUpdate: readOnly
+                                          ? null
+                                          : (details) {
+                                              if (!_isSelecting) return;
+                                              setState(() {
+                                                _selectionEnd =
+                                                    details.localPosition;
+                                              });
+                                            },
+                                      // Завершение выделения - выбрать все блоки, пересекающиеся с рамкой
+                                      onPanEnd: readOnly
+                                          ? null
+                                          : (details) {
+                                              if (!_isSelecting) return;
+                                              final rect = Rect.fromPoints(
+                                                _selectionStart!,
+                                                _selectionEnd!,
+                                              );
+                                              // Выделить все блоки, пересекающиеся с rect
+                                              final newSelection = <String>{};
+                                              for (final entry
+                                                  in nodes.entries) {
+                                                final nodePos =
+                                                    entry.value.position;
+                                                final nodeRect = Rect.fromLTWH(
+                                                  nodePos.dx,
+                                                  nodePos.dy,
+                                                  nodeSize.width,
+                                                  nodeSize.height,
+                                                );
+                                                if (rect.overlaps(nodeRect)) {
+                                                  newSelection.add(entry.key);
+                                                }
+                                              }
+                                              setState(() {
+                                                _selectedNodeNames =
+                                                    newSelection;
+                                                _selectionStart = null;
+                                                _selectionEnd = null;
+                                                _isSelecting = false;
+                                              });
+                                              _focusNode.requestFocus();
+                                            },
+                                      child: Focus(
+                                        focusNode: _focusNode,
+                                        autofocus: true,
+                                        onKeyEvent: readOnly
+                                            ? null
+                                            : (node, event) {
+                                                _handleKeyEvent(event);
+                                                return KeyEventResult.ignored;
+                                              },
+                                        child: RepaintBoundary(
+                                          key: _canvasKey,
+                                          child: CustomPaint(
                                             child: Stack(
-                                              children: nodes.entries
-                                                  .map(
-                                                    (entry) => _buildNodeWidget(
-                                                      entry.key,
-                                                      entry.value,
-                                                    ),
-                                                  )
-                                                  .toList(),
+                                              children: [
+                                                // Линии соединений
+                                                CustomPaint(
+                                                  painter: ConnectionPainter(
+                                                    scene: scene,
+                                                    selectedConnectionId:
+                                                        _capturing
+                                                        ? null
+                                                        : _selectedConnectionId,
+                                                    hoveredConnectionId:
+                                                        _capturing
+                                                        ? null
+                                                        : _hoveredConnectionId,
+                                                    insertionPoints: readOnly
+                                                        ? const <
+                                                            InsertionPoint
+                                                          >[]
+                                                        : _capturing
+                                                        ? const []
+                                                        : _insertionPoints,
+                                                  ),
+                                                  child: Stack(
+                                                    children: nodes.entries
+                                                        .map(
+                                                          (entry) =>
+                                                              _buildNodeWidget(
+                                                                entry.key,
+                                                                entry.value,
+                                                                readOnly,
+                                                              ),
+                                                        )
+                                                        .toList(),
+                                                  ),
+                                                ),
+                                                // Прямоугольник выделения
+                                                if (_isSelecting &&
+                                                    _selectionStart != null &&
+                                                    _selectionEnd != null)
+                                                  CustomPaint(
+                                                    painter:
+                                                        SelectionRectPainter(
+                                                          start:
+                                                              _selectionStart!,
+                                                          end: _selectionEnd!,
+                                                        ),
+                                                  ),
+                                              ],
                                             ),
                                           ),
-                                          // Прямоугольник выделения
-                                          if (_isSelecting &&
-                                              _selectionStart != null &&
-                                              _selectionEnd != null)
-                                            CustomPaint(
-                                              painter: SelectionRectPainter(
-                                                start: _selectionStart!,
-                                                end: _selectionEnd!,
-                                              ),
-                                            ),
-                                        ],
+                                        ),
                                       ),
                                     ),
                                   ),
@@ -1120,10 +1430,135 @@ class _EditorScreenState extends State<EditorScreen> {
               ),
             ],
           ),
+
+          if (showSticky) ...[
+            // Угол
+            Positioned(
+              top: 0,
+              left: leftInset,
+              width: 22,
+              height: 22,
+              child: Container(
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  border: Border(
+                    right: BorderSide(color: Colors.grey.shade300),
+                    bottom: BorderSide(color: Colors.grey.shade300),
+                  ),
+                ),
+              ),
+            ),
+            // Цифры столбцов
+            Positioned(
+              top: 0,
+              left: leftInset,
+              right: 0,
+              height: 22,
+              child: IgnorePointer(
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    border: Border(
+                      bottom: BorderSide(color: Colors.grey.shade300),
+                    ),
+                  ),
+                  child: AnimatedBuilder(
+                    animation: _verticalScrollController,
+                    builder: (_, _) => CustomPaint(
+                      painter: ColumnHeadersPainter(
+                        scrollOffset: _safeOffset(_verticalScrollController),
+                        columnWidth: _controller.spacing.stepX,
+                        nodeWidth: _controller.nodeSize.width,
+                        startPositionX: startPos!.dx,
+                        scale: _controller.scale,
+                        textStyle: TextStyle(
+                          fontSize: 11,
+                          color: Colors.grey.shade800,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            // Буквы строк
+            Positioned(
+              top: 0,
+              left: leftInset,
+              width: 22,
+              bottom: bottomInset,
+              child: IgnorePointer(
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    border: Border(
+                      right: BorderSide(color: Colors.grey.shade300),
+                    ),
+                  ),
+                  child: AnimatedBuilder(
+                    animation: _horizontalScrollController,
+                    builder: (_, _) => CustomPaint(
+                      painter: RowHeadersPainter(
+                        scrollOffset: _safeOffset(_horizontalScrollController),
+                        rowHeight: _controller.spacing.stepY,
+                        nodeHeight: _controller.nodeSize.height,
+                        startPositionY: startPos!.dy,
+                        scale: _controller.scale,
+                        textStyle: TextStyle(
+                          fontSize: 11,
+                          color: Colors.grey.shade800,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+
+          // Кнопка сворачивания/разворачивания панели
+          if (!readOnly)
+            Positioned(
+              bottom: 18,
+              left: toolbarVisible ? 200 - 40 : 8,
+              child: FloatingActionButton.small(
+                heroTag: null,
+                backgroundColor: Colors.grey.shade200,
+                foregroundColor: Colors.grey.shade700,
+                splashColor: Colors.grey.shade300,
+                onPressed: () => _controller.setToolbarVisible(!toolbarVisible),
+                child: Icon(
+                  toolbarVisible ? Icons.chevron_left : Icons.chevron_right,
+                ),
+              ),
+            ),
+
+          // Горизонтальный скроллбар внизу экрана на мобиле
+          if (isMobile)
+            Positioned(
+              left: leftInset,
+              right: 0,
+              bottom: 0,
+              child: Material(
+                color: Colors.white,
+                elevation: 2,
+                child: SafeArea(
+                  top: false,
+                  child: SizedBox(
+                    height: 20,
+                    child: _BottomScrollBar(
+                      controller: _verticalScrollController,
+                    ),
+                  ),
+                ),
+              ),
+            ),
           if (widget.onBack != null)
             Positioned(
               top: 18,
-              left: toolbarVisible ? 200 + 16 : 56,
+              left: readOnly ? 8 : (toolbarVisible ? 200 + 16 : 56),
               child: FloatingActionButton.small(
                 heroTag: null,
                 onPressed: widget.onBack,
@@ -1143,6 +1578,8 @@ class GridWithLabels extends StatelessWidget {
   final double nodeWidth;
   final double nodeHeight;
   final Offset? startPosition;
+  final bool showLines;
+  final bool showLabels;
 
   const GridWithLabels({
     super.key,
@@ -1152,6 +1589,8 @@ class GridWithLabels extends StatelessWidget {
     required this.nodeWidth,
     required this.nodeHeight,
     required this.startPosition,
+    this.showLines = true,
+    this.showLabels = true,
   });
 
   @override
@@ -1165,7 +1604,108 @@ class GridWithLabels extends StatelessWidget {
         nodeWidth: nodeWidth,
         nodeHeight: nodeHeight,
         startPosition: startPosition!,
+        showLines: showLines,
+        showLabels: showLabels,
       ),
+    );
+  }
+}
+
+class _BottomScrollBar extends StatelessWidget {
+  final ScrollController controller;
+
+  const _BottomScrollBar({required this.controller});
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: controller,
+      builder: (context, _) {
+        final positions = controller.positions;
+        if (positions.isEmpty) {
+          return const SizedBox(height: 20, width: double.infinity);
+        }
+        final pos = positions.first;
+        if (!pos.hasContentDimensions ||
+            !pos.hasViewportDimension ||
+            !pos.hasPixels) {
+          return const SizedBox(height: 20, width: double.infinity);
+        }
+        final max = pos.maxScrollExtent;
+        final viewport = pos.viewportDimension;
+        final total = max + viewport;
+        if (max <= 0 || total <= 0) {
+          return const SizedBox(height: 20, width: double.infinity);
+        }
+
+        final thumbFraction = (viewport / total).clamp(0.0, 1.0);
+        final scrollFraction = (pos.pixels / max).clamp(0.0, 1.0);
+
+        return LayoutBuilder(
+          builder: (context, constraints) {
+            const hPadding = 4.0;
+            final trackWidth = constraints.maxWidth - hPadding * 2;
+            if (trackWidth <= 0) {
+              return const SizedBox(height: 20, width: double.infinity);
+            }
+
+            final thumbWidth = (trackWidth * thumbFraction).clamp(
+              40.0,
+              trackWidth,
+            );
+            final maxThumbLeft = trackWidth - thumbWidth;
+            final thumbLeft = hPadding + maxThumbLeft * scrollFraction;
+
+            void seekTo(double localX) {
+              if (maxThumbLeft <= 0) return;
+              final target = (localX - hPadding - thumbWidth / 2).clamp(
+                0.0,
+                maxThumbLeft,
+              );
+              final pixels = (target / maxThumbLeft) * max;
+              controller.jumpTo(pixels.clamp(0.0, max));
+            }
+
+            return GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTapDown: (d) => seekTo(d.localPosition.dx),
+              onHorizontalDragStart: (d) => seekTo(d.localPosition.dx),
+              onHorizontalDragUpdate: (d) => seekTo(d.localPosition.dx),
+              child: SizedBox(
+                height: 20,
+                child: Stack(
+                  children: [
+                    Positioned(
+                      left: hPadding,
+                      right: hPadding,
+                      top: 8,
+                      bottom: 8,
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          color: Colors.grey.shade300,
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      ),
+                    ),
+                    Positioned(
+                      left: thumbLeft,
+                      top: 4,
+                      bottom: 4,
+                      width: thumbWidth,
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          color: Colors.grey.shade700,
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
     );
   }
 }

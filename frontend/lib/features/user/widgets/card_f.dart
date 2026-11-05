@@ -6,12 +6,14 @@ class FlowchartCard extends StatelessWidget {
   final Flowchart flowchart;
   final VoidCallback? onTap;
   final VoidCallback? onDelete;
+  final VoidCallback? onRename;
 
   const FlowchartCard({
     super.key,
     required this.flowchart,
     this.onTap,
     this.onDelete,
+    this.onRename,
   });
 
   @override
@@ -30,16 +32,16 @@ class FlowchartCard extends StatelessWidget {
         child: Column(
           children: [
             Expanded(
-              flex: 3,
+              flex: 4,
               child: Container(
                 width: double.infinity,
                 color: const Color(0xFFF9FAFB),
-                padding: const EdgeInsets.all(12),
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
                 child: svg == null || svg.trim().isEmpty
                     ? const Center(
                         child: Icon(
                           Icons.account_tree_outlined,
-                          size: 42,
+                          size: 40,
                           color: Color(0xFF9CA3AF),
                         ),
                       )
@@ -47,7 +49,7 @@ class FlowchartCard extends StatelessWidget {
                         child: SizedBox.expand(
                           child: SvgPicture.string(
                             svg,
-                            fit: BoxFit.cover,
+                            fit: BoxFit.contain,
                             alignment: Alignment.center,
                           ),
                         ),
@@ -55,9 +57,9 @@ class FlowchartCard extends StatelessWidget {
               ),
             ),
             Expanded(
-              flex: 2,
+              flex: 1,
               child: Padding(
-                padding: const EdgeInsets.all(20),
+                padding: const EdgeInsets.fromLTRB(16, 4, 14, 10),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
@@ -65,11 +67,30 @@ class FlowchartCard extends StatelessWidget {
                       child: Text(
                         flowchart.name,
                         style: const TextStyle(
-                          fontSize: 15,
+                          fontSize: 17,
                           fontWeight: FontWeight.w600,
-                          height: 1.2,
                         ),
+                        maxLines: 1,
                         overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    const SizedBox(width: 8),
+                    GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTap: onRename,
+                      child: Container(
+                        width: 40,
+                        height: 40,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFE0E7FF),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Icon(
+                          Icons.edit_outlined,
+                          size: 20,
+                          color: Color(0xFF4338CA),
+                        ),
                       ),
                     ),
                     const SizedBox(width: 8),
@@ -77,15 +98,15 @@ class FlowchartCard extends StatelessWidget {
                       behavior: HitTestBehavior.opaque,
                       onTap: onDelete,
                       child: Container(
-                        width: 30,
-                        height: 30,
+                        width: 38,
+                        height: 38,
                         decoration: BoxDecoration(
                           color: const Color(0xFFFEE2E2),
-                          borderRadius: BorderRadius.circular(6),
+                          borderRadius: BorderRadius.circular(8),
                         ),
                         child: const Icon(
                           Icons.delete_outline,
-                          size: 16,
+                          size: 20,
                           color: Color(0xFFEF4444),
                         ),
                       ),

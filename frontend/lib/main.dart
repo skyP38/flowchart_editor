@@ -4,12 +4,11 @@ import 'package:provider/provider.dart';
 import 'core/network/api_client.dart';
 import 'core/network/api_service.dart';
 import 'core/navigation/last_route_storage.dart';
-// import 'core/navigation/route_observer.dart';
 import 'features/auth/data/api/auth_api.dart';
 import 'features/admin/data/admin_api.dart';
 import 'features/auth/data/storage/secure_token_storage.dart';
 import 'features/auth/domain/auth_repository.dart';
-import 'features/auth/presentation/auth_gate.dart';
+import 'app/auth_gate.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -23,19 +22,26 @@ Future<void> main() async {
 
   final tokenStorage = SecureTokenStorage();
 
-  late AuthRepository authRepository;
+  late final ApiClient apiClient;
+  late final AuthApi authApi;
+  late final AdminApi adminApi;
+  late final ApiService apiService;
+  late final AuthRepository authRepository;
 
-  final apiClient = ApiClient(
+  apiClient = ApiClient(
     baseUrl: baseUrl,
     storage: tokenStorage,
-    onUnauthorized: () {
-      authRepository.onSessionExpired();
-    },
+    onUnauthorized: () => authRepository.onSessionExpired(
+      reason: 'Your session has expired. Please sign in again.',
+    ),
+    onUserBlocked: () => authRepository.onSessionExpired(
+      reason: 'Your account has been blocked. Contact an administrator.',
+    ),
   );
 
-  final authApi = AuthApi(apiClient);
-  final adminApi = AdminApi(apiClient);
-  final apiService = ApiService(apiClient);
+  authApi = AuthApi(apiClient);
+  adminApi = AdminApi(apiClient);
+  apiService = ApiService(apiClient);
 
   authRepository = AuthRepository(api: authApi, storage: tokenStorage);
 
@@ -64,7 +70,6 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Flowchart Editor',
-      // navigatorObservers: [routeObserver],
       theme: ThemeData(
         scaffoldBackgroundColor: const Color(0xFFFFFFFF),
         fontFamily: 'Inter',

@@ -135,9 +135,6 @@ func (s *Service) Register(ctx context.Context, in RegisterInput) (*AuthResult, 
 		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
 			return nil, ErrLoginTaken
 		}
-		/*if errors.Is(err, memory.ErrUserAlreadyExists) {
-			return nil, ErrLoginTaken
-		}*/
 		return nil, err
 	}
 
@@ -172,40 +169,40 @@ func (s *Service) Login(ctx context.Context, in LoginInput) (*AuthResult, error)
 	return s.issueTokens(ctx, u, in.Metadata)
 }
 
-
 func (s *Service) RefreshWithMetadata(
-    ctx context.Context,
-    refreshToken string,
-    metadata domains.SessionMetadata,
+	ctx context.Context,
+	refreshToken string,
+	metadata domains.SessionMetadata,
 ) (*AuthResult, error) {
 	if refreshToken == "" {
-                return nil, ErrInvalidRefreshToken
-        }
-        hash := token.HashRefreshToken(refreshToken)
-        sess, err := s.sessions.GetByTokenHash(ctx, hash)
-        if err != nil {
-                return nil, ErrInvalidRefreshToken
-        }
+		return nil, ErrInvalidRefreshToken
+	}
+	hash := token.HashRefreshToken(refreshToken)
+	sess, err := s.sessions.GetByTokenHash(ctx, hash)
+	if err != nil {
+		return nil, ErrInvalidRefreshToken
+	}
 
-        now := time.Now().UTC()
-        if !sess.IsActive(now) {
-                if sess.RevokedAt != nil {
-                        _ = s.sessions.RevokeAllExcept(ctx, sess.UserID, domains.RevokeAllSessions, now)
-                }
-                return nil, ErrInvalidRefreshToken
-        }
+	now := time.Now().UTC()
+	if !sess.IsActive(now) {
+		if sess.RevokedAt != nil {
+			_ = s.sessions.RevokeAllExcept(ctx, sess.UserID, domains.RevokeAllSessions, now)
+		}
+		return nil, ErrInvalidRefreshToken
+	}
 
-        u, err := s.users.GetByID(ctx, sess.UserID)
-        if err != nil || u == nil || !u.IsActive {
-                return nil, ErrInvalidRefreshToken
-        }
+	u, err := s.users.GetByID(ctx, sess.UserID)
+	if err != nil || u == nil || !u.IsActive {
+		return nil, ErrInvalidRefreshToken
+	}
 
-        // отзыв старой сессии
-        if err := s.sessions.Revoke(ctx, sess.ID, now); err != nil {
-                return nil, err
-        }
-        return s.issueTokens(ctx, u, metadata)
+	// отзыв старой сессии
+	if err := s.sessions.Revoke(ctx, sess.ID, now); err != nil {
+		return nil, err
+	}
+	return s.issueTokens(ctx, u, metadata)
 }
+
 // Refresh обновляет пару токенов
 // Каждый успешный refresh отзывает старую сессию и создает новую
 // Если предъявлен отозванный токен - отзыв всех сессий
@@ -269,12 +266,12 @@ func (s *Service) issueTokens(ctx context.Context, u *domains.User, metadata dom
 		metadata.Location = "Not recorded"
 	}
 	sess := &domains.Session{
-		UserID:    u.ID,
-		TokenHash: hash,
-		CreatedAt: now,
-		ExpiresAt: now.Add(s.refreshTTL),
+		UserID:     u.ID,
+		TokenHash:  hash,
+		CreatedAt:  now,
+		ExpiresAt:  now.Add(s.refreshTTL),
 		DeviceName: metadata.DeviceName,
-		Location: metadata.Location,
+		Location:   metadata.Location,
 	}
 	if err := s.sessions.Create(ctx, sess); err != nil {
 		return nil, err

@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/skyP38/flowchart_editor/backend/internal/domains"
 	"github.com/skyP38/flowchart_editor/backend/internal/service"
@@ -30,6 +31,8 @@ func (h *FlowchartHandler) RegisterRoutes(mux *http.ServeMux, authMW AuthMW) {
 		authMW(http.HandlerFunc(h.GetContent)))
 	mux.Handle("PUT /api/projects/{projectId}/flowcharts/{flowchartId}/content",
 		authMW(http.HandlerFunc(h.UpdateContent)))
+	mux.Handle("PATCH /api/projects/{projectId}/flowcharts/{flowchartId}",
+		authMW(http.HandlerFunc(h.Update)))
 }
 
 func (h *FlowchartHandler) Create(
@@ -149,4 +152,50 @@ func (h *FlowchartHandler) UpdateContent(w http.ResponseWriter, r *http.Request)
 	}
 
 	w.WriteHeader(http.StatusNoContent)
+}
+
+func (h *FlowchartHandler) Update(w http.ResponseWriter, r *http.Request) {
+	userID := UserIDFrom(r.Context())
+
+	projectID, err := strconv.ParseInt(r.PathValue("projectId"), 10, 64)
+	if err != nil {
+		transport.WriteError(w, http.StatusBadRequest,
+			transport.CodeInvalidInput, "invalid project id")
+		return
+	}
+	flowchartID, err := strconv.ParseInt(r.PathValue("flowchartId"), 10, 64)
+	if err != nil {
+		transport.WriteError(w, http.StatusBadRequest,
+			transport.CodeInvalidInput, "invalid flowchart id")
+		return
+	}
+
+	var req struct {
+		Name *string `json:"name"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		transport.WriteError(w, http.StatusBadRequest,
+			transport.CodeInvalidInput, "wrong JSON body")
+		return
+	}
+	if req.Name == nil || strings.TrimSpace(*req.Name) == "" {
+		transport.WriteError(w, http.StatusBadRequest,
+			transport.CodeInvalidInput, "name is required")
+		return
+	}
+
+	f, err := h.service.Update(r.Context(), userID, projectID, flowchartID,
+		strings.TrimSpace(*req.Name))
+	if errors.Is(err, domains.ErrNotFound) {
+		transport.WriteError(w, http.StatusNotFound,
+			transport.CodeNotFound, "flowchart not found")
+		return
+	}
+	if err != nil {
+		transport.WriteError(w, http.StatusInternalServerError,
+			transport.CodeInternal, "internal server error")
+		return
+	}
+
+	transport.WriteJSON(w, http.StatusOK, f)
 }

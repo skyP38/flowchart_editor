@@ -2,17 +2,19 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../../core/network/api_error.dart';
-import '../../user/screens/welcome.dart';
-import '../../user/screens/home_shell.dart';
-import '../../admin/presentation/admin_shell.dart';
+import '../features/user/screens/welcome.dart';
+import '../features/user/screens/home_shell.dart';
+import '../features/admin/presentation/admin_shell.dart';
 
-import '../domain/auth_repository.dart';
-import '../domain/auth_state.dart';
+import '../features/auth/domain/auth_repository.dart';
+import '../features/auth/domain/auth_state.dart';
 
-import 'widgets/auth_dimensions.dart';
-import 'widgets/auth_typ.dart';
+import '../features/auth/presentation/widgets/auth_dimensions.dart';
+import '../features/auth/presentation/widgets/auth_typ.dart';
 import '../../../core/navigation/last_route_storage.dart';
-import '../../user/screens/guest_editor_screen.dart';
+import '../features/user/screens/guest_editor_screen.dart';
+
+import '../app/admin_editor_router.dart';
 
 // Корневой виджет, который выбирает экран по состоянию AuthRepository
 class AuthGate extends StatefulWidget {
@@ -41,20 +43,21 @@ class _AuthGateState extends State<AuthGate> {
 
       AuthAuthenticated(:final user) =>
         user.role?.toLowerCase() == 'admin'
-            ? const AdminShell()
+            ? _buildAdminArea(context, routeStorage)
             : const HomeShell(), // _screenForRoute(
-      // _lastRoute,
-      // ), //const ProjectsScreen(),
-      //AuthUnauthenticated() => LoginScreen(onLoggedIn: () {}),
-
-      // AuthAuthenticated(:final user) =>
-      //  const ProjectsScreen(), // HomeScreen(user: user),
       AuthError(:final error) => _AuthErrorScreen(
         error: error,
         onRetry: () => context.read<AuthRepository>().init(),
       ),
     };
   }
+}
+
+Widget _buildAdminArea(BuildContext context, LastRouteStorage storage) {
+  if (storage.adminScreen == LastRouteStorage.adminEditorScreen) {
+    return const AdminEditorRouter();
+  }
+  return const AdminShell();
 }
 
 // экран-заглушка на время восстановления сессии/загрузки

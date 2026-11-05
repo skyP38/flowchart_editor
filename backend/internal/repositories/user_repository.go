@@ -115,69 +115,123 @@ func (r *UserRepository) UpdateLastLogin(ctx context.Context, userID int64, at t
 }
 
 func (r *UserRepository) DeleteWithData(
-    ctx context.Context,
-    id int64,
+	ctx context.Context,
+	id int64,
 ) error {
-    tx, err := r.db.Begin(ctx)
-    if err != nil {
-        return fmt.Errorf("begin delete user transaction: %w", err)
-    }
-    defer func() {
-        _ = tx.Rollback(ctx)
-    }()
+	tx, err := r.db.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("begin delete user transaction: %w", err)
+	}
+	defer func() {
+		_ = tx.Rollback(ctx)
+	}()
 
-    var role string
-    err = tx.QueryRow(ctx,
-        `SELECT role FROM users WHERE id_user = $1 FOR UPDATE`,
-        id,
-    ).Scan(&role)
+	var role string
+	err = tx.QueryRow(ctx,
+		`SELECT role FROM users WHERE id_user = $1 FOR UPDATE`,
+		id,
+	).Scan(&role)
 
-    if errors.Is(err, pgx.ErrNoRows) {
-        return domains.ErrNotFound
-    }
-    if err != nil {
-        return fmt.Errorf("get user for deletion: %w", err)
-    }
+	if errors.Is(err, pgx.ErrNoRows) {
+		return domains.ErrNotFound
+	}
+	if err != nil {
+		return fmt.Errorf("get user for deletion: %w", err)
+	}
 
-    if role == domains.RoleAdmin {
-        var adminCount int
+	if role == domains.RoleAdmin {
+		var adminCount int
 
-        err = tx.QueryRow(ctx,
-            `SELECT COUNT(*) FROM users WHERE role = $1`,
-            domains.RoleAdmin,
-        ).Scan(&adminCount)
+		err = tx.QueryRow(ctx,
+			`SELECT COUNT(*) FROM users WHERE role = $1`,
+			domains.RoleAdmin,
+		).Scan(&adminCount)
 
-        if err != nil {
-            return fmt.Errorf("count administrators: %w", err)
-        }
+		if err != nil {
+			return fmt.Errorf("count administrators: %w", err)
+		}
 
-        if adminCount <= 1 {
-            return domains.ErrLastAdmin
-        }
-    }
+		if adminCount <= 1 {
+			return domains.ErrLastAdmin
+		}
+	}
 
-    if _, err := tx.Exec(ctx,
-        `DELETE FROM projects WHERE owner_id = $1`,
-        id,
-    ); err != nil {
-        return fmt.Errorf("delete user projects: %w", err)
-    }
+	if _, err := tx.Exec(ctx,
+		`DELETE FROM projects WHERE owner_id = $1`,
+		id,
+	); err != nil {
+		return fmt.Errorf("delete user projects: %w", err)
+	}
 
-    result, err := tx.Exec(ctx,
-        `DELETE FROM users WHERE id_user = $1`,
-        id,
-    )
-    if err != nil {
-        return fmt.Errorf("delete user: %w", err)
-    }
+	result, err := tx.Exec(ctx,
+		`DELETE FROM users WHERE id_user = $1`,
+		id,
+	)
+	if err != nil {
+		return fmt.Errorf("delete user: %w", err)
+	}
 
-    if result.RowsAffected() == 0 {
-        return domains.ErrNotFound
-    }
+	if result.RowsAffected() == 0 {
+		return domains.ErrNotFound
+	}
 
-    if err := tx.Commit(ctx); err != nil {
-        return fmt.Errorf("delete user: %w", err)
-    }
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("delete user: %w", err)
+	}
 
-    return nil
+	return nil
+}
+
+// SetActive блокирует/разблокирует пользователя
+// При блокировке запрещает оставить систему без единого активного администратора
+func (r *UserRepository) SetActive(
+	ctx context.Context,
+	id int64,
+	active bool,
+) error {
+	tx, err := r.db.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("begin set active transaction: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	var role string
+	var currentlyActive bool
+	err = tx.QueryRow(ctx,
+		`SELECT role, is_active FROM users WHERE id_user = $1 FOR UPDATE`,
+		id,
+	).Scan(&role, &currentlyActive)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return domains.ErrNotFound
+	}
+	if err != nil {
+		return fmt.Errorf("get user for set active: %w", err)
+	}
+
+	// блокируем активного админа
+	if !active && currentlyActive && role == domains.RoleAdmin {
+		var adminCount int
+		if err := tx.QueryRow(ctx,
+			`SELECT COUNT(*) FROM users
+			 WHERE role = $1 AND is_active = true`,
+			domains.RoleAdmin,
+		).Scan(&adminCount); err != nil {
+			return fmt.Errorf("count active admins: %w", err)
+		}
+		if adminCount <= 1 {
+			return domains.ErrLastAdmin
+		}
+	}
+
+	if _, err := tx.Exec(ctx,
+		`UPDATE users SET is_active = $1 WHERE id_user = $2`,
+		active, id,
+	); err != nil {
+		return fmt.Errorf("set user active: %w", err)
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("commit set active: %w", err)
+	}
+	return nil
 }

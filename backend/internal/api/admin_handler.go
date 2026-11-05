@@ -28,12 +28,14 @@ type AdminUserRepository interface {
 	domains.UserRepository
 	ListAll(ctx context.Context) ([]*domains.User, error)
 	DeleteWithData(ctx context.Context, id int64) error
+	SetActive(ctx context.Context, id int64, active bool) error
 }
 
 type AdminSessionRepository interface {
 	SessionStatsProvider
 	ListAll(ctx context.Context) ([]*domains.Session, error)
 	Revoke(ctx context.Context, id int64, at time.Time) error
+	RevokeAllForUser(ctx context.Context, userID int64, at time.Time) error
 }
 
 // AdminHandler обслуживает административные маршруты
@@ -64,6 +66,9 @@ func (h *AdminHandler) RegisterRoutes(mux *http.ServeMux, authMW AuthMW) {
 	mux.Handle("DELETE /api/admin/sessions/{id}", adminMW(http.HandlerFunc(h.RevokeSession)))
 	mux.Handle("GET /api/admin/logs", adminMW(http.HandlerFunc(h.ListLogs)))
 	mux.Handle("DELETE /api/admin/users/{id}", adminMW(http.HandlerFunc(h.DeleteUser)))
+
+	mux.Handle("PATCH /api/admin/users/{id}/active",
+		adminMW(http.HandlerFunc(h.SetUserActive)))
 }
 
 // Stats handles GET /api/admin/stats.
@@ -193,16 +198,16 @@ func (h *AdminHandler) CreateUser(w http.ResponseWriter, r *http.Request) {
 }
 
 type adminSessionDTO struct {
-	ID        int64      `json:"id"`
-	UserID    int64      `json:"userId"`
-	Login     string     `json:"login"`
-	Uname     string     `json:"uname"`
-	CreatedAt time.Time  `json:"createdAt"`
-	ExpiresAt time.Time  `json:"expiresAt"`
-	RevokedAt *time.Time `json:"revokedAt,omitempty"`
-	Active    bool       `json:"active"`
-	DeviceName string    `json:"deviceName"`
-	Location string      `json:"location"`
+	ID         int64      `json:"id"`
+	UserID     int64      `json:"userId"`
+	Login      string     `json:"login"`
+	Uname      string     `json:"uname"`
+	CreatedAt  time.Time  `json:"createdAt"`
+	ExpiresAt  time.Time  `json:"expiresAt"`
+	RevokedAt  *time.Time `json:"revokedAt,omitempty"`
+	Active     bool       `json:"active"`
+	DeviceName string     `json:"deviceName"`
+	Location   string     `json:"location"`
 }
 
 func (h *AdminHandler) ListSessions(w http.ResponseWriter, r *http.Request) {
@@ -376,16 +381,6 @@ func (h *AdminHandler) DeleteUser(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		if errors.Is(err, domains.ErrLastAdmin) {
-			transport.WriteError(
-				w,
-				http.StatusConflict,
-				transport.CodeForbidden,
-				"cannot delete the last administrator",
-			)
-			return
-		}
-
 		log.Printf("admin delete user: %v", err)
 		transport.WriteError(
 			w,
@@ -394,6 +389,64 @@ func (h *AdminHandler) DeleteUser(w http.ResponseWriter, r *http.Request) {
 			"internal server error",
 		)
 		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+type setUserActiveRequest struct {
+	Active *bool `json:"active"`
+}
+
+// SetUserActive - PATCH /api/admin/users/{id}/active
+// При active=false отзыв всех сессий
+func (h *AdminHandler) SetUserActive(
+	w http.ResponseWriter,
+	r *http.Request,
+) {
+	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil || id <= 0 {
+		transport.WriteError(w, http.StatusBadRequest,
+			transport.CodeInvalidInput, "invalid user id")
+		return
+	}
+	if id == UserIDFrom(r.Context()) {
+		transport.WriteError(w, http.StatusForbidden,
+			transport.CodeForbidden,
+			"cannot change status of the currently authenticated administrator")
+		return
+	}
+
+	defer func() { _ = r.Body.Close() }()
+	var req setUserActiveRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Active == nil {
+		transport.WriteError(w, http.StatusBadRequest,
+			transport.CodeInvalidInput, "wrong JSON body")
+		return
+	}
+
+	if err := h.users.SetActive(r.Context(), id, *req.Active); err != nil {
+		switch {
+		case errors.Is(err, domains.ErrLastAdmin):
+			transport.WriteError(w, http.StatusConflict,
+				transport.CodeLastAdmin,
+				"cannot block the last administrator")
+		case errors.Is(err, domains.ErrNotFound):
+			transport.WriteError(w, http.StatusNotFound,
+				transport.CodeNotFound, "user not found")
+		default:
+			log.Printf("admin set user active: %v", err)
+			transport.WriteError(w, http.StatusInternalServerError,
+				transport.CodeInternal, "internal server error")
+		}
+		return
+	}
+	if !*req.Active {
+		if err := h.sessions.RevokeAllForUser(
+			r.Context(), id, time.Now().UTC(),
+		); err != nil {
+			log.Printf("admin revoke user sessions (uid=%d): %v", id, err)
+		}
 	}
 
 	w.WriteHeader(http.StatusNoContent)
