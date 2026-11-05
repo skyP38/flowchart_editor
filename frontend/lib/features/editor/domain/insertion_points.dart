@@ -51,7 +51,11 @@ class InsertionPointsService {
         final plusPos = src != null
             ? _exitPlusPosition(path, src, g)
             : (_firstVerticalMidpoint(path) ?? _midOfPath(path));
-        if (plusPos != null) points.add(InsertionPoint(plusPos, conn));
+        if (plusPos != null) {
+          points.add(
+            ExitLoopbackPoint(position: plusPos, connection: conn),
+          ); //points.add(InsertionPoint(plusPos, conn));
+        }
         continue;
       }
 
@@ -59,7 +63,7 @@ class InsertionPointsService {
         final src = g.nodes[conn.sourceNodeName];
         if (src == null) continue;
 
-        const double offset = 20.0;
+        const double offset = 60.0;
         final mergeNode = _findYesMergeTarget(
           g,
           conn.sourceNodeName,
@@ -73,32 +77,100 @@ class InsertionPointsService {
           final lastEdge = _findLastYesEdge(g, conn.sourceNodeName, mergeNode);
           if (lastEdge != null && lastEdge.id != null) {
             final targetY = mergeInfo.mergeY - offset;
+            // final alreadyHas = points.any(
+            //   (p) =>
+            //       p.connection.id == lastEdge.id &&
+            //       (p.position.dy - targetY).abs() < 5,
+            // );
             final alreadyHas = points.any(
-              (p) =>
-                  p.connection.id == lastEdge.id &&
-                  (p.position.dy - targetY).abs() < 5,
+              (p) => p.connection.id == lastEdge.id,
             );
             if (!alreadyHas) {
               final lastPath = router.build(lastEdge, g).path;
-              final lastX = _pathXAtY(lastPath, targetY);
-              if (lastX != null) {
-                // final lastX = _pathXAtY(lastPath, targetY) ?? mergeInfo.centerX;
+
+              _Seg? horiz;
+              for (final s in _extractSegments(lastPath)) {
+                final isHorz =
+                    (s.start.dy - s.end.dy).abs() < 0.5 &&
+                    (s.start.dx - s.end.dx).abs() > 0.5;
+                if (!isHorz) continue;
+                if ((s.start.dy - mergeInfo.mergeY).abs() < 1.0) {
+                  horiz = s;
+                  break;
+                }
+              }
+              // var lastX;
+              Offset? plusPos;
+              if (horiz != null) {
+                final xLo = math.min(horiz.start.dx, horiz.end.dx);
+                final xHi = math.max(horiz.start.dx, horiz.end.dx);
+                // plusPos = Offset((xLo + xHi) / 2, horiz.start.dy);
+                plusPos = Offset(xHi - 15, horiz.start.dy);
                 debugPrint(
-                  '[yesPlus] ${conn.sourceNodeName}--yes->${conn.targetNodeName}: '
-                  'merge=$mergeNode '
-                  'lastEdge=${lastEdge.sourceNodeName}.${lastEdge.sourcePort} '
-                  'x=${lastX.toStringAsFixed(1)} '
-                  'y=${targetY.toStringAsFixed(1)}',
+                  '[yesPlus/horizontal] ${conn.sourceNodeName}--yes->'
+                  '${conn.targetNodeName}: '
+                  'x=${plusPos.dx.toStringAsFixed(1)} '
+                  'y=${plusPos.dy.toStringAsFixed(1)} '
+                  'xRange=[${xLo.toStringAsFixed(1)},${xHi.toStringAsFixed(1)}]',
                 );
-                points.add(InsertionPoint(Offset(lastX, targetY), lastEdge));
-                // placed = true;
+                // final lastX = _pathXAtY(lastPath, targetY);
+                // if (lastX != null) {
+                // // final lastX = _pathXAtY(lastPath, targetY) ?? mergeInfo.centerX;
+                // debugPrint(
+                //   '[yesPlus] ${conn.sourceNodeName}--yes->${conn.targetNodeName}: '
+                //   'merge=$mergeNode '
+                //   'lastEdge=${lastEdge.sourceNodeName}.${lastEdge.sourcePort} '
+                //   'x=${lastX.toStringAsFixed(1)} '
+                //   'y=${targetY.toStringAsFixed(1)}',
+                // );
+                // points.add(InsertionPoint(Offset(lastX, targetY), lastEdge));
+                //// placed = true;
               } else {
-                debugPrint(
-                  '[yesPlus/beforeMerge FAILED] ${conn.sourceNodeName}--yes->'
-                  '${conn.targetNodeName}: lastX null '
-                  'edge=${lastEdge.sourceNodeName}.${lastEdge.sourcePort} '
-                  'targetY=${targetY.toStringAsFixed(1)}',
-                );
+                final lastX = _pathXAtY(lastPath, targetY);
+                if (lastX != null) {
+                  plusPos = Offset(lastX, targetY);
+                  debugPrint(
+                    '[yesPlus/vertical] ${conn.sourceNodeName}--yes->'
+                    '${conn.targetNodeName}: '
+                    'x=${plusPos.dx.toStringAsFixed(1)} '
+                    'y=${plusPos.dy.toStringAsFixed(1)}',
+                  );
+                } else {
+                  debugPrint(
+                    '[yesPlus/beforeMerge FAILED] ${conn.sourceNodeName}--yes->'
+                    '${conn.targetNodeName}: lastX null '
+                    'edge=${lastEdge.sourceNodeName}.${lastEdge.sourcePort} '
+                    'targetY=${targetY.toStringAsFixed(1)}',
+                  );
+                }
+              }
+              if (plusPos != null) {
+                final isOwnLastEdge =
+                    lastEdge.sourceNodeName == conn.sourceNodeName &&
+                    lastEdge.sourcePort == 'yes';
+
+                if (isOwnLastEdge) {
+                  final isDirect = lastEdge.targetNodeName == mergeNode;
+                  if (isDirect) {
+                    final startSamples = _samplePath(path);
+                    if (startSamples.isNotEmpty) {
+                      final s = startSamples.first;
+                      plusPos = Offset(s.dx, s.dy + router.spacing.stepY / 4);
+                    }
+                  }
+
+                  debugPrint(
+                    '[yesPlus/beforeMerge] ${conn.sourceNodeName}--yes->'
+                    '${conn.targetNodeName}: '
+                    'x=${plusPos.dx.toStringAsFixed(1)} '
+                    'y=${plusPos.dy.toStringAsFixed(1)} '
+                    'direct=$isDirect lastEdge=${lastEdge.sourceNodeName}',
+                  );
+                  points.add(
+                    OnConnectionPoint(position: plusPos, connection: lastEdge),
+                  );
+                  placed = true;
+                }
               }
             } else {
               final isOwnEdge =
@@ -127,6 +199,7 @@ class InsertionPointsService {
             '${conn.targetNodeName}: no merge in yes branch',
           );
         }
+
         if (!placed) {
           final plusPos = _firstVerticalMidpoint(path) ?? _midOfPath(path);
           if (plusPos != null) {
@@ -136,7 +209,9 @@ class InsertionPointsService {
               'x=${plusPos.dx.toStringAsFixed(1)} '
               'y=${plusPos.dy.toStringAsFixed(1)}',
             );
-            points.add(InsertionPoint(plusPos, conn));
+            points.add(OnConnectionPoint(position: plusPos, connection: conn));
+            // points.add(InsertionPoint(plusPos, conn));
+            placed = true;
           } else {
             debugPrint(
               '[yesPlus/ownMidpoint FAILED] ${conn.sourceNodeName}--yes->'
@@ -147,47 +222,123 @@ class InsertionPointsService {
         continue;
       }
 
-      for (final entry in mergeInfoByTarget.entries) {
-        final targetName = entry.key;
-        final info = entry.value;
+      Offset? plusPos;
+      if (conn.sourcePort == 'no') {
+        plusPos = _firstVerticalMidpoint(path);
+        if (plusPos != null) {
+          points.add(OnConnectionPoint(position: plusPos, connection: conn));
+          // placed = true;
+        }
+        // if (plusPos != null) points.add(InsertionPoint(plusPos, conn));
+        continue;
+        // } else if (conn.sourcePort == 'out' &&
+        // mergeInfoByTarget.containsKey(conn.targetNodeName)) {
+        // continue;
+      } else if (conn.targetPort == 'loopback') {
+        _Seg? horiz;
+        for (final s in _extractSegments(path)) {
+          final isHorz =
+              (s.start.dy - s.end.dy).abs() < 0.5 &&
+              (s.start.dx - s.end.dx).abs() > 0.5;
+          if (isHorz) {
+            horiz = s;
+            break;
+          }
+        }
+        if (horiz != null) {
+          final xLo = math.min(horiz.start.dx, horiz.end.dx);
+          final xHi = math.max(horiz.start.dx, horiz.end.dx);
+          plusPos = Offset(math.min((xLo + xHi) / 1.5, xHi), horiz.start.dy);
+          debugPrint(
+            '[outPlus/loopback] ${conn.sourceNodeName}--${conn.sourcePort}->'
+            '${conn.targetNodeName}.loopback: '
+            'x=${plusPos.dx.toStringAsFixed(1)} '
+            'y=${plusPos.dy.toStringAsFixed(1)} '
+            'xRange=[${xLo.toStringAsFixed(1)},${xHi.toStringAsFixed(1)}]',
+          );
+        } else {
+          plusPos = _firstVerticalMidpoint(path) ?? _midOfPath(path);
+        }
+      } else {
+        final samples = _samplePath(path);
+        if (samples.isNotEmpty) {
+          final start = samples.first;
+          plusPos = Offset(start.dx, start.dy + router.spacing.stepY / 4 - 15);
+        } else {
+          plusPos = _firstVerticalMidpoint(path) ?? _midOfPath(path);
+        }
+      }
+      if (plusPos != null) {
+        points.add(OnConnectionPoint(position: plusPos, connection: conn));
+      }
+      // if (plusPos != null) points.add(InsertionPoint(plusPos, conn));
+    }
 
+    for (final entry in mergeInfoByTarget.entries) {
+      final targetName = entry.key;
+      final info = entry.value;
+
+      final afterY = (info.maxLandingY + info.targetTop) / 2;
+
+      final sourceGroups = <String, List<ConnectionData>>{};
+      for (final c in info.incoming) {
+        sourceGroups.putIfAbsent(c.sourceNodeName, () => []).add(c);
+      }
+
+      final trivialSources = sourceGroups.entries
+          .where((e) => e.value.length >= 2)
+          .toList();
+
+      if (trivialSources.isEmpty) {
         final otherIds = info.incoming
             .where((c) => c.id != null && c.id != info.deepestEdge.id)
             .map((c) => c.id!)
             .toList();
-
-        final afterY = (info.maxLandingY + info.targetTop) / 2;
         debugPrint(
-          '[afterPlus] target=$targetName '
-          'mergeY=${info.maxLandingY.toStringAsFixed(1)} '
-          'targetTop=${info.targetTop.toStringAsFixed(1)} '
-          'afterY=${afterY.toStringAsFixed(1)} '
-          'deepest=${info.deepestEdge.sourceNodeName}.${info.deepestEdge.sourcePort} '
+          '[afterPlus/merge] target=$targetName '
+          'x=${info.centerX.toStringAsFixed(1)} '
+          'y=${afterY.toStringAsFixed(1)} '
           'others=${otherIds.length}',
         );
-
         points.add(
-          InsertionPoint(
-            Offset(info.centerX, afterY),
-            info.deepestEdge,
-            isAfterMerge: true,
+          AfterMergePoint(
+            position: Offset(info.centerX, afterY),
+            connection: info.deepestEdge,
             mergeOtherConnIds: otherIds,
           ),
         );
-      }
-
-      Offset? plusPos;
-      if (conn.sourcePort == 'no') {
-        plusPos = _firstVerticalMidpoint(path);
-        if (plusPos != null) points.add(InsertionPoint(plusPos, conn));
-        continue;
-      } else if (conn.sourcePort == 'out' &&
-          mergeInfoByTarget.containsKey(conn.targetNodeName)) {
-        continue;
       } else {
-        plusPos ??= _firstVerticalMidpoint(path) ?? _midOfPath(path);
+        for (final sg in trivialSources) {
+          final srcNode = g.nodes[sg.key];
+          if (srcNode == null) continue;
+          final srcCenterX = srcNode.position.dx + router.nodeSize.width / 2;
+          final srcOtherIds = sg.value
+              .where((c) => c.id != null && c.id != sg.value.first.id)
+              .map((c) => c.id!)
+              .toList();
+
+          final isShifted = (srcCenterX - info.centerX).abs() > 0.5;
+          final y = isShifted ? info.maxLandingY : afterY;
+          final x = isShifted ? srcCenterX - 15 : srcCenterX;
+
+          debugPrint(
+            '[afterPlus/source] target=$targetName source=${sg.key} '
+            'x=${srcCenterX.toStringAsFixed(1)} '
+            'y=${y.toStringAsFixed(1)} '
+            'shifted=$isShifted '
+            'mainConn=${sg.value.first.id} '
+            'others=${srcOtherIds.length}',
+          );
+
+          points.add(
+            AfterMergePoint(
+              position: Offset(x, y),
+              connection: sg.value.first,
+              mergeOtherConnIds: srcOtherIds,
+            ),
+          );
+        }
       }
-      if (plusPos != null) points.add(InsertionPoint(plusPos, conn));
     }
 
     return points;

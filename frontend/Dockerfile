@@ -15,7 +15,7 @@ COPY . .
 
 RUN flutter clean
 ARG API_BASE_URL=/
-RUN flutter build web --release --dart-define=API_BASE_URL=$API_BASE_URL --no-wasm-dry-run
+RUN flutter build web --release --dart-define=API_BASE_URL=$API_BASE_URL --no-wasm-dry-run --no-tree-shake-icons
 
 
 FROM nginx:alpine

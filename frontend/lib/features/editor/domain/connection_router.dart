@@ -448,8 +448,23 @@ class ConnectionRouter {
     // для вложенных - каждый следующий сдвигается на base
     final rightX = local.right + bas / 2 * (levelsFromInner + 1);
 
+    double obstaclesBottom = 0;
+    for (final e in g.nodes.entries) {
+      if (e.key == c.sourceNodeName) continue;
+      if (e.key == c.targetNodeName) continue;
+      final n = e.value;
+      final left = n.position.dx;
+      final right = left + nodeSize.width;
+      if (right < end.dx - 1 || left > rightX + 1) continue;
+      final bottom = n.position.dy + nodeSize.height;
+      if (bottom >= end.dy - 1) continue;
+      if (bottom > obstaclesBottom) obstaclesBottom = bottom;
+    }
+
     final depthOffset = spacing.stepY / 6 * levelsFromInner;
-    final desired = local.bottom + spacing.stepY / 4 + depthOffset;
+    final baseBottom = math.max(local.bottom, obstaclesBottom);
+    final desired = baseBottom + spacing.stepY / 4 + depthOffset;
+    // final desired = local.bottom + spacing.stepY / 4 + depthOffset;
     final cap = end.dy - spacing.stepY / 8;
     final turnY = desired < cap ? desired : cap;
 

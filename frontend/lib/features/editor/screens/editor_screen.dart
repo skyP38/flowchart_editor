@@ -470,30 +470,59 @@ class _EditorScreenState extends State<EditorScreen>
     if (point != null) {
       debugPrint(
         '[tap+] pos=${point.position} '
-        'afterMerge=${point.isAfterMerge} '
+        'type=${point.runtimeType} '
         'connId=${point.connection.id}',
       );
-      if (_selectedPrototype != null) {
-        if (point.isAfterMerge) {
+
+      if (_selectedPrototype == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Выберите тип блока на панели слева')),
+        );
+        _isSelectingFromEmpty = false;
+        return;
+      }
+
+      switch (point) {
+        case AfterMergePoint(:final mergeOtherConnIds):
           _controller.insertAfterLogicMerge(
             point.connection.id!,
-            point.mergeOtherConnIds,
+            mergeOtherConnIds,
             _selectedPrototype!,
           );
-        } else {
+
+        case OnConnectionPoint():
+        case ExitLoopbackPoint():
           _controller.insertNodeOnConnection(
             point.connection.id!,
             _selectedPrototype!,
           );
-        }
-        setState(() => _selectedPrototype = null);
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Выберите тип блока на панели слева')),
-        );
       }
+
+      setState(() => _selectedPrototype = null);
       _isSelectingFromEmpty = false;
       return;
+      // }
+      // if (_selectedPrototype != null) {
+      //   if (point.isAfterMerge) {
+      //     _controller.insertAfterLogicMerge(
+      //       point.connection.id!,
+      //       point.mergeOtherConnIds,
+      //       _selectedPrototype!,
+      //     );
+      //   } else {
+      //     _controller.insertNodeOnConnection(
+      //       point.connection.id!,
+      //       _selectedPrototype!,
+      //     );
+      //   }
+      // setState(() => _selectedPrototype = null);
+      // } else {
+      //   ScaffoldMessenger.of(context).showSnackBar(
+      //     const SnackBar(content: Text('Выберите тип блока на панели слева')),
+      //   );
+      // }
+      // _isSelectingFromEmpty = false;
+      // return;
     }
     ConnectionData? tappedConnection;
     double minDistance = 15.0;
