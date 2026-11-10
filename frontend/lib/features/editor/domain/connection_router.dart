@@ -400,8 +400,33 @@ class ConnectionRouter {
       if (child.data is ForBlock) {
         final ancestors = _forAncestorCount(g, childName);
         final levels = (maxDepth - ancestors).clamp(0, 10);
-        final forCorridor = blockRight + bas / 2 * (levels + 1);
+
+        double subRight = blockRight;
+        ConnectionData? exitConn;
+        for (final c in g.outgoing[childName] ?? const <ConnectionData>[]) {
+          if (c.sourcePort == 'exit') {
+            exitConn = c;
+            break;
+          }
+        }
+        if (exitConn != null && exitConn.targetPort != 'loopback') {
+          final sub = _subtreeBounds(
+            g,
+            childName,
+            stopAt: exitConn.targetNodeName,
+          );
+          if (sub.right > subRight) subRight = sub.right;
+        }
+        final forCorridor = subRight + bas / 2 * (levels + 1);
         if (forCorridor > visualRight) visualRight = forCorridor;
+
+        debugPrint(
+          '[noCorridor/For] $logicName -> child=$childName '
+          'blockRight=${blockRight.toStringAsFixed(1)} '
+          'subRight=${subRight.toStringAsFixed(1)} '
+          'levels=$levels '
+          'forCorridor=${forCorridor.toStringAsFixed(1)}',
+        );
       }
 
       if (child.data is LogicBlock) {
@@ -506,12 +531,18 @@ class ConnectionRouter {
 
     // Базовый turnY - чуть ниже источника.
     // double turnY = start.dy + math.max(bas / 2, spacing.stepY / 3);
-    double turnY = start.dy + bas / 2;
+    double turnY = start.dy + bas * 1.2;
 
     if (source != null && source.data is ForBlock && c.sourcePort == 'exit') {
       final bodyBottom = _bodySubtreeBottom(g, c.sourceNodeName);
       final desired = bodyBottom + bas;
       if (desired > turnY) turnY = desired;
+    }
+
+    if (source != null && source.data is LogicBlock && c.sourcePort == 'no') {
+      final srcBottom = source.position.dy + nodeSize.height;
+      final minTurnY = srcBottom;
+      if (turnY < minTurnY) turnY = minTurnY + bas * 1.2;
     }
 
     final ancestors = _forAncestorCount(g, c.targetNodeName);

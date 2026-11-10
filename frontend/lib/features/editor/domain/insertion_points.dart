@@ -39,9 +39,20 @@ class InsertionPointsService {
       // if (conn.targetPort == 'loopback' && !isBodyLoopback) continue;
       final isExitLoopback =
           conn.targetPort == 'loopback' && conn.sourcePort == 'exit';
-      if (conn.targetPort == 'loopback' && !isBodyLoopback && !isExitLoopback) {
+      final isLogicBranchLoopback =
+          conn.targetPort == 'loopback' &&
+          (conn.sourcePort == 'yes' || conn.sourcePort == 'no') &&
+          g.nodes[conn.targetNodeName]?.data is ForBlock;
+
+      if (conn.targetPort == 'loopback' &&
+          !isBodyLoopback &&
+          !isExitLoopback &&
+          !isLogicBranchLoopback) {
         continue;
       }
+      // if (conn.targetPort == 'loopback' && !isBodyLoopback && !isExitLoopback) {
+      //   continue;
+      // }
       final routed = router.build(conn, g);
       final path = routed.path;
       if (path.computeMetrics().isEmpty) continue;
@@ -55,6 +66,29 @@ class InsertionPointsService {
           points.add(
             ExitLoopbackPoint(position: plusPos, connection: conn),
           ); //points.add(InsertionPoint(plusPos, conn));
+        }
+        continue;
+      }
+
+      if (isLogicBranchLoopback) {
+        final src = g.nodes[conn.sourceNodeName];
+        Offset? plusPos;
+
+        if (conn.sourcePort == 'no') {
+          plusPos = _firstVerticalMidpoint(path) ?? _midOfPath(path);
+        } else {
+          plusPos = src != null
+              ? _logicLoopbackPlusPosition(path, src)
+              : (_firstVerticalMidpoint(path) ?? _midOfPath(path));
+        }
+        if (plusPos != null) {
+          debugPrint(
+            '[logicLoopback+] ${conn.sourceNodeName}--${conn.sourcePort}->'
+            '${conn.targetNodeName}.loopback: '
+            'x=${plusPos.dx.toStringAsFixed(1)} '
+            'y=${plusPos.dy.toStringAsFixed(1)}',
+          );
+          points.add(OnConnectionPoint(position: plusPos, connection: conn));
         }
         continue;
       }
@@ -342,6 +376,32 @@ class InsertionPointsService {
     }
 
     return points;
+  }
+
+  // Плюс на yes/no-loopback-ветке из LogicBlock в For.
+  Offset? _logicLoopbackPlusPosition(Path path, NodeModel src) {
+    final srcBottom = src.position.dy + router.nodeSize.height;
+
+    _Seg? deepestHoriz;
+    for (final s in _extractSegments(path)) {
+      final isHorz =
+          (s.start.dy - s.end.dy).abs() < 0.5 &&
+          (s.start.dx - s.end.dx).abs() > 0.5;
+      if (!isHorz) continue;
+      if (s.start.dy < srcBottom - 0.5) continue; // только ниже блока
+      if (deepestHoriz == null || s.start.dy > deepestHoriz.start.dy) {
+        deepestHoriz = s;
+      }
+    }
+
+    if (deepestHoriz == null) {
+      return _firstVerticalMidpoint(path) ?? _midOfPath(path);
+    }
+
+    // final xLo = math.min(deepestHoriz.start.dx, deepestHoriz.end.dx);
+    final xHi = math.max(deepestHoriz.start.dx, deepestHoriz.end.dx);
+    // final plusX = (xHi).clamp(xLo + 8, xHi - 8);
+    return Offset(xHi, deepestHoriz.start.dy - 10);
   }
 
   /// Фактический X пути в заданном Y (около 0.75 px). null — Y не на пути.
