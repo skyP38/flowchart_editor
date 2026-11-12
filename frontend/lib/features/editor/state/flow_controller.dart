@@ -1,3 +1,4 @@
+import 'package:flowchart_editor_frontend/features/editor/domain/graph_geometry.dart';
 import 'package:flutter/material.dart';
 import 'package:uuid/uuid.dart';
 import 'package:collection/collection.dart';
@@ -38,7 +39,7 @@ class FlowController extends ChangeNotifier {
   }
 
   static LayoutEngine _buildEngine(FlowchartGraph g, Size size) {
-    final depth = LayoutEngine.maxForDepth(g);
+    final depth = GraphGeometry.maxForDepth(g);
 
     // горизонтальный шаг
     final baseExtraX = LayoutConstants.stepXExtra;

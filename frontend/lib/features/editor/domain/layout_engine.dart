@@ -5,6 +5,7 @@ import 'flowchart_graph.dart';
 import 'dart:math' as math;
 import '../models/editor_models.dart';
 import '../constants/diagram_constants.dart';
+import 'graph_geometry.dart';
 
 class LayoutSpacing {
   final double stepX; // ширина клетки
@@ -125,6 +126,31 @@ class LayoutEngine {
         }
         if (reachableFromYes) continue;
 
+        // Target с main-входом (yes/out/body) от ДРУГОГО узла — это merge-узел,
+        // а не отдельная no-ветка. Пойдёт в rejoin-фазу с колонкой yes-входа.
+        final hasExternalMainInput =
+            (g.incoming[c.targetNodeName] ?? const <ConnectionData>[]).any(
+              (inc) =>
+                  inc.sourceNodeName != e.key &&
+                  (inc.sourcePort == 'yes' ||
+                      inc.sourcePort == 'out' ||
+                      inc.sourcePort == 'body'),
+            );
+        if (hasExternalMainInput) continue;
+
+        // Target с 2+ no-входами из ТОЙ ЖЕ колонки — это rejoin внутри колонки
+        // (например, несколько no-веток из col4 сливаются в новый блок).
+        // Не выделяем под него новую колонку.
+        final parentCol = _eventualCol(g, cols, e.key);
+        final sameColNoRejoin =
+            (g.incoming[c.targetNodeName] ?? const <ConnectionData>[]).any(
+              (inc) =>
+                  inc.sourceNodeName != e.key &&
+                  inc.sourcePort == 'no' &&
+                  _eventualCol(g, cols, inc.sourceNodeName) == parentCol,
+            );
+        if (sameColNoRejoin) continue;
+
         final rEnd = _exitRankOf(g, c.targetNodeName, ranks, cols);
         branches.add(
           _NoBranch(
@@ -211,7 +237,7 @@ class LayoutEngine {
     // Сдвиг для центровки блоков в ячейках сетки
     final shiftX = (spacing.stepX - nodeSize.width) / 2;
     final shiftY = (spacing.stepY - nodeSize.height) / 2;
-    final depth = maxForDepth(g);
+    final depth = GraphGeometry.maxForDepth(g);
     final insetOuter = spacing.stepX / 12.0 * (depth + 1);
     const leftMargin = 20.0;
     final baseX = math.max(50.0, insetOuter - shiftX + leftMargin);
@@ -461,7 +487,7 @@ class LayoutEngine {
       if (exitConn == null) continue;
       if (exitConn.targetPort == 'loopback') continue;
 
-      final inner = _innerForCountStatic(g, forName);
+      final inner = GraphGeometry.innerForCount(g, forName);
       // Каналы под телом For-а:
       //   body↺ свой (pos = inner*2)
       //   exit   свой (pos = inner*2 + 1)
@@ -471,7 +497,7 @@ class LayoutEngine {
       final zoneHeight =
           spacing.bodyLoopbackDrop + deepestPos * spacing.loopbackChannelStep;
 
-      final bodyBottom = _bodySubtreeBottomStatic(g, forName, nodeSize);
+      final bodyBottom = GraphGeometry.bodySubtreeBottom(g, forName, nodeSize);
       final forBottom = g.nodes[forName]!.position.dy + nodeSize.height;
       final baseBottom = math.max(forBottom, bodyBottom);
 
@@ -508,64 +534,6 @@ class LayoutEngine {
     }
   }
 
-  /// Количество For-ов внутри тела forName (без самого forName).
-  static int _innerForCountStatic(FlowchartGraph g, String forName) {
-    final bodyConn = (g.outgoing[forName] ?? const <ConnectionData>[])
-        .firstWhereOrNull((c) => c.sourcePort == 'body');
-    if (bodyConn == null) return 0;
-    if (bodyConn.targetNodeName == forName) return 0;
-
-    final visited = <String>{};
-    final queue = <String>[bodyConn.targetNodeName];
-    int count = 0;
-    while (queue.isNotEmpty) {
-      final cur = queue.removeAt(0);
-      if (!visited.add(cur)) continue;
-      final n = g.nodes[cur];
-      if (n == null) continue;
-      if (n.data is ForBlock) count++;
-      if (g.isEnd(cur)) continue;
-      for (final c in g.outgoing[cur] ?? const <ConnectionData>[]) {
-        if (c.targetPort == 'loopback') continue;
-        if (c.sourcePort == 'exit' && c.sourceNodeName == forName) continue;
-        queue.add(c.targetNodeName);
-      }
-    }
-    return count;
-  }
-
-  static double _bodySubtreeBottomStatic(
-    FlowchartGraph g,
-    String forName,
-    Size nodeSize,
-  ) {
-    final bodyConn = (g.outgoing[forName] ?? const <ConnectionData>[])
-        .firstWhereOrNull((c) => c.sourcePort == 'body');
-    if (bodyConn == null) return 0;
-    if (bodyConn.targetNodeName == forName) {
-      final n = g.nodes[forName];
-      return n == null ? 0 : n.position.dy + nodeSize.height;
-    }
-    final visited = <String>{};
-    final queue = <String>[bodyConn.targetNodeName];
-    double maxBottom = 0;
-    while (queue.isNotEmpty) {
-      final cur = queue.removeAt(0);
-      if (!visited.add(cur)) continue;
-      final n = g.nodes[cur];
-      if (n == null) continue;
-      final b = n.position.dy + nodeSize.height;
-      if (b > maxBottom) maxBottom = b;
-      if (g.isEnd(cur)) continue;
-      for (final c in g.outgoing[cur] ?? const <ConnectionData>[]) {
-        if (c.targetPort == 'loopback') continue;
-        if (c.sourcePort == 'exit' && c.sourceNodeName == forName) continue;
-        queue.add(c.targetNodeName);
-      }
-    }
-    return maxBottom;
-  }
-
   // Для каждого For: exit-цель должна быть на ранг ниже, чем самый глубокий узел тела
   void _adjustForExitRanks(FlowchartGraph g, Map<String, int> ranks) {
     final fors =
@@ -588,7 +556,7 @@ class LayoutEngine {
 
       if (bodyConn.targetNodeName == forName) continue;
 
-      final bodySubtree = _bodySubtreeNodes(
+      final bodySubtree = GraphGeometry.bodySubtreeNodes(
         g,
         bodyConn.targetNodeName,
         stopExitOf: forName,
@@ -610,30 +578,6 @@ class LayoutEngine {
         ranks[n] = (ranks[n] ?? 0) + delta;
       }
     }
-  }
-
-  // Поддерево тела цикла: обходит body-ветку,
-  Set<String> _bodySubtreeNodes(
-    FlowchartGraph g,
-    String root, {
-    required String stopExitOf,
-  }) {
-    final result = <String>{};
-    void dfs(String n) {
-      if (result.contains(n)) return;
-      result.add(n);
-      if (g.isEnd(n)) return;
-      for (final c in g.outgoing[n] ?? const []) {
-        if (c.targetPort == 'loopback') continue;
-        if (c.sourcePort == 'exit' && c.sourceNodeName == stopExitOf) {
-          continue; // не выходим за пределы тела
-        }
-        dfs(c.targetNodeName);
-      }
-    }
-
-    dfs(root);
-    return result;
   }
 
   void _pushEndToBottom(FlowchartGraph g, Map<String, int> ranks) {
@@ -807,62 +751,6 @@ class LayoutEngine {
       cur = next;
     }
     return maxRank;
-  }
-
-  // Максимальная глубина вложенности среди всех For графа
-  static int maxForDepth(FlowchartGraph g) {
-    int maxDepth = 0;
-    for (final e in g.nodes.entries) {
-      if (e.value.data is! ForBlock) continue;
-      final a = _forAncestorCount(g, e.key);
-      if (a > maxDepth) maxDepth = a;
-    }
-    return maxDepth;
-  }
-
-  static int _forAncestorCount(FlowchartGraph g, String forName) {
-    int count = 0;
-    String cur = forName;
-    final visited = <String>{forName};
-    while (true) {
-      String? bestParent;
-      int bestSize = 1 << 30;
-      for (final c in g.connections) {
-        if (c.sourcePort != 'body') continue;
-        if (visited.contains(c.sourceNodeName)) continue;
-        if (c.targetNodeName == cur) {
-          bestParent = c.sourceNodeName;
-          bestSize = 0;
-          break;
-        }
-        final sub = _subtreeNodesStatic(g, c.targetNodeName);
-        if (sub.contains(cur) && sub.length < bestSize) {
-          bestSize = sub.length;
-          bestParent = c.sourceNodeName;
-        }
-      }
-      if (bestParent == null) break;
-      visited.add(bestParent);
-      count++;
-      cur = bestParent;
-    }
-    return count;
-  }
-
-  static Set<String> _subtreeNodesStatic(FlowchartGraph g, String root) {
-    final result = <String>{};
-    void dfs(String n) {
-      if (result.contains(n)) return;
-      result.add(n);
-      if (g.isEnd(n)) return;
-      for (final c in g.outgoing[n] ?? const []) {
-        if (c.targetPort == 'loopback') continue;
-        dfs(c.targetNodeName);
-      }
-    }
-
-    dfs(root);
-    return result;
   }
 }
 

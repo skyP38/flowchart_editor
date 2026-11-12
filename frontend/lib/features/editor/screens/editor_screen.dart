@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:async';
 import 'dart:math' as math;
 import 'dart:ui' as ui;
+import 'package:flowchart_editor_frontend/features/editor/domain/graph_geometry.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/gestures.dart';
@@ -653,7 +654,7 @@ class _EditorScreenState extends State<EditorScreen>
     debugPrint(
       '[layout] stepX=${_controller.spacing.stepX} '
       'stepY=${_controller.spacing.stepY} '
-      'depth=${LayoutEngine.maxForDepth(_controller.graph)}',
+      'depth=${GraphGeometry.maxForDepth(_controller.graph)}',
     );
     final graph = _controller.graph;
     final nodes = graph.nodes;

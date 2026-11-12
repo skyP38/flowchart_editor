@@ -1,4 +1,5 @@
 import 'package:collection/collection.dart';
+import 'package:flowchart_editor_frontend/features/editor/domain/merge_detector.dart';
 import 'package:flutter/material.dart';
 import '../factories/node_factory.dart';
 import '../models/editor_models.dart';
@@ -7,6 +8,7 @@ import 'layout_engine.dart';
 import 'dart:math' as math;
 import 'dart:core';
 import '../models/flow_models.dart';
+import 'graph_geometry.dart';
 
 class ArrowMarker {
   final Offset position;
@@ -36,10 +38,27 @@ class ConnectionRouter {
     }
   }
 
+  late final MergeDetector _mergeDetector = MergeDetector(router: this);
+
   void resetCache() {
     _busYCache.clear();
     _busYCacheGraph = null;
+    _mergeDetector.resetCache();
   }
+
+  @visibleForTesting
+  double debugBusY(FlowchartGraph g, String targetName) => _busY(g, targetName);
+
+  @visibleForTesting
+  double debugDropX(FlowchartGraph g, ConnectionData c) {
+    final src = g.nodes[c.sourceNodeName];
+    if (src == null) return 0;
+    return _dropXOf(g, c, src);
+  }
+
+  @visibleForTesting
+  List<MergeEvent> debugMergeEventsFor(FlowchartGraph g, ConnectionData c) =>
+      _mergeDetector.forConnection(g, c);
 
   RoutedConnection build(ConnectionData conn, FlowchartGraph g) {
     _ensureCaches(g);
@@ -61,6 +80,19 @@ class ConnectionRouter {
     };
   }
 
+  /// Y общей горизонтальной шины перед [targetName].
+  ///
+  /// Все не-loopback, не-exit связи, приходящие в `in`-порт [targetName],
+  /// используют одно и то же значение — иначе горизонтали не сливаются.
+  ///
+  /// Y = max по всем таким связям от:
+  ///   - низа источника,
+  ///   - низа нод-препятствий в X-диапазоне горизонтали связи,
+  ///   - for-каналов в том же X-диапазоне,
+  /// плюс зазор `stepY/2`, с капом `target.top − stepY/8`.
+  ///
+  /// Вертикальные связи (`source.dx ≈ end.dx`) пропускаются — им шина
+  /// не нужна. Если таких нет и горизонталей нет — возвращается 0.
   double _busY(FlowchartGraph g, String targetName) {
     if (!identical(_busYCacheGraph, g)) {
       _busYCache.clear();
@@ -71,53 +103,66 @@ class ConnectionRouter {
 
     final tgt = g.nodes[targetName];
     if (tgt == null) return 0;
-
     final endPort = _portPosition(tgt, 'in', outgoing: false);
 
-    double minX = double.infinity;
-    double maxX = -double.infinity;
-    double maxSrcBottom = double.negativeInfinity;
+    double needed = double.negativeInfinity;
     bool hasHorizontal = false;
 
     for (final c in g.connections) {
       if (c.targetNodeName != targetName) continue;
       if (c.targetPort == 'loopback') continue;
+      if (c.sourcePort == 'exit') continue; // exit — свой turnY
+
       final src = g.nodes[c.sourceNodeName];
       if (src == null) continue;
 
       final srcPort = _portPosition(src, c.sourcePort, outgoing: true);
-      if ((srcPort.dx - endPort.dx).abs() < 0.5) {
-        continue;
+      if ((srcPort.dx - endPort.dx).abs() < 0.5) continue; // вертикаль
+
+      // X-диапазон горизонтали этой связи
+      double xLo, xHi;
+      if (c.sourcePort == 'no') {
+        final corridorX = _noCorridorX(g, c.sourceNodeName);
+        xLo = math.min(corridorX, endPort.dx);
+        xHi = math.max(corridorX, endPort.dx);
+      } else {
+        xLo = math.min(srcPort.dx, endPort.dx);
+        xHi = math.max(srcPort.dx, endPort.dx);
       }
+
       hasHorizontal = true;
-      if (srcPort.dx < minX) minX = srcPort.dx;
-      if (srcPort.dx > maxX) maxX = srcPort.dx;
+
+      // Низ источника
       final srcBottom = src.position.dy + nodeSize.height;
-      if (srcBottom > maxSrcBottom) maxSrcBottom = srcBottom;
+      if (srcBottom > needed) needed = srcBottom;
+
+      // Ноды-препятствия в X-диапазоне
+      for (final e in g.nodes.entries) {
+        if (e.key == targetName) continue;
+        final n = e.value;
+        final left = n.position.dx;
+        final right = left + nodeSize.width;
+        if (right < xLo || left > xHi) continue;
+        if (n.position.dy >= endPort.dy - 1.0) continue;
+        final b = n.position.dy + nodeSize.height;
+        if (b > needed) needed = b;
+      }
+
+      // For-каналы в том же X-диапазоне
+      for (final channelY in _forChannelsInXRange(g, xLo, xHi)) {
+        if (channelY >= endPort.dy - 1.0) continue;
+        final need = channelY + spacing.loopbackChannelStep;
+        if (need > needed) needed = need;
+      }
     }
 
     if (!hasHorizontal) {
       _busYCache[targetName] = 0;
       return 0;
     }
-    if (endPort.dx < minX) minX = endPort.dx;
-    if (endPort.dx > maxX) maxX = endPort.dx;
-
-    // Шина должна лежать ниже всех блоков в горизонтальной полосе
-    double maxBottom = maxSrcBottom;
-    for (final e in g.nodes.entries) {
-      if (e.key == targetName) continue;
-      final n = e.value;
-      final left = n.position.dx;
-      final right = left + nodeSize.width;
-      if (right < minX || left > maxX) continue;
-      if (n.position.dy >= endPort.dy - 1.0) continue;
-      final b = n.position.dy + nodeSize.height;
-      if (b > maxBottom) maxBottom = b;
-    }
 
     final cap = endPort.dy - spacing.stepY / 8;
-    double result = maxBottom + spacing.stepY / 2;
+    double result = needed + spacing.stepY / 2;
     if (result > cap) result = cap;
 
     _busYCache[targetName] = result;
@@ -156,51 +201,6 @@ class ConnectionRouter {
     }
   }
 
-  // стрелки на общей шине: ставим за gap до ближайшего вертикального спуска
-  double _arrowXOnBus(
-    FlowchartGraph g,
-    ConnectionData c,
-    double myDropX,
-    double myEndX,
-  ) {
-    final goingLeft = myEndX < myDropX - 0.5;
-    final gap = spacing.stepX / 6;
-
-    final tgt = g.nodes[c.targetNodeName];
-    if (tgt == null) return myEndX;
-    final tgtEnd = _portPosition(tgt, 'in', outgoing: false);
-
-    // Следующая вертикаль
-    double best = myEndX;
-
-    for (final other in g.connections) {
-      if (identical(other, c)) continue;
-      if (other.targetNodeName != c.targetNodeName) continue;
-      if (other.targetPort == 'loopback') continue;
-      final otherSrc = g.nodes[other.sourceNodeName];
-      if (otherSrc == null) continue;
-
-      double dropX;
-      if (other.sourcePort == 'no' && otherSrc.position.dx > tgtEnd.dx + 1) {
-        dropX = _noCorridorX(g, other.sourceNodeName);
-      } else {
-        dropX = _portPosition(otherSrc, other.sourcePort, outgoing: true).dx;
-      }
-
-      if (goingLeft) {
-        if (dropX > myEndX + 0.5 && dropX < myDropX - 0.5) {
-          if (dropX > best) best = dropX;
-        }
-      } else {
-        if (dropX < myEndX - 0.5 && dropX > myDropX + 0.5) {
-          if (dropX < best) best = dropX;
-        }
-      }
-    }
-
-    return goingLeft ? best + gap : best - gap;
-  }
-
   RoutedConnection _routeDefault(
     Offset start,
     Offset end,
@@ -212,29 +212,27 @@ class ConnectionRouter {
         Path()
           ..moveTo(start.dx, start.dy)
           ..lineTo(end.dx, end.dy),
-        [],
+        const [],
       );
     }
 
     final busY = _busY(g, c.targetNodeName);
-    debugPrint(
-      '[routeDefault] ${c.sourceNodeName}--${c.sourcePort}->'
-      '${c.targetNodeName}: '
-      'dropX=${start.dx.toStringAsFixed(1)} '
-      'busY=${busY.toStringAsFixed(1)} '
-      'endX=${end.dx.toStringAsFixed(1)}',
-    );
     final path = Path()
       ..moveTo(start.dx, start.dy)
       ..lineTo(start.dx, busY)
       ..lineTo(end.dx, busY)
       ..lineTo(end.dx, end.dy);
 
-    final arrowX = _arrowXOnBus(g, c, start.dx, end.dx);
-    final towardLeft = end.dx < start.dx;
-    return RoutedConnection(path, [
-      ArrowMarker(Offset(arrowX, busY), towardLeft ? math.pi : 0.0),
-    ]);
+    final arrows = _busArrows(
+      g: g,
+      c: c,
+      dropX: start.dx,
+      endX: end.dx,
+      busY: busY,
+      fallbackAtTarget: true,
+    );
+
+    return RoutedConnection(path, arrows);
   }
 
   RoutedConnection _routeNo(
@@ -261,14 +259,7 @@ class ConnectionRouter {
         ..lineTo(end.dx, end.dy);
       return RoutedConnection(path, const []);
     }
-
-    final busY = _busYRange(
-      g,
-      c.targetNodeName,
-      math.min(end.dx, corridorX),
-      math.max(end.dx, corridorX),
-      end.dy,
-    );
+    final busY = _busY(g, c.targetNodeName);
 
     debugPrint(
       '[routeNo] ${c.sourceNodeName}--no->${c.targetNodeName} '
@@ -307,26 +298,20 @@ class ConnectionRouter {
 
     final int pos;
     if (sourcePort == 'body' || sourcePort == 'out') {
-      pos = _innerForCount(g, forName) * 2; // чётные
+      pos = GraphGeometry.innerForCount(g, forName) * 2; // чётные
     } else if (sourcePort == 'exit') {
-      pos = _innerForCount(g, forName) * 2 + 1; // нечётные
+      pos = GraphGeometry.innerForCount(g, forName) * 2 + 1; // нечётные
     } else {
       return null;
     }
 
     final forBottom = node.position.dy + nodeSize.height;
-    final bodyBottom = _bodySubtreeBottom(g, forName);
+    final bodyBottom = GraphGeometry.bodySubtreeBottom(g, forName, nodeSize);
     final baseBottom = math.max(forBottom, bodyBottom);
 
     return baseBottom +
         spacing.bodyLoopbackDrop +
         pos * spacing.loopbackChannelStep;
-    // final bodyBottom = _bodySubtreeBottom(g, forName);
-    // final baseBottom = math.max(forBottom, bodyBottom);
-
-    // return baseBottom +
-    //     spacing.bodyLoopbackDrop +
-    //     pos * spacing.loopbackChannelStep;
   }
 
   /// Y-ы For-петель, чья горизонталь перекрывает [xLo, xHi].
@@ -354,39 +339,6 @@ class ConnectionRouter {
     }
 
     return ys;
-  }
-
-  double _busYRange(
-    FlowchartGraph g,
-    String targetName,
-    double xLo,
-    double xHi,
-    double endY,
-  ) {
-    double maxBottom = double.negativeInfinity;
-    for (final e in g.nodes.entries) {
-      if (e.key == targetName) continue;
-      final n = e.value;
-      final left = n.position.dx;
-      final right = left + nodeSize.width;
-      if (right < xLo || left > xHi) continue;
-      if (n.position.dy >= endY - 1.0) continue;
-      final b = n.position.dy + nodeSize.height;
-      if (b > maxBottom) maxBottom = b;
-    }
-
-    //  For-петли в этом же X-диапазоне — тоже препятствия.
-    // no/out линия должна пройти НИЖЕ них, иначе горизонтали совпадут.
-    for (final channelY in _forChannelsInXRange(g, xLo, xHi)) {
-      if (channelY >= endY - 1.0) continue;
-      final need = channelY + spacing.loopbackChannelStep;
-      if (need > maxBottom) maxBottom = need;
-    }
-
-    final cap = endY - spacing.stepY / 8;
-    double result = maxBottom + spacing.stepY / 2;
-    if (result > cap) result = cap;
-    return result;
   }
 
   // Множество узлов yes-ветки от логики до первой merge-точки с no-веткой
@@ -480,7 +432,7 @@ class ConnectionRouter {
 
     final bas = spacing.corridorGap;
     final corridorGap = nodeSize.width / 6;
-    final maxDepth = LayoutEngine.maxForDepth(g);
+    final maxDepth = GraphGeometry.maxForDepth(g);
 
     double rightX = node.position.dx + nodeSize.width + bas / 2;
 
@@ -495,7 +447,7 @@ class ConnectionRouter {
 
       // For: exit-коридор идет правее правого края
       if (child.data is ForBlock) {
-        final ancestors = _forAncestorCount(g, childName);
+        final ancestors = GraphGeometry.forAncestorCount(g, childName);
         final levels = (maxDepth - ancestors).clamp(0, 10);
 
         double subRight = blockRight;
@@ -558,13 +510,13 @@ class ConnectionRouter {
     FlowchartGraph g,
     ConnectionData c,
   ) {
-    final bas = spacing.corridorGap;
+    // final bas = spacing.corridorGap;
     // Локальные границы тела этого For
     final local = _subtreeBounds(g, c.sourceNodeName, stopAt: c.targetNodeName);
     // Глубина: сколько For-предков у данного источника
-    final ancestors = _forAncestorCount(g, c.sourceNodeName);
-    final maxDepth = LayoutEngine.maxForDepth(g);
-    final levelsFromInner = maxDepth - ancestors;
+    // final ancestors = GraphGeometry.forAncestorCount(g, c.sourceNodeName);
+    // final maxDepth = GraphGeometry.maxForDepth(g);
+    // final levelsFromInner = maxDepth - ancestors;
 
     // Правый коридор
     // для вложенных - каждый следующий сдвигается на base
@@ -622,20 +574,6 @@ class ConnectionRouter {
     return RoutedConnection(path, arrows);
   }
 
-  int _exitBranchSlot(FlowchartGraph g, String forName) {
-    final n = g.nodes[forName];
-    if (n == null) return 0;
-    int slot = 0;
-    for (final e in g.nodes.entries) {
-      if (e.value.data is! ForBlock) continue;
-      if (e.key == forName) continue;
-      if ((e.value.position.dx - n.position.dx).abs() > 1.0) continue;
-      if (e.value.position.dy <= n.position.dy - 1.0) continue;
-      slot++;
-    }
-    return slot;
-  }
-
   // loopback: вниз -> влево -> вверх -> вправо в For
   RoutedConnection _routeLoopback(
     Offset start,
@@ -650,15 +588,8 @@ class ConnectionRouter {
     // double turnY = start.dy + math.max(bas / 2, spacing.stepY / 3);
     double turnY = start.dy + bas * 1.2;
 
-    final maxDepth = LayoutEngine.maxForDepth(g);
+    final maxDepth = GraphGeometry.maxForDepth(g);
 
-    // if (source != null && source.data is ForBlock && c.sourcePort == 'exit') {
-    //   final bodyBottom = _bodySubtreeBottom(g, c.sourceNodeName);
-    //   final ancestors = _forAncestorCount(g, c.sourceNodeName);
-    //   final levels = math.max(0, maxDepth - ancestors);
-    //   final desired = bodyBottom + bas + spacing.stepY / 4 * levels;
-    //   if (desired > turnY) turnY = desired;
-    // }
     //
     // ─── For.body / For.out → loopback ───
     if (source != null &&
@@ -687,7 +618,11 @@ class ConnectionRouter {
     // ─── For.exit → loopback ───
     if (source != null && source.data is ForBlock && c.sourcePort == 'exit') {
       final channelY = _forChannelY(g, c.sourceNodeName, c.sourcePort)!;
-      final bodyBottom = _bodySubtreeBottom(g, c.sourceNodeName);
+      final bodyBottom = GraphGeometry.bodySubtreeBottom(
+        g,
+        c.sourceNodeName,
+        nodeSize,
+      );
       final minForBody = bodyBottom + spacing.bodyLoopbackDrop;
       final desired = math.max(channelY, minForBody);
       if (desired > turnY) turnY = desired;
@@ -708,15 +643,13 @@ class ConnectionRouter {
       }
     }
 
-    // if (source != null && source.data is ForBlock && c.sourcePort == 'exit') {
-    //   final bodyBottom = _bodySubtreeBottom(g, c.sourceNodeName);
-    //   final desired = bodyBottom + bas;
-    //   if (desired > turnY) turnY = desired;
-    // }
-
     if (source != null && source.data is LogicBlock && c.sourcePort == 'no') {
       final srcBottom = source.position.dy + nodeSize.height;
-      final yesBottom = _logicYesSubtreeBottom(g, c.sourceNodeName);
+      final yesBottom = GraphGeometry.logicYesSubtreeBottom(
+        g,
+        c.sourceNodeName,
+        nodeSize,
+      );
       final minTurnY = math.max(srcBottom, yesBottom);
       // final minTurnY = srcBottom;
       // if (turnY < srcBottom) turnY = srcBottom + bas * 1.2;
@@ -724,12 +657,16 @@ class ConnectionRouter {
     }
 
     if (source != null && source.data is LogicBlock && c.sourcePort == 'yes') {
-      final branchBottom = _logicBranchBottom(g, c.sourceNodeName);
+      final branchBottom = GraphGeometry.logicBranchBottom(
+        g,
+        c.sourceNodeName,
+        nodeSize,
+      );
       final desired = branchBottom + bas * 1.2;
       if (desired > turnY) turnY = desired;
     }
 
-    final ancestors = _forAncestorCount(g, c.targetNodeName);
+    final ancestors = GraphGeometry.forAncestorCount(g, c.targetNodeName);
 
     final levelsFromInner = maxDepth - ancestors; // 0 у самого внутреннего
     final inset = bas / 2 * (levelsFromInner + 1);
@@ -738,7 +675,7 @@ class ConnectionRouter {
     double startJogX = start.dx;
     // final startJogX = isEx/2itPort ? start.dx + bas / 2 : start.dx;
     if (isExitPort) {
-      final srcAncestors = _forAncestorCount(g, c.sourceNodeName);
+      final srcAncestors = GraphGeometry.forAncestorCount(g, c.sourceNodeName);
       final srcLevelsFromInner = math.max(0, maxDepth - srcAncestors);
       startJogX = start.dx + bas * (srcLevelsFromInner + 1);
     } else if (source != null &&
@@ -747,12 +684,6 @@ class ConnectionRouter {
       final corridor = _noCorridorX(g, c.sourceNodeName);
       if (corridor > startJogX) startJogX = corridor;
     }
-    // // startJogX =
-    //     start.dx +
-    //     spacing.loopbackJogX * (srcLevelsFromInner + 1) +
-    //     spacing.corridorSlotStep * _exitBranchSlot(g, c.sourceNodeName);
-    // startJogX = start.dx + bas * (srcLevelsFromInner + 1);
-    // }
 
     // final vertTopY = start.dy + bas / 2;
     final vertTopY = turnY;
@@ -774,7 +705,10 @@ class ConnectionRouter {
         if (otherSrc == null || otherSrc.data is! ForBlock) continue;
         final otherStartY = otherSrc.position.dy + nodeSize.height / 2;
         if (otherStartY >= turnY) continue;
-        final otherAncestors = _forAncestorCount(g, other.sourceNodeName);
+        final otherAncestors = GraphGeometry.forAncestorCount(
+          g,
+          other.sourceNodeName,
+        );
         final otherLevels = math.max(0, maxDepth - otherAncestors);
         final otherJogX =
             _portPosition(otherSrc, 'exit', outgoing: true).dx +
@@ -814,94 +748,6 @@ class ConnectionRouter {
     );
   }
 
-  /// Нижняя граница обоих веток (yes и no) LogicBlock, кроме loopback-цели.
-  /// Нужна, чтобы yes-loopback гарантированно огибал Process-ы, For-ы и
-  /// прочие блоки, вставленные в no-ветку этого же логического блока.
-  double _logicBranchBottom(FlowchartGraph g, String logicName) {
-    final node = g.nodes[logicName];
-    if (node == null) return 0;
-
-    double maxBottom = node.position.dy + nodeSize.height;
-    final visited = <String>{logicName};
-    final queue = <String>[];
-    for (final c in g.outgoing[logicName] ?? const <ConnectionData>[]) {
-      if (c.targetPort == 'loopback') continue;
-      queue.add(c.targetNodeName);
-    }
-    while (queue.isNotEmpty) {
-      final cur = queue.removeAt(0);
-      if (!visited.add(cur)) continue;
-      if (g.isEnd(cur)) continue;
-      final n = g.nodes[cur];
-      if (n == null) continue;
-      final b = n.position.dy + nodeSize.height;
-      if (b > maxBottom) maxBottom = b;
-      for (final c in g.outgoing[cur] ?? const <ConnectionData>[]) {
-        if (c.targetPort == 'loopback') continue;
-        queue.add(c.targetNodeName);
-      }
-    }
-    return maxBottom;
-  }
-
-  /// Нижняя граница yes-поддерева LogicBlock (до merge/loopback).
-  /// Нужна, чтобы no-коридор гарантированно обходил его СНИЗУ.
-  double _logicYesSubtreeBottom(FlowchartGraph g, String logicName) {
-    final yesConn = (g.outgoing[logicName] ?? const <ConnectionData>[])
-        .firstWhereOrNull((c) => c.sourcePort == 'yes');
-    if (yesConn == null) return 0;
-
-    final visited = <String>{};
-    final queue = <String>[yesConn.targetNodeName];
-    double maxBottom = 0;
-
-    while (queue.isNotEmpty) {
-      final cur = queue.removeAt(0);
-      if (!visited.add(cur)) continue;
-      if (g.isEnd(cur)) continue;
-
-      final n = g.nodes[cur];
-      if (n == null) continue;
-      final b = n.position.dy + nodeSize.height;
-      if (b > maxBottom) maxBottom = b;
-
-      for (final c in g.outgoing[cur] ?? const <ConnectionData>[]) {
-        if (c.targetPort == 'loopback') continue;
-        queue.add(c.targetNodeName);
-      }
-    }
-    return maxBottom;
-  }
-
-  double _bodySubtreeBottom(FlowchartGraph g, String forName) {
-    final bodyConn = (g.outgoing[forName] ?? const []).firstWhereOrNull(
-      (c) => c.sourcePort == 'body',
-    );
-    if (bodyConn == null) return 0;
-    if (bodyConn.targetNodeName == forName) {
-      final n = g.nodes[forName];
-      return n == null ? 0 : n.position.dy + nodeSize.height;
-    }
-    final visited = <String>{};
-    final queue = <String>[bodyConn.targetNodeName];
-    double maxBottom = 0;
-    while (queue.isNotEmpty) {
-      final cur = queue.removeAt(0);
-      if (!visited.add(cur)) continue;
-      final n = g.nodes[cur];
-      if (n == null) continue;
-      final bottom = n.position.dy + nodeSize.height;
-      if (bottom > maxBottom) maxBottom = bottom;
-      if (g.isEnd(cur)) continue;
-      for (final c in g.outgoing[cur] ?? const <ConnectionData>[]) {
-        if (c.targetPort == 'loopback') continue;
-        if (c.sourcePort == 'exit' && c.sourceNodeName == forName) continue;
-        queue.add(c.targetNodeName);
-      }
-    }
-    return maxBottom;
-  }
-
   // Стрелки на горизонтальной шине: возвращает либо пустой список,  либо одну стрелку в правильном месте.
   List<ArrowMarker> _busArrows({
     required FlowchartGraph g,
@@ -909,98 +755,50 @@ class ConnectionRouter {
     required double dropX,
     required double endX,
     required double busY,
+    bool fallbackAtTarget = false,
   }) {
-    // Стрелки - только при движении справа налево
-    if (endX >= dropX - 0.5) return const [];
+    final goingLeft = endX < dropX - 0.5;
+    final goingRight = endX > dropX + 0.5;
+    if (!goingLeft && !goingRight) return const []; // вертикаль
 
-    final horizontalLen = (dropX - endX).abs();
-    if (horizontalLen < 24) return const [];
+    final xLo = math.min(endX, dropX);
+    final xHi = math.max(endX, dropX);
+    final xMin = xLo + spacing.arrowInset;
+    final xMax = xHi - spacing.arrowInset;
 
-    final xLo = endX;
-    final xHi = dropX;
+    final events = _mergeDetector.forConnection(g, c);
+    if (events.isNotEmpty) {
+      final e = events.first;
+      final pos = e.arrowPosition(spacing.arrowInset);
 
-    double? firstCrossingX;
-    for (final other in g.connections) {
-      if (identical(other, c)) continue;
-      if (other.targetNodeName != c.targetNodeName) continue;
-      if (other.targetPort == 'loopback') continue;
-
-      final otherSrc = g.nodes[other.sourceNodeName];
-      if (otherSrc == null) continue;
-
-      final otherDropX = _dropXOf(g, other, otherSrc);
-      if (otherDropX <= xLo + 0.5 || otherDropX >= xHi - 0.5) continue;
-
-      // Проверяем, что вертикаль other покрывает наш busY.
-      final span = _otherVerticalSpan(g, other, otherSrc);
-      if (span == null) continue;
-      if (busY < span.start - 0.5 || busY > span.end + 0.5) continue;
+      double x;
+      if (e.flowLeft) {
+        x = e.xMerge;
+      } else {
+        final lo = xLo + 1.0;
+        final hi = math.min(e.xMerge - 1.0, xHi - 1.0);
+        x = hi > lo ? pos.dx.clamp(lo, hi) : e.xMerge - 1.0;
+      }
 
       debugPrint(
-        '[busArrow] ${c.sourceNodeName}--${c.sourcePort}->'
-        '${c.targetNodeName}: crossing with '
-        '${other.sourceNodeName}--${other.sourcePort} '
-        'dropX=${otherDropX.toStringAsFixed(1)} '
-        'span=[${span.start.toStringAsFixed(1)},'
-        '${span.end.toStringAsFixed(1)}]',
+        '[busArrow/merge] ${c.sourceNodeName}--${c.sourcePort}->'
+        '${c.targetNodeName}: '
+        'flowLeft=${e.flowLeft} '
+        'xMerge=${e.xMerge.toStringAsFixed(1)} '
+        'raw=${pos.dx.toStringAsFixed(1)} '
+        'clamped=${x.toStringAsFixed(1)} '
+        'range=[${xLo.toStringAsFixed(1)},${xHi.toStringAsFixed(1)}]',
       );
 
-      if (firstCrossingX == null || otherDropX > firstCrossingX) {
-        firstCrossingX = otherDropX;
-      }
+      return [ArrowMarker(Offset(x, busY), e.arrowAngle())];
     }
 
-    double arrowX;
-    if (firstCrossingX != null) {
-      arrowX = firstCrossingX;
-    } else {
-      arrowX = (xLo + xHi) / 2;
-    }
+    if (!fallbackAtTarget) return const [];
 
-    final clampedX = arrowX.clamp(xLo + 8.0, xHi - 8.0);
-
-    debugPrint(
-      '[busArrow] ${c.sourceNodeName}--${c.sourcePort}->'
-      '${c.targetNodeName}: '
-      'busY=${busY.toStringAsFixed(1)} '
-      'xLo=${xLo.toStringAsFixed(1)} xHi=${xHi.toStringAsFixed(1)} '
-      'nearest=${firstCrossingX?.toStringAsFixed(1) ?? 'none'} '
-      'arrowX=${arrowX.toStringAsFixed(1)} '
-      'clamped=${clampedX.toStringAsFixed(1)}'
-      '${clampedX != arrowX ? " (CLAMPED)" : ""}',
-    );
-    return [ArrowMarker(Offset(clampedX, busY), math.pi)];
-  }
-
-  // Y-диапазон start, end, который занимает вертикальная часть связи other
-  ({double start, double end})? _otherVerticalSpan(
-    FlowchartGraph g,
-    ConnectionData other,
-    NodeModel otherSrc,
-  ) {
-    final tgt = g.nodes[other.targetNodeName];
-    if (tgt == null) return null;
-    final targetTop = _portPosition(tgt, 'in', outgoing: false).dy;
-
-    if (other.sourcePort == 'no') {
-      final endX = _portPosition(tgt, 'in', outgoing: false).dx;
-      final rightX = _noCorridorX(g, other.sourceNodeName);
-      if (endX >= rightX - 1.0) return null;
-
-      final noPortY = _portPosition(otherSrc, 'no', outgoing: true).dy;
-      final otherBusY = _busY(g, other.targetNodeName);
-      return (
-        start: math.min(noPortY, otherBusY),
-        end: math.max(noPortY, otherBusY),
-      );
-    }
-
-    final port = _portPosition(otherSrc, other.sourcePort, outgoing: true);
-    final y1 = port.dy;
-    final y2 = other.sourcePort == 'yes' || other.sourcePort == 'exit'
-        ? targetTop
-        : targetTop;
-    return (start: math.min(y1, y2), end: math.max(y1, y2));
+    final fallbackX = goingLeft
+        ? (endX + spacing.corridorGap).clamp(xMin, xMax)
+        : (endX - spacing.corridorGap).clamp(xMin, xMax);
+    return [ArrowMarker(Offset(fallbackX, busY), goingLeft ? math.pi : 0.0)];
   }
 
   double _dropXOf(FlowchartGraph g, ConnectionData other, NodeModel otherSrc) {
@@ -1012,88 +810,6 @@ class ConnectionRouter {
       return endX < rightX - 1.0 ? rightX : endX;
     }
     return _portPosition(otherSrc, other.sourcePort, outgoing: true).dx;
-  }
-
-  /// Количество For-блоков, вложенных в тело forName (на любой глубине).
-  /// BFS только по body-ветке, без выхода через `exit forName`.
-  int _innerForCount(FlowchartGraph g, String forName) {
-    final bodyConn = (g.outgoing[forName] ?? const <ConnectionData>[])
-        .firstWhereOrNull((c) => c.sourcePort == 'body');
-    if (bodyConn == null) return 0;
-    if (bodyConn.targetNodeName == forName) return 0; // self-loop
-
-    final visited = <String>{};
-    final queue = <String>[bodyConn.targetNodeName];
-    int count = 0;
-    while (queue.isNotEmpty) {
-      final cur = queue.removeAt(0);
-      if (!visited.add(cur)) continue;
-      final n = g.nodes[cur];
-      if (n == null) continue;
-      if (n.data is ForBlock) count++;
-      if (g.isEnd(cur)) continue;
-      for (final c in g.outgoing[cur] ?? const <ConnectionData>[]) {
-        if (c.targetPort == 'loopback') continue;
-        if (c.sourcePort == 'exit' && c.sourceNodeName == forName) continue;
-        queue.add(c.targetNodeName);
-      }
-    }
-    return count;
-  }
-
-  // Сколько For-предков имеет forName
-  // 0 - внешний цикл, 1 - вложенный в него, и т.д.
-  int _forAncestorCount(FlowchartGraph g, String forName) {
-    int count = 0;
-    String cur = forName;
-    final visited = <String>{forName};
-
-    while (true) {
-      String? bestParent;
-      int bestSize = 1 << 30;
-
-      for (final c in g.connections) {
-        if (c.sourcePort != 'body') continue;
-        if (visited.contains(c.sourceNodeName)) continue;
-
-        // Прямой предок
-        if (c.targetNodeName == cur) {
-          bestParent = c.sourceNodeName;
-          bestSize = 0;
-          break;
-        }
-
-        // Косвенный - только если он ближайший (минимальное поддерево)
-        final sub = _subtreeNodes(g, c.targetNodeName);
-        if (sub.contains(cur) && sub.length < bestSize) {
-          bestSize = sub.length;
-          bestParent = c.sourceNodeName;
-        }
-      }
-
-      if (bestParent == null) break;
-      visited.add(bestParent);
-      count++;
-      cur = bestParent;
-    }
-    return count;
-  }
-
-  // Все узлы, достижимые из root по обычным ребрам (без loopback)
-  Set<String> _subtreeNodes(FlowchartGraph g, String root) {
-    final result = <String>{};
-    void dfs(String n) {
-      if (result.contains(n)) return;
-      result.add(n);
-      if (g.isEnd(n)) return;
-      for (final c in g.outgoing[n] ?? const []) {
-        if (c.targetPort == 'loopback') continue;
-        dfs(c.targetNodeName);
-      }
-    }
-
-    dfs(root);
-    return result;
   }
 
   // Нижняя и правая границы поддерева, начиная с rootName
@@ -1115,7 +831,7 @@ class ConnectionRouter {
     }
 
     final bas = spacing.stepX / 12;
-    final maxDepth = LayoutEngine.maxForDepth(g);
+    final maxDepth = GraphGeometry.maxForDepth(g);
 
     // final stepXExtra = spacing.stepX - nodeSize.width;
     double bottom = -double.infinity;
@@ -1162,7 +878,7 @@ class ConnectionRouter {
             stopAt: exitConn.targetNodeName,
             visiting: visiting,
           );
-          final ancestors = _forAncestorCount(g, cur);
+          final ancestors = GraphGeometry.forAncestorCount(g, cur);
           final levels = math.max(0, maxDepth - ancestors);
           final exitCorridor = bodyBounds.right + bas * (levels + 1);
           if (exitCorridor > r) r = exitCorridor;
