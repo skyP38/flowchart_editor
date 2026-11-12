@@ -4,11 +4,39 @@ import '../models/flow_models.dart';
 import 'flowchart_graph.dart';
 import 'dart:math' as math;
 import '../models/editor_models.dart';
+import '../constants/diagram_constants.dart';
 
 class LayoutSpacing {
-  final double stepX;
-  final double stepY;
+  final double stepX; // ширина клетки
+  final double stepY; // высота клетки
   const LayoutSpacing({required this.stepX, required this.stepY});
+
+  // ---- Вертикальные отступы (доли stepY) ----
+  double get busGap => stepY / 8; // зазор между блоком и шиной
+  double get entryInsetY => stepY / 4; // «+» ниже нижнего края блока
+  double get mergeGap => stepY / 6; // зазор до merge-узла
+  double get exitDepthStep => stepY / 6; // шаг на уровень вложенности For
+  double get loopbackTurnY => stepY / 3; // turnY у loopback
+
+  // ---- Горизонтальные отступы (доли stepX) ----
+  double get corridorGap => stepX / 6; // зазор блок ↔ коридор
+  double get corridorSlotStep =>
+      stepX / 6; // шаг между коридорами одной колонки
+  double get arrowInset => stepX / 8; // отступ стрелки от угла
+  double get plusInsetX => stepX / 12; // «+» от угла по X
+  double get plusInsetY => stepY / 12; // «+» от угла по Y
+  double get exitInsetX => stepX / 6; // шаг коридора exit на уровень
+  double get loopbackInsetX => stepX / 12; // inset петли на уровень
+  double get loopbackJogX => stepX / 6; // шаг «джога» на уровень (exit)
+
+  /// Диаметр плюса вставки.
+  double get plusHeight => 2 * InsertionPointConstants.radius;
+
+  /// Шаг между горизонталями в канальной зоне под For-ом (≥ plusHeight).
+  double get loopbackChannelStep => plusHeight;
+
+  /// Отступ body→loopback от нижнего края For-а (1.2 × plusHeight).
+  double get bodyLoopbackDrop => plusHeight * 1.2;
 }
 
 // rank - длина самого длинного пути от Start (loopback игнорируется)
@@ -30,6 +58,7 @@ class LayoutEngine {
 
     // Выход каждого For должен лежать ниже всего его тела
     _adjustForExitRanks(g, ranks);
+    _pushForExitSpace(g, ranks);
     _pushMergeNodesForSpace(g, ranks);
 
     // End - на самом низком ранге
@@ -412,6 +441,129 @@ class LayoutEngine {
       _assignRanks(c.targetNodeName, rank + 1, g, ranks, inProgress);
     }
     inProgress.remove(node);
+  }
+
+  /// Учитывает пиксельное место под For-петлями: под телом For-а пройдут
+  /// горизонтали body→loopback и exit→loopback самого For-а и каждого
+  /// вложенного For-а. Если между forBottom и exitTargetTop в рангах
+  /// не хватает места — двигаем exit-поддерево вниз.
+  void _pushForExitSpace(FlowchartGraph g, Map<String, int> ranks) {
+    final fors =
+        g.nodes.entries
+            .where((e) => e.value.data is ForBlock)
+            .map((e) => e.key)
+            .toList()
+          ..sort((a, b) => (ranks[b] ?? 0).compareTo(ranks[a] ?? 0));
+
+    for (final forName in fors) {
+      final exitConn = (g.outgoing[forName] ?? const <ConnectionData>[])
+          .firstWhereOrNull((c) => c.sourcePort == 'exit');
+      if (exitConn == null) continue;
+      if (exitConn.targetPort == 'loopback') continue;
+
+      final inner = _innerForCountStatic(g, forName);
+      // Каналы под телом For-а:
+      //   body↺ свой (pos = inner*2)
+      //   exit   свой (pos = inner*2 + 1)
+      //   по паре на каждый вложенный For (pos = 0..2*inner-1)
+      // Самый нижний канал: pos = 2*inner + 1
+      final deepestPos = inner * 2 + 1;
+      final zoneHeight =
+          spacing.bodyLoopbackDrop + deepestPos * spacing.loopbackChannelStep;
+
+      final bodyBottom = _bodySubtreeBottomStatic(g, forName, nodeSize);
+      final forBottom = g.nodes[forName]!.position.dy + nodeSize.height;
+      final baseBottom = math.max(forBottom, bodyBottom);
+
+      final exitTop = g.nodes[exitConn.targetNodeName]?.position.dy ?? 0;
+      final availableHeight = exitTop - baseBottom;
+      // зазор между последней петлёй и верхом exit-цели
+      final need = zoneHeight + spacing.stepY / 8;
+
+      if (availableHeight >= need) continue;
+
+      // final currentRank = ranks[forName] ?? 0;
+      // final exitRank = ranks[exitConn.targetNodeName] ?? 0;
+      // final availableHeight =
+      //     (exitRank - currentRank) * spacing.stepY - nodeSize.height;
+
+      // if (availableHeight >= zoneHeight) continue;
+
+      final deficit = zoneHeight - availableHeight;
+      final extraRanks = (deficit / spacing.stepY).ceil();
+      if (extraRanks <= 0) continue;
+
+      final exitSubtree = _subtreeNodes(g, exitConn.targetNodeName);
+      for (final n in exitSubtree) {
+        if (g.isEnd(n)) continue;
+        ranks[n] = (ranks[n] ?? 0) + extraRanks;
+      }
+
+      debugPrint(
+        '[pushForExitSpace] for=$forName inner=$inner '
+        'zoneHeight=${zoneHeight.toStringAsFixed(1)} '
+        'available=${availableHeight.toStringAsFixed(1)} '
+        'delta=$extraRanks rank',
+      );
+    }
+  }
+
+  /// Количество For-ов внутри тела forName (без самого forName).
+  static int _innerForCountStatic(FlowchartGraph g, String forName) {
+    final bodyConn = (g.outgoing[forName] ?? const <ConnectionData>[])
+        .firstWhereOrNull((c) => c.sourcePort == 'body');
+    if (bodyConn == null) return 0;
+    if (bodyConn.targetNodeName == forName) return 0;
+
+    final visited = <String>{};
+    final queue = <String>[bodyConn.targetNodeName];
+    int count = 0;
+    while (queue.isNotEmpty) {
+      final cur = queue.removeAt(0);
+      if (!visited.add(cur)) continue;
+      final n = g.nodes[cur];
+      if (n == null) continue;
+      if (n.data is ForBlock) count++;
+      if (g.isEnd(cur)) continue;
+      for (final c in g.outgoing[cur] ?? const <ConnectionData>[]) {
+        if (c.targetPort == 'loopback') continue;
+        if (c.sourcePort == 'exit' && c.sourceNodeName == forName) continue;
+        queue.add(c.targetNodeName);
+      }
+    }
+    return count;
+  }
+
+  static double _bodySubtreeBottomStatic(
+    FlowchartGraph g,
+    String forName,
+    Size nodeSize,
+  ) {
+    final bodyConn = (g.outgoing[forName] ?? const <ConnectionData>[])
+        .firstWhereOrNull((c) => c.sourcePort == 'body');
+    if (bodyConn == null) return 0;
+    if (bodyConn.targetNodeName == forName) {
+      final n = g.nodes[forName];
+      return n == null ? 0 : n.position.dy + nodeSize.height;
+    }
+    final visited = <String>{};
+    final queue = <String>[bodyConn.targetNodeName];
+    double maxBottom = 0;
+    while (queue.isNotEmpty) {
+      final cur = queue.removeAt(0);
+      if (!visited.add(cur)) continue;
+      final n = g.nodes[cur];
+      if (n == null) continue;
+      final b = n.position.dy + nodeSize.height;
+      if (b > maxBottom) maxBottom = b;
+      if (g.isEnd(cur)) continue;
+      for (final c in g.outgoing[cur] ?? const <ConnectionData>[]) {
+        if (c.targetPort == 'loopback') continue;
+        if (c.sourcePort == 'exit' && c.sourceNodeName == forName) continue;
+        queue.add(c.targetNodeName);
+      }
+    }
+    return maxBottom;
   }
 
   // Для каждого For: exit-цель должна быть на ранг ниже, чем самый глубокий узел тела

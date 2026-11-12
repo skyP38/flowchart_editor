@@ -12,6 +12,7 @@ import '../models/flow_models.dart';
 import '../persistence/graph_mapper.dart';
 import '../persistence/editor_state.dart';
 import 'history_manager.dart';
+import 'dart:math';
 
 class FlowController extends ChangeNotifier {
   final Uuid _uuid = const Uuid();
@@ -53,9 +54,19 @@ class FlowController extends ChangeNotifier {
         extraX = baseExtraX + depth * LayoutConstants.loopbackChannelWidth;
       }
     }
-    final extraY =
+    // final extraY =
+    //     LayoutConstants.stepYExtra +
+    //     depth * LayoutConstants.loopbackChannelHeight;
+
+    // Минимум для Y: 2*depth каналов × плюс-шаг + drop + зазор
+    final minForStepY =
+        2 * depth * (2 * InsertionPointConstants.radius) +
+        2.5 * InsertionPointConstants.radius * 1.2 +
+        16;
+    final basedExtraY =
         LayoutConstants.stepYExtra +
         depth * LayoutConstants.loopbackChannelHeight;
+    final extraY = max(basedExtraY, minForStepY - size.height);
     return LayoutEngine(
       nodeSize: size,
       spacing: LayoutSpacing(

@@ -14,6 +14,43 @@ class InsertionPointsService {
   List<InsertionPoint> compute(FlowchartGraph g) {
     final points = <InsertionPoint>[];
 
+    final loopbackMerges = <String, _LoopbackMergeInfo>{};
+    for (final node in g.nodes.values) {
+      if (node.data is! LogicBlock) continue;
+
+      ConnectionData? yesConn, noConn;
+      for (final c in g.outgoing[node.name] ?? const <ConnectionData>[]) {
+        if (c.sourcePort == 'yes') yesConn = c;
+        if (c.sourcePort == 'no') noConn = c;
+      }
+      if (yesConn == null || noConn == null) continue;
+
+      final yes = _traverseToLoopback(g, yesConn);
+      final no = _traverseToLoopback(g, noConn);
+      if (yes.landings.isEmpty || no.landings.isEmpty) continue;
+
+      final forName = yes.landings.first.targetNodeName;
+      if (g.nodes[forName]?.data is! ForBlock) continue;
+      if (!no.landings.any((c) => c.targetNodeName == forName)) continue;
+
+      final shared = yes.intermediate.intersection(no.intermediate);
+      if (shared.isNotEmpty) {
+        debugPrint(
+          '[logicLoopback+/skip] ${node.name}: branches already merged at '
+          '${shared.take(3).join(",")} — no AfterMerge plus',
+        );
+        continue;
+      }
+
+      loopbackMerges[node.name] = _LoopbackMergeInfo(
+        mainLanding: yes.landings.first,
+        otherLandings: no.landings
+            .where((c) => c.targetNodeName == forName)
+            .toList(),
+        forName: forName,
+        logicName: node.name,
+      );
+    }
     // Все target с >= 2 входящими non-loopback
     final incomingByTarget = <String, List<ConnectionData>>{};
     for (final conn in g.connections) {
@@ -21,6 +58,33 @@ class InsertionPointsService {
       incomingByTarget.putIfAbsent(conn.targetNodeName, () => []).add(conn);
     }
 
+    // Единый AfterMerge-плюс на yes→loopback для каждого логического merge
+    for (final merge in loopbackMerges.values) {
+      final pos = _loopbackAfterMergePosition(g, merge);
+      if (pos == null) continue;
+
+      final otherIds = merge.otherLandings
+          .where((c) => c.id != null)
+          .map((c) => c.id!)
+          .toList();
+
+      debugPrint(
+        '[logicLoopback+/afterMerge] logic=${merge.logicName} '
+        'for=${merge.forName} '
+        'main=${merge.mainLanding.sourceNodeName}.'
+        '${merge.mainLanding.sourcePort} '
+        'x=${pos.dx.toStringAsFixed(1)} y=${pos.dy.toStringAsFixed(1)} '
+        'others=${otherIds.length}',
+      );
+
+      points.add(
+        AfterMergePoint(
+          position: pos,
+          connection: merge.mainLanding,
+          mergeOtherConnIds: otherIds,
+        ),
+      );
+    }
     // Для каждого merge-target вычисляем точку слияния
     final mergeInfoByTarget = <String, _MergeInfo>{};
     for (final e in incomingByTarget.entries) {
@@ -36,7 +100,6 @@ class InsertionPointsService {
           conn.targetPort == 'loopback' &&
           (conn.sourcePort == 'body' || conn.sourcePort == 'out') &&
           g.nodes[conn.targetNodeName]?.data is ForBlock;
-      // if (conn.targetPort == 'loopback' && !isBodyLoopback) continue;
       final isExitLoopback =
           conn.targetPort == 'loopback' && conn.sourcePort == 'exit';
       final isLogicBranchLoopback =
@@ -50,9 +113,6 @@ class InsertionPointsService {
           !isLogicBranchLoopback) {
         continue;
       }
-      // if (conn.targetPort == 'loopback' && !isBodyLoopback && !isExitLoopback) {
-      //   continue;
-      // }
       final routed = router.build(conn, g);
       final path = routed.path;
       if (path.computeMetrics().isEmpty) continue;
@@ -63,24 +123,24 @@ class InsertionPointsService {
             ? _exitPlusPosition(path, src, g)
             : (_firstVerticalMidpoint(path) ?? _midOfPath(path));
         if (plusPos != null) {
-          points.add(
-            ExitLoopbackPoint(position: plusPos, connection: conn),
-          ); //points.add(InsertionPoint(plusPos, conn));
+          points.add(ExitLoopbackPoint(position: plusPos, connection: conn));
         }
         continue;
       }
 
       if (isLogicBranchLoopback) {
-        final src = g.nodes[conn.sourceNodeName];
-        Offset? plusPos;
+        // final src = g.nodes[conn.sourceNodeName];
+        // Offset? plusPos;
 
-        if (conn.sourcePort == 'no') {
-          plusPos = _firstVerticalMidpoint(path) ?? _midOfPath(path);
-        } else {
-          plusPos = src != null
-              ? _logicLoopbackPlusPosition(path, src)
-              : (_firstVerticalMidpoint(path) ?? _midOfPath(path));
-        }
+        final plusPos = _firstVerticalMidpoint(path) ?? _midOfPath(path);
+
+        // if (conn.sourcePort == 'no') {
+        //   plusPos = _firstVerticalMidpoint(path) ?? _midOfPath(path);
+        // } else {
+        //   plusPos = src != null
+        //       ? _logicLoopbackPlusPosition(path, src)
+        //       : (_firstVerticalMidpoint(path) ?? _midOfPath(path));
+        // }
         if (plusPos != null) {
           debugPrint(
             '[logicLoopback+] ${conn.sourceNodeName}--${conn.sourcePort}->'
@@ -97,7 +157,7 @@ class InsertionPointsService {
         final src = g.nodes[conn.sourceNodeName];
         if (src == null) continue;
 
-        const double offset = 60.0;
+        final offset = router.spacing.mergeGap * 2;
         final mergeNode = _findYesMergeTarget(
           g,
           conn.sourceNodeName,
@@ -111,11 +171,6 @@ class InsertionPointsService {
           final lastEdge = _findLastYesEdge(g, conn.sourceNodeName, mergeNode);
           if (lastEdge != null && lastEdge.id != null) {
             final targetY = mergeInfo.mergeY - offset;
-            // final alreadyHas = points.any(
-            //   (p) =>
-            //       p.connection.id == lastEdge.id &&
-            //       (p.position.dy - targetY).abs() < 5,
-            // );
             final alreadyHas = points.any(
               (p) => p.connection.id == lastEdge.id,
             );
@@ -138,8 +193,10 @@ class InsertionPointsService {
               if (horiz != null) {
                 final xLo = math.min(horiz.start.dx, horiz.end.dx);
                 final xHi = math.max(horiz.start.dx, horiz.end.dx);
-                // plusPos = Offset((xLo + xHi) / 2, horiz.start.dy);
-                plusPos = Offset(xHi - 15, horiz.start.dy);
+                plusPos = Offset(
+                  xHi - router.spacing.plusInsetX,
+                  horiz.start.dy,
+                );
                 debugPrint(
                   '[yesPlus/horizontal] ${conn.sourceNodeName}--yes->'
                   '${conn.targetNodeName}: '
@@ -147,18 +204,6 @@ class InsertionPointsService {
                   'y=${plusPos.dy.toStringAsFixed(1)} '
                   'xRange=[${xLo.toStringAsFixed(1)},${xHi.toStringAsFixed(1)}]',
                 );
-                // final lastX = _pathXAtY(lastPath, targetY);
-                // if (lastX != null) {
-                // // final lastX = _pathXAtY(lastPath, targetY) ?? mergeInfo.centerX;
-                // debugPrint(
-                //   '[yesPlus] ${conn.sourceNodeName}--yes->${conn.targetNodeName}: '
-                //   'merge=$mergeNode '
-                //   'lastEdge=${lastEdge.sourceNodeName}.${lastEdge.sourcePort} '
-                //   'x=${lastX.toStringAsFixed(1)} '
-                //   'y=${targetY.toStringAsFixed(1)}',
-                // );
-                // points.add(InsertionPoint(Offset(lastX, targetY), lastEdge));
-                //// placed = true;
               } else {
                 final lastX = _pathXAtY(lastPath, targetY);
                 if (lastX != null) {
@@ -261,13 +306,8 @@ class InsertionPointsService {
         plusPos = _firstVerticalMidpoint(path);
         if (plusPos != null) {
           points.add(OnConnectionPoint(position: plusPos, connection: conn));
-          // placed = true;
         }
-        // if (plusPos != null) points.add(InsertionPoint(plusPos, conn));
         continue;
-        // } else if (conn.sourcePort == 'out' &&
-        // mergeInfoByTarget.containsKey(conn.targetNodeName)) {
-        // continue;
       } else if (conn.targetPort == 'loopback') {
         _Seg? horiz;
         for (final s in _extractSegments(path)) {
@@ -282,7 +322,7 @@ class InsertionPointsService {
         if (horiz != null) {
           final xLo = math.min(horiz.start.dx, horiz.end.dx);
           final xHi = math.max(horiz.start.dx, horiz.end.dx);
-          plusPos = Offset(math.min((xLo + xHi) / 1.5, xHi), horiz.start.dy);
+          plusPos = Offset(xHi, horiz.start.dy - 10);
           debugPrint(
             '[outPlus/loopback] ${conn.sourceNodeName}--${conn.sourcePort}->'
             '${conn.targetNodeName}.loopback: '
@@ -305,14 +345,11 @@ class InsertionPointsService {
       if (plusPos != null) {
         points.add(OnConnectionPoint(position: plusPos, connection: conn));
       }
-      // if (plusPos != null) points.add(InsertionPoint(plusPos, conn));
     }
 
     for (final entry in mergeInfoByTarget.entries) {
       final targetName = entry.key;
       final info = entry.value;
-
-      final afterY = (info.maxLandingY + info.targetTop) / 2;
 
       final sourceGroups = <String, List<ConnectionData>>{};
       for (final c in info.incoming) {
@@ -324,6 +361,7 @@ class InsertionPointsService {
           .toList();
 
       if (trivialSources.isEmpty) {
+        final afterY = (info.maxLandingY + info.targetTop) / 2;
         final otherIds = info.incoming
             .where((c) => c.id != null && c.id != info.deepestEdge.id)
             .map((c) => c.id!)
@@ -341,34 +379,85 @@ class InsertionPointsService {
             mergeOtherConnIds: otherIds,
           ),
         );
+        // }
       } else {
         for (final sg in trivialSources) {
+          final landingYs = <double>[];
+          for (final c in sg.value) {
+            final path = router.build(c, g).path;
+            final y = _landingYAt(path, info.centerX, info.targetTop);
+            if (y != null) landingYs.add(y);
+          }
+          if (landingYs.isEmpty) continue;
+          landingYs.sort();
+
+          // Реальная точка слияния — где последняя ветка коснулась общей вертикали
+          final trueMergeY = landingYs.last;
+
+          // Ближайшее «событие» ниже: верх первого блока на X=centerX,
+          // который не является targetName. Если такого нет — сам targetTop.
+          double nextEventY = info.targetTop;
+          for (final e in g.nodes.entries) {
+            if (e.key == targetName) continue;
+            final n = e.value;
+            if (n.position.dx + router.nodeSize.width < info.centerX) continue;
+            if (n.position.dx > info.centerX) continue;
+            if (n.position.dy <= trueMergeY + 0.5) continue;
+            if (n.position.dy >= info.targetTop - 0.5) continue;
+            if (n.position.dy < nextEventY) nextEventY = n.position.dy;
+          }
+
+          // final afterY = (trueMergeY + nextEventY) / 2;
+          //
+          final afterY = math.min((trueMergeY + nextEventY) / 2, trueMergeY);
+
           final srcNode = g.nodes[sg.key];
-          if (srcNode == null) continue;
-          final srcCenterX = srcNode.position.dx + router.nodeSize.width / 2;
-          final srcOtherIds = sg.value
+          final srcCenterX = srcNode == null
+              ? info.centerX
+              : srcNode.position.dx + router.nodeSize.width / 2;
+
+          final isShifted = (srcCenterX - info.centerX).abs() > 0.5;
+          final x = isShifted ? srcCenterX - 15 : srcCenterX;
+
+          final otherIds = sg.value
               .where((c) => c.id != null && c.id != sg.value.first.id)
               .map((c) => c.id!)
               .toList();
 
-          final isShifted = (srcCenterX - info.centerX).abs() > 0.5;
-          final y = isShifted ? info.maxLandingY : afterY;
-          final x = isShifted ? srcCenterX - 15 : srcCenterX;
-
           debugPrint(
             '[afterPlus/source] target=$targetName source=${sg.key} '
-            'x=${srcCenterX.toStringAsFixed(1)} '
-            'y=${y.toStringAsFixed(1)} '
-            'shifted=$isShifted '
-            'mainConn=${sg.value.first.id} '
-            'others=${srcOtherIds.length}',
+            'trueMergeY=${trueMergeY.toStringAsFixed(1)} '
+            'nextEventY=${nextEventY.toStringAsFixed(1)} '
+            'x=${x.toStringAsFixed(1)} y=${afterY.toStringAsFixed(1)} '
+            'shifted=$isShifted others=${otherIds.length}',
           );
-
           points.add(
             AfterMergePoint(
-              position: Offset(x, y),
+              position: Offset(x, afterY),
               connection: sg.value.first,
-              mergeOtherConnIds: srcOtherIds,
+              mergeOtherConnIds: otherIds,
+            ),
+          );
+        }
+
+        // Если к target идут и другие источники, кроме trivial-мерджей,
+        // нужен ещё один плюс — «после слияния всех веток» у самого target.
+        if (sourceGroups.length > trivialSources.length) {
+          final afterY = (info.maxLandingY + info.targetTop) / 2;
+          final otherIds = info.incoming
+              .where((c) => c.id != null && c.id != info.deepestEdge.id)
+              .map((c) => c.id!)
+              .toList();
+          debugPrint(
+            '[afterPlus/merge] target=$targetName '
+            'x=${info.centerX.toStringAsFixed(1)} '
+            'y=${afterY.toStringAsFixed(1)} others=${otherIds.length}',
+          );
+          points.add(
+            AfterMergePoint(
+              position: Offset(info.centerX, afterY),
+              connection: info.deepestEdge,
+              mergeOtherConnIds: otherIds,
             ),
           );
         }
@@ -378,30 +467,62 @@ class InsertionPointsService {
     return points;
   }
 
-  // Плюс на yes/no-loopback-ветке из LogicBlock в For.
-  Offset? _logicLoopbackPlusPosition(Path path, NodeModel src) {
-    final srcBottom = src.position.dy + router.nodeSize.height;
+  /// Обходит ветку транзитивно до всех приземлений на loopback.
+  /// Возвращает landings (рёбра с targetPort == 'loopback') и
+  /// intermediate — множество промежуточных узлов (без целевого For).
+  _LoopbackTraversal _traverseToLoopback(
+    FlowchartGraph g,
+    ConnectionData start,
+  ) {
+    if (start.targetPort == 'loopback') {
+      return _LoopbackTraversal(landings: [start], intermediate: const {});
+    }
+    final landings = <ConnectionData>[];
+    final intermediate = <String>{};
+    final visited = <String>{};
+    final queue = <String>[start.targetNodeName];
 
-    _Seg? deepestHoriz;
-    for (final s in _extractSegments(path)) {
+    while (queue.isNotEmpty) {
+      final cur = queue.removeAt(0);
+      if (!visited.add(cur)) continue;
+      intermediate.add(cur);
+      for (final c in g.outgoing[cur] ?? const <ConnectionData>[]) {
+        if (c.targetPort == 'loopback') {
+          landings.add(c);
+          continue;
+        }
+        queue.add(c.targetNodeName);
+      }
+    }
+    return _LoopbackTraversal(landings: landings, intermediate: intermediate);
+  }
+
+  /// Середина самой длинной горизонтали yes→loopback пути.
+  /// Это тот участок, где после слияния с no обе ветки идут уже вместе,
+  /// и куда логично ставить AfterMerge-плюс.
+  Offset? _loopbackAfterMergePosition(
+    FlowchartGraph g,
+    _LoopbackMergeInfo merge,
+  ) {
+    final yesPath = router.build(merge.mainLanding, g).path;
+    if (yesPath.computeMetrics().isEmpty) return null;
+
+    _Seg? longest;
+    double longestLen = 0;
+    for (final s in _extractSegments(yesPath)) {
       final isHorz =
           (s.start.dy - s.end.dy).abs() < 0.5 &&
           (s.start.dx - s.end.dx).abs() > 0.5;
       if (!isHorz) continue;
-      if (s.start.dy < srcBottom - 0.5) continue; // только ниже блока
-      if (deepestHoriz == null || s.start.dy > deepestHoriz.start.dy) {
-        deepestHoriz = s;
+      final len = (s.end.dx - s.start.dx).abs();
+      if (len > longestLen) {
+        longestLen = len;
+        longest = s;
       }
     }
+    if (longest == null) return _midOfPath(yesPath);
 
-    if (deepestHoriz == null) {
-      return _firstVerticalMidpoint(path) ?? _midOfPath(path);
-    }
-
-    // final xLo = math.min(deepestHoriz.start.dx, deepestHoriz.end.dx);
-    final xHi = math.max(deepestHoriz.start.dx, deepestHoriz.end.dx);
-    // final plusX = (xHi).clamp(xLo + 8, xHi - 8);
-    return Offset(xHi, deepestHoriz.start.dy - 10);
+    return Offset((longest.start.dx + longest.end.dx) / 2, longest.start.dy);
   }
 
   /// Фактический X пути в заданном Y (около 0.75 px). null — Y не на пути.
@@ -493,7 +614,9 @@ class InsertionPointsService {
       ConnectionData? nextYes;
       for (final c in g.outgoing[cur] ?? const <ConnectionData>[]) {
         if (c.targetPort == 'loopback') continue;
-        if (c.sourcePort == 'yes' || c.sourcePort == 'out') {
+        if (c.sourcePort == 'yes' ||
+            c.sourcePort == 'out' ||
+            c.sourcePort == 'exit') {
           if (c.targetNodeName == mergeName) return c;
           nextYes ??= c;
         }
@@ -756,4 +879,26 @@ class _Seg {
   final Offset start;
   final Offset end;
   const _Seg(this.start, this.end);
+}
+
+class _LoopbackMergeInfo {
+  final ConnectionData mainLanding;
+  final List<ConnectionData> otherLandings;
+  final String forName;
+  final String logicName;
+  const _LoopbackMergeInfo({
+    required this.mainLanding,
+    required this.otherLandings,
+    required this.forName,
+    required this.logicName,
+  });
+}
+
+class _LoopbackTraversal {
+  final List<ConnectionData> landings;
+  final Set<String> intermediate;
+  const _LoopbackTraversal({
+    required this.landings,
+    required this.intermediate,
+  });
 }

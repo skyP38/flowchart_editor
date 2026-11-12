@@ -1,3 +1,4 @@
+import 'package:flowchart_editor_frontend/features/editor/constants/diagram_constants.dart';
 import 'package:flutter/material.dart';
 import '../factories/node_factory.dart';
 import '../models/flow_models.dart';
@@ -150,29 +151,29 @@ class _ResizableWrapperState extends State<_ResizableWrapper> {
     final effectiveHeight = _size.height;
     switch (align.x) {
       case -1:
-        left = -14;
+        left = NodeConstants.handleOffset;
         break;
       case 0:
-        left = effectiveWidth / 2 - 14;
+        left = effectiveWidth / 2 + NodeConstants.handleOffset;
         break;
       case 1:
-        left = effectiveWidth - 12;
+        left = effectiveWidth + NodeConstants.handleRightOffset;
         break;
       default:
-        left = -14;
+        left = NodeConstants.handleOffset;
     }
     switch (align.y) {
       case -1:
-        top = -14;
+        top = NodeConstants.handleOffset;
         break;
       case 0:
-        top = effectiveHeight / 2 - 14;
+        top = effectiveHeight / 2 + NodeConstants.handleOffset;
         break;
       case 1:
-        top = effectiveHeight - 14;
+        top = effectiveHeight + NodeConstants.handleRightOffset;
         break;
       default:
-        top = -14;
+        top = NodeConstants.handleOffset;
     }
     return Positioned(
       left: left,
@@ -300,12 +301,12 @@ class _ResizableWrapperState extends State<_ResizableWrapper> {
         },
         // Визуализация самого маркера
         child: SizedBox(
-          width: 24,
-          height: 24,
+          width: NodeConstants.handleSize,
+          height: NodeConstants.handleSize,
           child: Center(
             child: Container(
-              width: 14,
-              height: 14,
+              width: NodeConstants.handleInnerSize,
+              height: NodeConstants.handleInnerSize,
               decoration: BoxDecoration(
                 color: isActive ? Colors.green : Colors.white,
                 border: Border.all(
