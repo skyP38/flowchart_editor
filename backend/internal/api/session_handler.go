@@ -36,6 +36,16 @@ type sessionDTO struct {
 }
 
 // List - GET /api/sessions
+// List godoc
+// @Summary Get sessions list
+// @Description Return all sessionof current user
+// @Tags Sessions
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {object} map[string][]sessionDTO
+// @Failure 401 {object} transport.ErrorResponse
+// @Failure 500 {object} transport.ErrorResponse
+// @Router /sessions [get]
 func (h *SessionHandler) List(w http.ResponseWriter, r *http.Request) {
 	uid := UserIDFrom(r.Context())
 	cur := SessionIDFrom(r.Context())
@@ -54,6 +64,17 @@ func (h *SessionHandler) List(w http.ResponseWriter, r *http.Request) {
 }
 
 // RevokeOne - DELETE /api/sessions/{id}
+// Revoke godoc
+// @Summary Revoke session
+// @Description Revoke one user session
+// @Tags Sessions
+// @Security BearerAuth
+// @Param id path int true "ID session"
+// @Success 204 "Session revoked"
+// @Failure 400 {object} transport.ErrorResponse
+// @Failure 401 {object} transport.ErrorResponse
+// @Failure 404 {object} transport.ErrorResponse
+// @Router /sessions/{id} [delete]
 func (h *SessionHandler) RevokeOne(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	if err != nil {
@@ -69,6 +90,15 @@ func (h *SessionHandler) RevokeOne(w http.ResponseWriter, r *http.Request) {
 
 // RevokeAll - DELETE /api/sessions
 // Закрывает все сессии пользователя, кроме текущей
+// RevokeAll godoc
+// @Summary Revoke all other session
+// @Description Revoke all user session, except for the current session
+// @Tags Sessions
+// @Security BearerAuth
+// @Success 204 "Sessions revoked"
+// @Failure 401 {object} transport.ErrorResponse
+// @Failure 500 {object} transport.ErrorResponse
+// @Router /sessions [delete]
 func (h *SessionHandler) RevokeAll(w http.ResponseWriter, r *http.Request) {
 	uid := UserIDFrom(r.Context())
 	cur := SessionIDFrom(r.Context())

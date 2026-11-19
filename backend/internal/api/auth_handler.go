@@ -96,6 +96,18 @@ type SessionMetadataResolver interface {
 
 // Register обрабатывает POST /api/auth/register
 // Возвращает 201 Created при успехе, иначе 400 invalid_input
+// Register godoc
+// @Summary Registration user
+// @Description Create new account of user
+// @Tags Authentication
+// @Accept json
+// @Produce json
+// @Param request body registerRequest true "Data for registration"
+// @Success 201 {object} authResponse "The user has been successfully registered"
+// @Failure 400 {object} transport.ErrorResponse "Incorrect data"
+// @Failure 409 {object} transport.ErrorResponse "The login already exists"
+// @Failure 500 {object} transport.ErrorResponse "Internal server error"
+// @Router /auth/register [post]
 func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 	defer func() { _ = r.Body.Close() }()
 
@@ -120,6 +132,19 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 
 // Login обрабатывает POST /api/auth/login
 // Возвращает 200 OK при успехе, иначе 400 invalid_input
+// Login godoc
+// @Summary Authorization user
+// @Description Perfoms system login and return access and refresh token
+// @Tags Authentication
+// @Accept json
+// @Produce json
+// @Param request body loginRequest true "Login and password"
+// @Success 201 {object} authResponse "Successful authorization"
+// @Failure 400 {object} transport.ErrorResponse "Incorrect request"
+// @Failure 409 {object} transport.ErrorResponse "Incorrect login or password"
+// @Failure 429 {object} transport.ErrorResponse "Exceeded the number of login attempts"
+// @Failure 500 {object} transport.ErrorResponse "Internal server error"
+// @Router /auth/login [post]
 func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 	defer func() { _ = r.Body.Close() }()
 	var req loginRequest
@@ -178,6 +203,18 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 
 // Refresh обрабатывает POST /api/auth/refresh
 // Возвращает 200 OK при успехе, иначе 400 invalid_input
+// Refresh godoc
+// @Summary Token update
+// @Description Updates a pair of access and refresh tokens using refresh token
+// @Tags Authentication
+// @Accept json
+// @Produce json
+// @Param request body refreshRequest true "Refresh token"
+// @Success 201 {object} authResponse "Tokens update successful"
+// @Failure 400 {object} transport.ErrorResponse "Incorrect request"
+// @Failure 401 {object} transport.ErrorResponse "Invalid or expired token"
+// @Failure 500 {object} transport.ErrorResponse "Internal server error"
+// @Router /auth/refresh [post]
 func (h *AuthHandler) Refresh(w http.ResponseWriter, r *http.Request) {
 	defer func() { _ = r.Body.Close() }()
 	var req refreshRequest
@@ -196,6 +233,15 @@ func (h *AuthHandler) Refresh(w http.ResponseWriter, r *http.Request) {
 
 // Logout обрабатывает POST /api/auth/refresh
 // Возвращает 200 OK при успехе, иначе 400 invalid_input
+// Logout godoc
+// @Summary Exit from system
+// @Description Terminates the user session
+// @Tags Authentication
+// @Accept json
+// @Param request body refreshRequest true "Refresh token"
+// @Success 204 "The session is over"
+// @Failure 400 {object} transport.ErrorResponse "Incorrect request"
+// @Router /auth/logout [post]
 func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) {
 	defer func() { _ = r.Body.Close() }()
 	var req refreshRequest
@@ -209,6 +255,16 @@ func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) {
 }
 
 // Me обрабатывает GET /api/auth/me - возвращает профиль текущего пользователя
+// Me godoc
+// @Summary Obtaining the current user
+// @Description Return information about user whose token was passed
+// @Tags Authentication
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {object} userDTO "Information about user"
+// @Failure 401 {object} transport.ErrorResponse "You need authrorization"
+// @Failure 500 {object} transport.ErrorResponse "Internal server error"
+// @Router /auth/me [get]
 func (h *AuthHandler) Me(w http.ResponseWriter, r *http.Request) {
 	u, err := h.svc.GetUser(r.Context(), UserIDFrom(r.Context()))
 	if err != nil {

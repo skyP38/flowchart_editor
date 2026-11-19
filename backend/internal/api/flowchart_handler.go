@@ -32,6 +32,20 @@ func (h *FlowchartHandler) RegisterRoutes(mux *http.ServeMux, authMW AuthMW) {
 		authMW(http.HandlerFunc(h.UpdateContent)))
 }
 
+// Create godoc
+// @Summary Create flowchart
+// @Decsription Create new flowchart
+// @Tags Flowcharts
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param projectId path int true "ID Project"
+// @Param request body object true "Data of flowcharts"
+// @Success 201 {object} domains.Flowchart
+// @Failure 400 {object} transport.ErrorResponse
+// @Failure 401 {object} transport.ErrorResponse
+// @Failure 500 {object} transport.ErrorResponse
+// @Router /projects/{projectId}/flowcharts [post]
 func (h *FlowchartHandler) Create(
 	w http.ResponseWriter,
 	r *http.Request,
@@ -62,6 +76,19 @@ func (h *FlowchartHandler) Create(
 	transport.WriteJSON(w, http.StatusCreated, flowchart)
 }
 
+// Delete godoc
+// @Summary Delete flowchart
+// @Decsription Delete flowchart
+// @Tags Flowcharts
+// @Security BearerAuth
+// @Param projectId path int true "ID Project"
+// @Param flowchartId path int true  "ID flowchart"
+// @Success 204 "Flowchart successfully delete"
+// @Failure 400 {object} transport.ErrorResponse
+// @Failure 401 {object} transport.ErrorResponse
+// @Failure 404 {object} transport.ErrorResponse
+// @Failure 500 {object} transport.ErrorResponse
+// @Router /projects/{projectId}/flowcharts/{flowchartId} [delete]
 func (h *FlowchartHandler) Delete(
 	w http.ResponseWriter,
 	r *http.Request,
@@ -84,6 +111,20 @@ func (h *FlowchartHandler) Delete(
 	w.WriteHeader(http.StatusNoContent)
 }
 
+// GetContent godoc
+// @Summary Get the contents of flowchart
+// @Decsription Return JSON-content of flowchart
+// @Tags Flowcharts
+// @Produce json
+// @Security BearerAuth
+// @Param projectId path int true "ID Project"
+// @Param flowchartId path int true "ID Flowchart"
+// @Success 200 {object} domains.Flowchart
+// @Failure 400 {object} transport.ErrorResponse
+// @Failure 401 {object} transport.ErrorResponse
+// @Failure 404 {object} transport.ErrorResponse
+// @Failure 500 {object} transport.ErrorResponse
+// @Router /projects/{projectId}/flowcharts/{flowchartId}/content [get]
 func (h *FlowchartHandler) GetContent(w http.ResponseWriter, r *http.Request) {
 	userID := UserIDFrom(r.Context())
 
@@ -114,6 +155,21 @@ func (h *FlowchartHandler) GetContent(w http.ResponseWriter, r *http.Request) {
 	_, _ = w.Write(data)
 }
 
+// UpdateContent godoc
+// @Summary Uodate content of flowchart
+// @Description Save new JSON-content flowchart
+// @Tags Flowcharts
+// @Accept json
+// @Security BearerAuth
+// @Param projectId path int true "ID project"
+// @Param flowchartId path int true "ID flowchart"
+// @Param request body object true "New content of flowchart"
+// @Success 204 "Content update successful"
+// @Failure 400 {object} transport.ErrorResponse
+// @Failure 401 {object} transport.ErrorResponse
+// @Failure 404 {object} transport.ErrorResponse
+// @Failure 500 {object} transport.ErrorResponse
+// @Router /projects/{projectId}/flowcharts/{flowchartId}/content [put]
 func (h *FlowchartHandler) UpdateContent(w http.ResponseWriter, r *http.Request) {
 	userID := UserIDFrom(r.Context())
 

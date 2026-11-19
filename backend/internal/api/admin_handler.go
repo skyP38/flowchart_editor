@@ -67,6 +67,17 @@ func (h *AdminHandler) RegisterRoutes(mux *http.ServeMux, authMW AuthMW) {
 }
 
 // Stats handles GET /api/admin/stats.
+// Stats godoc
+// @Summary Statistics of session
+// @Description Return general statistic of user session.
+// @Tags Admin
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {object} map[string]domains.SessionStats
+// @Failure 401 {object} transport.ErrorResponse
+// @Failure 403 {object} transport.ErrorResponse
+// @Failure 500 {object} transport.ErrorResponse
+// @Router /admin/stats [get]
 func (h *AdminHandler) Stats(w http.ResponseWriter, r *http.Request) {
 	stats, err := h.sessions.Stats(r.Context())
 	if err != nil {
@@ -96,6 +107,17 @@ func toAdminUserDTO(u *domains.User) adminUserDTO {
 }
 
 // ListUsers handles GET /api/admin/users.
+// ListUsers godoc
+// @Summary Users list
+// @Description Return list of all registered users.
+// @Tags Admin
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {object} map[string][]adminUserDTO
+// @Failure 401 {object} transport.ErrorResponse
+// @Failure 403 {object} transport.ErrorResponse
+// @Failure 500 {object} transport.ErrorResponse
+// @Router /admin/users [get]
 func (h *AdminHandler) ListUsers(w http.ResponseWriter, r *http.Request) {
 	users, err := h.users.ListAll(r.Context())
 	if err != nil {
@@ -119,6 +141,21 @@ type createUserRequest struct {
 
 var adminLoginPattern = regexp.MustCompile(`^[a-zA-Z0-9_]{3,32}$`)
 
+// CreateUser godoc
+// @Summary Create user
+// @Description Creates a user account with the specified role
+// @Tags Admin
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param request body createUserRequest true "Data of new user"
+// @Success 201 {object} map[string]adminUserDTO
+// @Failure 400 {object} transport.ErrorResponse "Validation error"
+// @Failure 401 {object} transport.ErrorResponse
+// @Failure 403 {object} transport.ErrorResponse
+// @Failure 409 {object} transport.ErrorResponse "The login is already taken"
+// @Failure 500 {object} transport.ErrorResponse
+// @Router /admin/users [post]
 func (h *AdminHandler) CreateUser(w http.ResponseWriter, r *http.Request) {
 	defer func() { _ = r.Body.Close() }()
 	var req createUserRequest
@@ -205,6 +242,17 @@ type adminSessionDTO struct {
 	Location string      `json:"location"`
 }
 
+// ListSessions godoc
+// @Summary List of all sessions
+// @Description Return sessions of all users
+// @Tags Admin
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {object} map[string][]adminSessionDTO
+// @Failure 401 {object} transport.ErrorResponse
+// @Failure 403 {object} transport.ErrorResponse
+// @Failure 500 {object} transport.ErrorResponse
+// @Router /admin/sessions [get]
 func (h *AdminHandler) ListSessions(w http.ResponseWriter, r *http.Request) {
 	sessions, err := h.sessions.ListAll(r.Context())
 	if err != nil {
@@ -239,6 +287,19 @@ func (h *AdminHandler) ListSessions(w http.ResponseWriter, r *http.Request) {
 	transport.WriteJSON(w, http.StatusOK, map[string]any{"sessions": result})
 }
 
+// RevokeSession godoc
+// @Summary Revoke user session
+// @Description Forcibly terminates any user's session
+// @Tags Admin
+// @Security BearerAuth
+// @Param id path int true "ID session"
+// @Success 204 "Session revoked"
+// @Failure 400 {object} transport.ErrorResponse
+// @Failure 401 {object} transport.ErrorResponse
+// @Failure 403 {object} transport.ErrorResponse
+// @Failure 404 {object} transport.ErrorResponse
+// @Failure 500 {object} transport.ErrorResponse
+// @Router /admin/sessions/{id} [delete]
 func (h *AdminHandler) RevokeSession(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	if err != nil || id <= 0 {
@@ -257,6 +318,20 @@ func (h *AdminHandler) RevokeSession(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+// ListLogs godoc
+// @Summary Get logs
+// @Description Return logs of users with page-by-page navigation
+// @Tags Admin
+// @Produce json
+// @Security BearerAuth
+// @Param limit query int false "The number of records (от 1 до 100)" default(10)
+// @Param offset query int false "Offset" default(0)
+// @Success 200 {object} map[string]interface{}
+// @Failure 400 {object} transport.ErrorResponse
+// @Failure 401 {object} transport.ErrorResponse
+// @Failure 403 {object} transport.ErrorResponse
+// @Failure 500 {object} transport.ErrorResponse
+// @Router /admin/logs [get]
 func (h *AdminHandler) ListLogs(
 	w http.ResponseWriter,
 	r *http.Request,
@@ -334,6 +409,20 @@ func (h *AdminHandler) ListLogs(
 	)
 }
 
+// DeleteUser godoc
+// @Summary Delete user
+// @Description Delete user and his data
+// @Tags Admin
+// @Security BearerAuth
+// @Param id path int true "ID user"
+// @Success 204 "User deleted"
+// @Failure 400 {object} transport.ErrorResponse
+// @Failure 401 {object} transport.ErrorResponse
+// @Failure 403 {object} transport.ErrorResponse "The current admin cannot be deleted"
+// @Failure 404 {object} transport.ErrorResponse "The user was not found"
+// @Failure 409 {object} transport.ErrorResponse "The last admin cannot be deleted"
+// @Failure 500 {object} transport.ErrorResponse
+// @Router /admin/users/{id} [delete]
 func (h *AdminHandler) DeleteUser(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	if err != nil || id <= 0 {

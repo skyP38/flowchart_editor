@@ -24,9 +24,16 @@ import (
 	"github.com/skyP38/flowchart_editor/backend/internal/service/sessioncleanup"
 
 	"github.com/skyP38/flowchart_editor/backend/internal/transport"
+	_ "github.com/skyP38/flowchart_editor/backend/docs"
+	httpSwagger "github.com/swaggo/http-swagger"
 	// "github.com/skyP38/flowchart_editor/backend/internal/service/sessionmetadata"
 )
 
+// @title Flowchart Editor API
+// @description REST API for the web-service that creates flowcharts in accordance with GOST 19.701-90
+// @securityDefinitions.apikey BearerAuth
+// @in header
+// @name Authorization
 func main() {
 	// загрузка конфига из переменных окружения
 	cfg, err := config.Load()
@@ -101,6 +108,8 @@ func main() {
 	mux.HandleFunc("GET /health", func(w http.ResponseWriter, _ *http.Request) {
 		transport.WriteJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 	})
+
+	mux.Handle("/swagger/", httpSwagger.WrapHandler)
 
 	// регистрация маршрутов обработчиков
 	api.NewAuthHandler(authSvc, limiter, logRepo).RegisterRoutes(mux, authMW)

@@ -1,0 +1,1005 @@
+definitions:
+  api.CreateProjectRequest:
+    properties:
+      name:
+        type: string
+    type: object
+  api.UpdateProjectRequest:
+    properties:
+      name:
+        type: string
+    type: object
+  api.adminSessionDTO:
+    properties:
+      active:
+        type: boolean
+      createdAt:
+        type: string
+      deviceName:
+        type: string
+      expiresAt:
+        type: string
+      id:
+        type: integer
+      location:
+        type: string
+      login:
+        type: string
+      revokedAt:
+        type: string
+      uname:
+        type: string
+      userId:
+        type: integer
+    type: object
+  api.adminUserDTO:
+    properties:
+      createdAt:
+        type: string
+      id:
+        type: integer
+      isActive:
+        type: boolean
+      lastLogin:
+        type: string
+      login:
+        type: string
+      role:
+        type: string
+      uname:
+        type: string
+    type: object
+  api.authResponse:
+    properties:
+      access_token:
+        type: string
+      expires_in:
+        type: integer
+      refresh_token:
+        type: string
+      user:
+        $ref: '#/definitions/api.userDTO'
+    type: object
+  api.createUserRequest:
+    properties:
+      login:
+        type: string
+      password:
+        type: string
+      role:
+        type: string
+      uname:
+        type: string
+    type: object
+  api.loginRequest:
+    properties:
+      latitude:
+        type: number
+      login:
+        type: string
+      longitude:
+        type: number
+      password:
+        type: string
+    type: object
+  api.refreshRequest:
+    properties:
+      refresh_token:
+        type: string
+    type: object
+  api.registerRequest:
+    properties:
+      login:
+        type: string
+      password:
+        type: string
+      uname:
+        type: string
+    type: object
+  api.sessionDTO:
+    properties:
+      active:
+        type: boolean
+      created_at:
+        type: string
+      current:
+        type: boolean
+      device_name:
+        type: string
+      expires_at:
+        type: string
+      id:
+        type: integer
+      location:
+        type: string
+      revoked_at:
+        type: string
+    type: object
+  api.userDTO:
+    properties:
+      id:
+        type: integer
+      login:
+        type: string
+      role:
+        type: string
+      uname:
+        type: string
+    type: object
+  domains.Flowchart:
+    properties:
+      data:
+        additionalProperties: {}
+        type: object
+      dateCreate:
+        type: string
+      dateUpdate:
+        type: string
+      id:
+        type: integer
+      name:
+        type: string
+    type: object
+  domains.Project:
+    properties:
+      dateCreate:
+        type: string
+      dateUpdate:
+        type: string
+      flowcharts:
+        items:
+          $ref: '#/definitions/domains.Flowchart'
+        type: array
+      id:
+        type: integer
+      name:
+        type: string
+      userId:
+        type: integer
+    type: object
+  domains.SessionStats:
+    properties:
+      active:
+        type: integer
+      expired:
+        type: integer
+      revoked:
+        type: integer
+      total:
+        type: integer
+    type: object
+  transport.ErrorBody:
+    properties:
+      code:
+        type: string
+      details:
+        additionalProperties:
+          type: string
+        type: object
+      message:
+        type: string
+    type: object
+  transport.ErrorResponse:
+    properties:
+      error:
+        $ref: '#/definitions/transport.ErrorBody'
+    type: object
+info:
+  contact: {}
+  description: REST API for the web-service that creates flowcharts in accordance
+    with GOST 19.701-90
+  title: Flowchart Editor API
+paths:
+  /admin/logs:
+    get:
+      description: Return logs of users with page-by-page navigation
+      parameters:
+      - default: 10
+        description: The number of records (от 1 до 100)
+        in: query
+        name: limit
+        type: integer
+      - default: 0
+        description: Offset
+        in: query
+        name: offset
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/transport.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/transport.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/transport.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/transport.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get logs
+      tags:
+      - Admin
+  /admin/sessions:
+    get:
+      description: Return sessions of all users
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              items:
+                $ref: '#/definitions/api.adminSessionDTO'
+              type: array
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/transport.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/transport.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/transport.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: List of all sessions
+      tags:
+      - Admin
+  /admin/sessions/{id}:
+    delete:
+      description: Forcibly terminates any user's session
+      parameters:
+      - description: ID session
+        in: path
+        name: id
+        required: true
+        type: integer
+      responses:
+        "204":
+          description: Session revoked
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/transport.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/transport.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/transport.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/transport.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/transport.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Revoke user session
+      tags:
+      - Admin
+  /admin/stats:
+    get:
+      description: Return general statistic of user session.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              $ref: '#/definitions/domains.SessionStats'
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/transport.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/transport.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/transport.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Statistics of session
+      tags:
+      - Admin
+  /admin/users:
+    get:
+      description: Return list of all registered users.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              items:
+                $ref: '#/definitions/api.adminUserDTO'
+              type: array
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/transport.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/transport.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/transport.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Users list
+      tags:
+      - Admin
+    post:
+      consumes:
+      - application/json
+      description: Creates a user account with the specified role
+      parameters:
+      - description: Data of new user
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/api.createUserRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            additionalProperties:
+              $ref: '#/definitions/api.adminUserDTO'
+            type: object
+        "400":
+          description: Validation error
+          schema:
+            $ref: '#/definitions/transport.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/transport.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/transport.ErrorResponse'
+        "409":
+          description: The login is already taken
+          schema:
+            $ref: '#/definitions/transport.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/transport.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Create user
+      tags:
+      - Admin
+  /admin/users/{id}:
+    delete:
+      description: Delete user and his data
+      parameters:
+      - description: ID user
+        in: path
+        name: id
+        required: true
+        type: integer
+      responses:
+        "204":
+          description: User deleted
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/transport.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/transport.ErrorResponse'
+        "403":
+          description: The current admin cannot be deleted
+          schema:
+            $ref: '#/definitions/transport.ErrorResponse'
+        "404":
+          description: The user was not found
+          schema:
+            $ref: '#/definitions/transport.ErrorResponse'
+        "409":
+          description: The last admin cannot be deleted
+          schema:
+            $ref: '#/definitions/transport.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/transport.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Delete user
+      tags:
+      - Admin
+  /auth/login:
+    post:
+      consumes:
+      - application/json
+      description: Perfoms system login and return access and refresh token
+      parameters:
+      - description: Login and password
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/api.loginRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Successful authorization
+          schema:
+            $ref: '#/definitions/api.authResponse'
+        "400":
+          description: Incorrect request
+          schema:
+            $ref: '#/definitions/transport.ErrorResponse'
+        "409":
+          description: Incorrect login or password
+          schema:
+            $ref: '#/definitions/transport.ErrorResponse'
+        "429":
+          description: Exceeded the number of login attempts
+          schema:
+            $ref: '#/definitions/transport.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/transport.ErrorResponse'
+      summary: Authorization user
+      tags:
+      - Authentication
+  /auth/logout:
+    post:
+      consumes:
+      - application/json
+      description: Terminates the user session
+      parameters:
+      - description: Refresh token
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/api.refreshRequest'
+      responses:
+        "204":
+          description: The session is over
+        "400":
+          description: Incorrect request
+          schema:
+            $ref: '#/definitions/transport.ErrorResponse'
+      summary: Exit from system
+      tags:
+      - Authentication
+  /auth/me:
+    get:
+      description: Return information about user whose token was passed
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Information about user
+          schema:
+            $ref: '#/definitions/api.userDTO'
+        "401":
+          description: You need authrorization
+          schema:
+            $ref: '#/definitions/transport.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/transport.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Obtaining the current user
+      tags:
+      - Authentication
+  /auth/refresh:
+    post:
+      consumes:
+      - application/json
+      description: Updates a pair of access and refresh tokens using refresh token
+      parameters:
+      - description: Refresh token
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/api.refreshRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Tokens update successful
+          schema:
+            $ref: '#/definitions/api.authResponse'
+        "400":
+          description: Incorrect request
+          schema:
+            $ref: '#/definitions/transport.ErrorResponse'
+        "401":
+          description: Invalid or expired token
+          schema:
+            $ref: '#/definitions/transport.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/transport.ErrorResponse'
+      summary: Token update
+      tags:
+      - Authentication
+  /auth/register:
+    post:
+      consumes:
+      - application/json
+      description: Create new account of user
+      parameters:
+      - description: Data for registration
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/api.registerRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: The user has been successfully registered
+          schema:
+            $ref: '#/definitions/api.authResponse'
+        "400":
+          description: Incorrect data
+          schema:
+            $ref: '#/definitions/transport.ErrorResponse'
+        "409":
+          description: The login already exists
+          schema:
+            $ref: '#/definitions/transport.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/transport.ErrorResponse'
+      summary: Registration user
+      tags:
+      - Authentication
+  /projects:
+    get:
+      produces:
+      - application/json
+      responses:
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/transport.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/transport.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: User projects list
+      tags:
+      - Projects
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Project name
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/api.CreateProjectRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/domains.Project'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/transport.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/transport.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/transport.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Create project
+      tags:
+      - Projects
+  /projects/{projectId}:
+    delete:
+      parameters:
+      - description: ID Project
+        in: path
+        name: projectId
+        required: true
+        type: integer
+      responses:
+        "204":
+          description: Project successfully delete
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/transport.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/transport.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/transport.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/transport.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Delete project
+      tags:
+      - Projects
+    get:
+      parameters:
+      - description: ID Project
+        in: path
+        name: projectId
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/domains.Project'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/transport.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/transport.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/transport.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/transport.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get project
+      tags:
+      - Projects
+    patch:
+      consumes:
+      - application/json
+      parameters:
+      - description: ID Project
+        in: path
+        name: projectId
+        required: true
+        type: integer
+      - description: New data of project
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/api.UpdateProjectRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/domains.Project'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/transport.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/transport.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/transport.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/transport.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Update project
+      tags:
+      - Projects
+  /projects/{projectId}/flowcharts:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: ID Project
+        in: path
+        name: projectId
+        required: true
+        type: integer
+      - description: Data of flowcharts
+        in: body
+        name: request
+        required: true
+        schema:
+          type: object
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/domains.Flowchart'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/transport.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/transport.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/transport.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Create flowchart
+      tags:
+      - Flowcharts
+  /projects/{projectId}/flowcharts/{flowchartId}:
+    delete:
+      parameters:
+      - description: ID Project
+        in: path
+        name: projectId
+        required: true
+        type: integer
+      - description: ID flowchart
+        in: path
+        name: flowchartId
+        required: true
+        type: integer
+      responses:
+        "204":
+          description: Flowchart successfully delete
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/transport.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/transport.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/transport.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/transport.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Delete flowchart
+      tags:
+      - Flowcharts
+  /projects/{projectId}/flowcharts/{flowchartId}/content:
+    get:
+      parameters:
+      - description: ID Project
+        in: path
+        name: projectId
+        required: true
+        type: integer
+      - description: ID Flowchart
+        in: path
+        name: flowchartId
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/domains.Flowchart'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/transport.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/transport.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/transport.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/transport.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get the contents of flowchart
+      tags:
+      - Flowcharts
+    put:
+      consumes:
+      - application/json
+      description: Save new JSON-content flowchart
+      parameters:
+      - description: ID project
+        in: path
+        name: projectId
+        required: true
+        type: integer
+      - description: ID flowchart
+        in: path
+        name: flowchartId
+        required: true
+        type: integer
+      - description: New content of flowchart
+        in: body
+        name: request
+        required: true
+        schema:
+          type: object
+      responses:
+        "204":
+          description: Content update successful
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/transport.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/transport.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/transport.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/transport.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Uodate content of flowchart
+      tags:
+      - Flowcharts
+  /sessions:
+    delete:
+      description: Revoke all user session, except for the current session
+      responses:
+        "204":
+          description: Sessions revoked
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/transport.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/transport.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Revoke all other session
+      tags:
+      - Sessions
+    get:
+      description: Return all sessionof current user
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              items:
+                $ref: '#/definitions/api.sessionDTO'
+              type: array
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/transport.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/transport.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get sessions list
+      tags:
+      - Sessions
+  /sessions/{id}:
+    delete:
+      description: Revoke one user session
+      parameters:
+      - description: ID session
+        in: path
+        name: id
+        required: true
+        type: integer
+      responses:
+        "204":
+          description: Session revoked
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/transport.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/transport.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/transport.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Revoke session
+      tags:
+      - Sessions
+securityDefinitions:
+  BearerAuth:
+    in: header
+    name: Authorization
+    type: apiKey
+swagger: "2.0"
