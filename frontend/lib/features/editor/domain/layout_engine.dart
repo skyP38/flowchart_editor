@@ -126,12 +126,16 @@ class LayoutEngine {
         }
         if (reachableFromYes) continue;
 
+        final isExternal = (ConnectionData inc) =>
+            inc.sourceNodeName != e.key &&
+            !_isInsideLoop(g, c.targetNodeName, inc.sourceNodeName);
+
         // Target с main-входом (yes/out/body) от ДРУГОГО узла — это merge-узел,
         // а не отдельная no-ветка. Пойдёт в rejoin-фазу с колонкой yes-входа.
         final hasExternalMainInput =
             (g.incoming[c.targetNodeName] ?? const <ConnectionData>[]).any(
               (inc) =>
-                  inc.sourceNodeName != e.key &&
+                  isExternal(inc) &&
                   (inc.sourcePort == 'yes' ||
                       inc.sourcePort == 'out' ||
                       inc.sourcePort == 'body'),
@@ -145,7 +149,7 @@ class LayoutEngine {
         final sameColNoRejoin =
             (g.incoming[c.targetNodeName] ?? const <ConnectionData>[]).any(
               (inc) =>
-                  inc.sourceNodeName != e.key &&
+                  isExternal(inc) &&
                   inc.sourcePort == 'no' &&
                   _eventualCol(g, cols, inc.sourceNodeName) == parentCol,
             );
@@ -252,6 +256,30 @@ class LayoutEngine {
       );
     }
     return result;
+  }
+
+  /// true, если source лежит только «за» target: любой путь Start→source
+  /// проходит через target. Тогда ребро source→target — замыкание цикла,
+  /// а не внешний вход (и не merge-точка).
+  bool _isInsideLoop(FlowchartGraph g, String target, String source) {
+    if (source == target) return true;
+    final start = g.findStart();
+    if (start == null) return false;
+    if (source == start.name) return false;
+
+    // Обход от Start, не заходя в target.
+    final visited = <String>{target, start.name};
+    final queue = <String>[start.name];
+    while (queue.isNotEmpty) {
+      final cur = queue.removeAt(0);
+      for (final c in g.outgoing[cur] ?? const <ConnectionData>[]) {
+        if (c.targetPort == 'loopback') continue;
+        final n = c.targetNodeName;
+        if (n == source) return false; // есть путь мимо target
+        if (visited.add(n)) queue.add(n);
+      }
+    }
+    return true;
   }
 
   // Предсказывает колонку узла до фактического размещения его ветки
@@ -497,27 +525,48 @@ class LayoutEngine {
       final zoneHeight =
           spacing.bodyLoopbackDrop + deepestPos * spacing.loopbackChannelStep;
 
-      final bodyBottom = GraphGeometry.bodySubtreeBottom(g, forName, nodeSize);
-      final forBottom = g.nodes[forName]!.position.dy + nodeSize.height;
-      final baseBottom = math.max(forBottom, bodyBottom);
+      final bodySubtree = GraphGeometry.bodySubtreeNodes(
+        g,
+        forName,
+        stopExitOf: forName,
+      );
+      int maxBodyRank = ranks[forName] ?? 0;
+      for (final n in bodySubtree) {
+        final r = ranks[n] ?? 0;
+        if (r > maxBodyRank) maxBodyRank = r;
+      }
 
-      final exitTop = g.nodes[exitConn.targetNodeName]?.position.dy ?? 0;
-      final availableHeight = exitTop - baseBottom;
-      // зазор между последней петлёй и верхом exit-цели
-      final need = zoneHeight + spacing.stepY / 8;
+      // final bodyBottom = GraphGeometry.bodySubtreeBottom(g, forName, nodeSize);
+      // final forBottom = g.nodes[forName]!.position.dy + nodeSize.height;
+      // final baseBottom = math.max(forBottom, bodyBottom);
 
-      if (availableHeight >= need) continue;
+      // final exitTop = g.nodes[exitConn.targetNodeName]?.position.dy ?? 0;
+      // final availableHeight = exitTop - baseBottom;
+      // // зазор между последней петлёй и верхом exit-цели
+      // final need = zoneHeight + spacing.stepY / 8;
 
-      // final currentRank = ranks[forName] ?? 0;
-      // final exitRank = ranks[exitConn.targetNodeName] ?? 0;
-      // final availableHeight =
-      //     (exitRank - currentRank) * spacing.stepY - nodeSize.height;
+      // if (availableHeight >= need) continue;
 
-      // if (availableHeight >= zoneHeight) continue;
+      // // final currentRank = ranks[forName] ?? 0;
+      // // final exitRank = ranks[exitConn.targetNodeName] ?? 0;
+      // // final availableHeight =
+      // //     (exitRank - currentRank) * spacing.stepY - nodeSize.height;
 
-      final deficit = zoneHeight - availableHeight;
-      final extraRanks = (deficit / spacing.stepY).ceil();
-      if (extraRanks <= 0) continue;
+      // // if (availableHeight >= zoneHeight) continue;
+
+      // final deficit = zoneHeight - availableHeight;
+      // final extraRanks = (deficit / spacing.stepY).ceil();
+      // if (extraRanks <= 0) continue;
+      //
+      final neededGapRanks =
+          ((nodeSize.height + zoneHeight + spacing.stepY / 8) / spacing.stepY)
+              .ceil();
+      final currentGapRanks =
+          (ranks[exitConn.targetNodeName] ?? 0) - maxBodyRank;
+
+      if (currentGapRanks >= neededGapRanks) continue;
+
+      final extraRanks = neededGapRanks - currentGapRanks;
 
       final exitSubtree = _subtreeNodes(g, exitConn.targetNodeName);
       for (final n in exitSubtree) {
@@ -527,10 +576,17 @@ class LayoutEngine {
 
       debugPrint(
         '[pushForExitSpace] for=$forName inner=$inner '
-        'zoneHeight=${zoneHeight.toStringAsFixed(1)} '
-        'available=${availableHeight.toStringAsFixed(1)} '
-        'delta=$extraRanks rank',
+        'maxBodyRank=$maxBodyRank '
+        'currentExitRank=${ranks[exitConn.targetNodeName]} '
+        'neededGapRanks=$neededGapRanks delta=$extraRanks',
       );
+
+      // debugPrint(
+      //   '[pushForExitSpace] for=$forName inner=$inner '
+      //   'zoneHeight=${zoneHeight.toStringAsFixed(1)} '
+      //   'available=${availableHeight.toStringAsFixed(1)} '
+      //   'delta=$extraRanks rank',
+      // );
     }
   }
 
