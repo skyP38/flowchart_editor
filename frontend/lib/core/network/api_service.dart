@@ -1,16 +1,12 @@
 import '../../features/user/models/project.dart';
 import '../../features/user/models/flowchart.dart';
-// import '../../features/user/models/session.dart';
 import 'api_client.dart';
 import 'api_paths.dart';
-
-// import 'json_keys.dart';
 
 class ApiService {
   final ApiClient _client;
 
   ApiService(this._client);
-  // static const String baseUrl = 'http://localhost:8080';
 
   Future<List<Project>> listProjects() async {
     final dynamic response = await _client.get<dynamic>(ApiPaths.projects);
@@ -75,6 +71,18 @@ class ApiService {
     await _client.delete<void>(ApiPaths.flowchart(projectId, flowchartId));
   }
 
+  Future<Flowchart> renameFlowchart(
+    int projectId,
+    int flowchartId,
+    String newName,
+  ) async {
+    final json = await _client.patch<Map<String, dynamic>>(
+      '/api/projects/$projectId/flowcharts/$flowchartId',
+      data: {'name': newName},
+    );
+    return Flowchart.fromJson(json);
+  }
+
   Future<Map<String, dynamic>> getFlowchartContent(
     int projectId,
     int flowchartId,
@@ -94,17 +102,4 @@ class ApiService {
       data: content,
     );
   }
-
-  // Future<List<Session>> listSessions() async {
-  //   final json = await _client.get<Map<String, dynamic>>(ApiPaths.sessions);
-  //   final list =
-  //       (json[JsonKeys.sessions] as List<dynamic>?) ?? const <dynamic>[];
-  //   return list
-  //       .map((e) => Session.fromJson(e as Map<String, dynamic>))
-  //       .toList();
-  // }
-
-  // Future<void> closeSession(int sessionId) async {
-  //   await _client.delete<void>(ApiPaths.session(sessionId));
-  // }
 }

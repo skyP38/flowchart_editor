@@ -43,21 +43,49 @@ class ConnectionData {
   });
 }
 
-// Точка "+" на канвасе, по нажатию на которую в разрыв связи
-// вставляется новый блок выбранного прототипа
-class InsertionPoint {
+// // Точка "+" на канвасе, по нажатию на которую в разрыв связи
+// // вставляется новый блок выбранного прототипа
+// class InsertionPoint {
+//   // Координата центра кружка на канвасе
+//   final Offset position;
+//   // Связь, в разрыв которой будет вставлен блок
+//   final ConnectionData connection;
+//   // Флаг для логического блока - для создания доп плюса
+//   final bool isAfterMerge;
+//   // Для логического блока возможно перенаправление
+//   final List<String> mergeOtherConnIds;
+//   InsertionPoint(
+//     this.position,
+//     this.connection, {
+//     this.isAfterMerge = false,
+//     this.mergeOtherConnIds = const [],
+//   });
+// }
+sealed class InsertionPoint {
   // Координата центра кружка на канвасе
   final Offset position;
   // Связь, в разрыв которой будет вставлен блок
   final ConnectionData connection;
-  // Флаг для логического блока - для создания доп плюса
-  final bool isAfterMerge;
-  // Для логического блока возможно перенаправление
+  const InsertionPoint({required this.position, required this.connection});
+}
+
+// Обычная точка на связи
+class OnConnectionPoint extends InsertionPoint {
+  const OnConnectionPoint({required super.position, required super.connection});
+}
+
+// Точка после слияния веток Logic
+class AfterMergePoint extends InsertionPoint {
   final List<String> mergeOtherConnIds;
-  InsertionPoint(
-    this.position,
-    this.connection, {
-    this.isAfterMerge = false,
-    this.mergeOtherConnIds = const [],
+
+  const AfterMergePoint({
+    required super.position,
+    required super.connection,
+    required this.mergeOtherConnIds,
   });
+}
+
+// Точка на exit-ветке For, ведущей в loopback предка
+class ExitLoopbackPoint extends InsertionPoint {
+  const ExitLoopbackPoint({required super.position, required super.connection});
 }

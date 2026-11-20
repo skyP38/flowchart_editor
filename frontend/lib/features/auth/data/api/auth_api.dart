@@ -1,7 +1,7 @@
 import '../../../../core/network/api_client.dart';
 import '../models/auth_response.dart';
 import '../models/user.dart';
-import '../../../user/models/session.dart';
+import '../../../../shared/models/session.dart';
 import '../../../../core/network/api_paths.dart';
 import '../../../../core/network/json_keys.dart';
 import '../models/auth_tokens.dart';

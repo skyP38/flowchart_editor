@@ -28,7 +28,7 @@ const (
 type AuthMW func(http.Handler) http.Handler
 
 // Auth парсит access-токен, проверяет активность сессии и кладёт userID/sessionID/role в контекст
-func Auth(mgr *token.AccessTokenManager, sessions domains.SessionRepository, audits ...domains.AuditLogRepository) AuthMW {
+func Auth(mgr *token.AccessTokenManager, sessions domains.SessionRepository, users domains.UserRepository, audits ...domains.AuditLogRepository) AuthMW {
 	var auditRepo domains.AuditLogRepository
 	if len(audits) > 0 {
 		auditRepo = audits[0]
@@ -69,6 +69,13 @@ func Auth(mgr *token.AccessTokenManager, sessions domains.SessionRepository, aud
 				return
 			}
 			if sess.UserID != uid || !sess.IsActive(time.Now().UTC()) {
+				if users != nil {
+					if u, uerr := users.GetByID(r.Context(), uid); uerr == nil && u != nil && !u.IsActive {
+						transport.WriteError(w, http.StatusForbidden,
+							transport.CodeForbidden, "user is blocked")
+						return
+					}
+				}
 				transport.WriteError(w, http.StatusUnauthorized, transport.CodeSessionRevoked, "session is no longer active")
 				return
 			}
@@ -77,10 +84,10 @@ func Auth(mgr *token.AccessTokenManager, sessions domains.SessionRepository, aud
 			ctx := context.WithValue(r.Context(), ctxUserID, uid)
 			ctx = context.WithValue(ctx, ctxSessionID, sid)
 			ctx = context.WithValue(ctx, ctxUserRole, claims.Role)
-			
-			recorder := &auditResponseWriter {
+
+			recorder := &auditResponseWriter{
 				ResponseWriter: w,
-				status: http.StatusOK,
+				status:         http.StatusOK,
 			}
 			authedRequest := r.WithContext(ctx)
 			next.ServeHTTP(recorder, authedRequest)
@@ -98,12 +105,12 @@ func Auth(mgr *token.AccessTokenManager, sessions domains.SessionRepository, aud
 				status = "Fail"
 			}
 			userID := uid
-			entry := &domains.AuditLog {
-				UserID: &userID,
-				Action: action,
-				Entity: entity,
+			entry := &domains.AuditLog{
+				UserID:   &userID,
+				Action:   action,
+				Entity:   entity,
 				EntityID: entityID,
-				Status: status,
+				Status:   status,
 			}
 			if err := auditRepo.CreateLog(r.Context(), entry); err != nil {
 				log.Printf("audit request: %v", err)

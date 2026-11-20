@@ -9,8 +9,6 @@ import (
 	"net/http"
 	"strconv"
 	"time"
-	// "os"
-	// "fmt"
 
 	"github.com/skyP38/flowchart_editor/backend/internal/domains"
 	"github.com/skyP38/flowchart_editor/backend/internal/service/auth"
@@ -32,14 +30,6 @@ func NewAuthHandler(svc *auth.Service, limiter ratelimit.Limiter, audits ...doma
 	if len(audits) > 0 {
 		h.audit = audits[0]
 	}
-	/*geoClient := sessionmetadata.NewGeoLiteClient(
-	        os.Getenv("MAXMIND_ACCOUNT_ID"),
-	        os.Getenv("MAXMIND_LICENSE_KEY"),
-		)
-
-		h.SetSessionMetadataResolver(
-			sessionmetadata.NewResolver(geoClient),
-		)*/
 	h.metadataResolver = sessionmetadata.NewResolver(nil)
 	return h
 }
@@ -158,12 +148,17 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 	})
 
 	if err != nil {
-		if errors.Is(err, auth.ErrInvalidCredentials) {
+		switch {
+		case errors.Is(err, auth.ErrInvalidCredentials):
 			if rerr := h.limiter.RecordFailure(r.Context(), keys); rerr != nil {
 				log.Printf("ratelimit: record failure: %v; keys=%v", rerr, keys)
 			}
+			h.writeAudit(r.Context(), nil, login, "login.failed", "Fail")
+		case errors.Is(err, auth.ErrUserBlocked):
+			h.writeAudit(r.Context(), nil, login, "login.blocked", "Fail")
+		default:
+			h.writeAudit(r.Context(), nil, login, "login.failed", "Fail")
 		}
-		h.writeAudit(r.Context(), nil, login, "login.failed", "Fail")
 		writeAuthError(w, err)
 		return
 	}
@@ -262,6 +257,10 @@ func writeAuthError(w http.ResponseWriter, err error) {
 		transport.WriteError(w, http.StatusUnauthorized, transport.CodeInvalidCredentials, "invalid login or password")
 	case errors.Is(err, auth.ErrInvalidRefreshToken):
 		transport.WriteError(w, http.StatusUnauthorized, transport.CodeInvalidRefreshToken, "refresh token is invalid or expired")
+	case errors.Is(err, auth.ErrUserBlocked):
+		transport.WriteError(w, http.StatusForbidden,
+			transport.CodeForbidden, "user is blocked")
+
 	default:
 		transport.WriteError(w, http.StatusInternalServerError, transport.CodeInternal, "internal server error")
 	}

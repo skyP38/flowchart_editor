@@ -74,6 +74,6 @@ jobs:
         run: flutter test
 
       - name: Build
-        run: flutter build web --release --dart-define=API_BASE_URL=http://localhost:8080
+        run: flutter build web --release --dart-define=API_BASE_URL=/api
 
       
