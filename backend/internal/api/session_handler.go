@@ -25,14 +25,14 @@ func (h *SessionHandler) RegisterRoutes(mux *http.ServeMux, authMW AuthMW) {
 }
 
 type sessionDTO struct {
-	ID        int64      `json:"id"`
-	CreatedAt time.Time  `json:"created_at"`
-	ExpiresAt time.Time  `json:"expires_at"`
-	RevokedAt *time.Time `json:"revoked_at,omitempty"`
-	Active    bool       `json:"active"`
-	Current   bool       `json:"current"`
-	DeviceName string    `json:"device_name"`
-	Location   string    `json:"location"`
+	ID         int64      `json:"id"`
+	CreatedAt  time.Time  `json:"created_at"`
+	ExpiresAt  time.Time  `json:"expires_at"`
+	RevokedAt  *time.Time `json:"revoked_at,omitempty"`
+	Active     bool       `json:"active"`
+	Current    bool       `json:"current"`
+	DeviceName string     `json:"device_name"`
+	Location   string     `json:"location"`
 }
 
 // List - GET /api/sessions
@@ -81,12 +81,12 @@ func (h *SessionHandler) RevokeAll(w http.ResponseWriter, r *http.Request) {
 
 func toSessionDTO(s *domains.Session, currentID int64, now time.Time) sessionDTO {
 	return sessionDTO{
-		ID:        s.ID,
-		CreatedAt: s.CreatedAt,
-		ExpiresAt: s.ExpiresAt,
-		RevokedAt: s.RevokedAt,
-		Active:    s.IsActive(now),
-		Current:   s.ID == currentID,
+		ID:         s.ID,
+		CreatedAt:  s.CreatedAt,
+		ExpiresAt:  s.ExpiresAt,
+		RevokedAt:  s.RevokedAt,
+		Active:     s.IsActive(now),
+		Current:    s.ID == currentID,
 		DeviceName: s.DeviceName,
 		Location:   s.Location,
 	}

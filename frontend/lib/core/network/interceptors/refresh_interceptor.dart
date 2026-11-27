@@ -9,26 +9,22 @@ import '../token_storage.dart';
 // Ловит 401, пытается обновить access-токен через refresh-токен и повторить исходный запрос
 // Если обновить не удалось - зовет onUnauthorized
 // Ключевые моменты:
-//  - защита от рекурсии: refresh-запрос помечается `__skipInterceptors`;
-//  - защита от повторного повтора: `__retried` в extra;
+//  - защита от рекурсии: refresh-запрос помечается __skipInterceptors;
+//  - защита от повторного повтора: __retried в extra;
 //  - дедупликация: одновременные 401 ждут один общий future.
 class RefreshInterceptor extends Interceptor {
   final Dio _dio;
   final TokenStorage _storage;
   final void Function()? onUnauthorized;
+  final void Function()? onUserBlocked;
 
   Future<String?>? _refreshFuture;
-
-  // static const _publicPaths = <String>[
-  //   '/api/auth/login',
-  //   '/api/auth/register',
-  //   '/api/auth/refresh',
-  // ];
 
   RefreshInterceptor({
     required Dio dio,
     required TokenStorage storage,
     this.onUnauthorized,
+    this.onUserBlocked,
   }) : _dio = dio,
        _storage = storage;
 
@@ -43,9 +39,40 @@ class RefreshInterceptor extends Interceptor {
 
     final response = err.response;
     final alreadyRetried = err.requestOptions.extra['__retried'] == true;
+    final status = response?.statusCode;
+
+    String? code;
+    String? message;
+    final data = response?.data;
+    if (data is Map) {
+      final inner = data['error'];
+      if (inner is Map) {
+        code = inner['code']?.toString();
+        message = inner['message']?.toString();
+      }
+      code ??= data['code']?.toString();
+      message ??= data['message']?.toString();
+    }
+
+    debugPrint(
+      '=== [Refresh] ${err.requestOptions.method} '
+      '${err.requestOptions.path} status=$status '
+      'code=$code message=$message ===',
+    );
+
+    final blocked =
+        status == 403 &&
+        (code == 'user_blocked' ||
+            code == 'forbidden' ||
+            message == 'user is blocked');
+    if (blocked) {
+      await _storage.clear();
+      onUserBlocked?.call();
+      return handler.next(err);
+    }
 
     // Реакция на 401 в защищенных запросах 1 раз
-    if (response?.statusCode != 401 ||
+    if (status != 401 ||
         ApiPaths.isPublic(err.requestOptions.path) ||
         alreadyRetried) {
       return handler.next(err);

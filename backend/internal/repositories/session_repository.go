@@ -210,6 +210,25 @@ func (r *SessionRepository) RemoveExpired(ctx context.Context, retention time.Du
 	return int(res.RowsAffected()), nil
 }
 
+// RevokeAllForUser отзывает все активные сессии пользователя
+// Используется при блокировке
+func (r *SessionRepository) RevokeAllForUser(
+	ctx context.Context,
+	userID int64,
+	now time.Time,
+) error {
+	_, err := r.db.Exec(ctx,
+		`UPDATE sessions
+		 SET revoked_at = $1
+		 WHERE id_user = $2 AND revoked_at IS NULL`,
+		now, userID,
+	)
+	if err != nil {
+		return fmt.Errorf("revoke all sessions for user: %w", err)
+	}
+	return nil
+}
+
 func (r *SessionRepository) Stats(ctx context.Context) (domains.SessionStats, error) {
 	var stats domains.SessionStats
 	err := r.db.QueryRow(ctx, `

@@ -16,7 +16,6 @@ import (
 	"github.com/skyP38/flowchart_editor/backend/internal/repositories"
 	"github.com/skyP38/flowchart_editor/backend/internal/service"
 
-	// "github.com/skyP38/flowchart_editor/backend/internal/service"
 	"github.com/skyP38/flowchart_editor/backend/internal/service/auth"
 	"github.com/skyP38/flowchart_editor/backend/internal/service/auth/token"
 	"github.com/skyP38/flowchart_editor/backend/internal/service/ratelimit"
@@ -24,7 +23,6 @@ import (
 	"github.com/skyP38/flowchart_editor/backend/internal/service/sessioncleanup"
 
 	"github.com/skyP38/flowchart_editor/backend/internal/transport"
-	// "github.com/skyP38/flowchart_editor/backend/internal/service/sessionmetadata"
 )
 
 func main() {
@@ -34,10 +32,6 @@ func main() {
 		log.Fatalf("config: %v", err)
 	}
 
-	// dbURL := os.Getenv("DATABASE_URL")
-	// if dbURL == "" {
-	// 	log.Fatal("DATABASE_URL is not set")
-	// }	
 	db, err := pgxpool.New(context.Background(), cfg.DatabaseURL)
 	if err != nil {
 		log.Fatal(err)
@@ -93,7 +87,7 @@ func main() {
 	flowchartHandler := api.NewFlowchartHandler(flowchartSvc)
 
 	// middleware аутентификации
-	authMW := api.Auth(accessMgr, sessionRepo, logRepo)
+	authMW := api.Auth(accessMgr, sessionRepo, userRepo, logRepo)
 
 	mux := http.NewServeMux()
 

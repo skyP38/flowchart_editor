@@ -101,6 +101,7 @@ const authTestSecret = "test-secret"
 type authFixture struct {
 	mgr      *token.AccessTokenManager
 	sessions *memory.MemorySessionRepo
+	users    *memory.MemoryUserRepo
 	user     *domains.User
 	session  *domains.Session
 }
@@ -109,6 +110,7 @@ func newAuthFixture(t *testing.T) *authFixture {
 	t.Helper()
 	mgr := token.NewAccessTokenManager(authTestSecret, 15*time.Minute)
 	sessions := memory.NewMemorySessionRepo()
+	users := memory.NewMemoryUserRepo()
 
 	user := &domains.User{
 		ID:       1,
@@ -125,7 +127,7 @@ func newAuthFixture(t *testing.T) *authFixture {
 	if err := sessions.Create(context.Background(), sess); err != nil {
 		t.Fatalf("create session: %v", err)
 	}
-	return &authFixture{mgr: mgr, sessions: sessions, user: user, session: sess}
+	return &authFixture{mgr: mgr, sessions: sessions, users: users, user: user, session: sess}
 }
 
 // authResult - результат запроса через Auth-middleware
@@ -171,7 +173,7 @@ func signCustomToken(t *testing.T, claims jwt.MapClaims) string {
 // TestAuth_MissingHeader - нет заголовка Authorization
 func TestAuth_MissingHeader(t *testing.T) {
 	f := newAuthFixture(t)
-	res := authRequest(t, Auth(f.mgr, f.sessions), "")
+	res := authRequest(t, Auth(f.mgr, f.sessions, f.users), "")
 	if res.rec.Code != http.StatusUnauthorized {
 		t.Fatalf("status %d, want 401", res.rec.Code)
 	}
@@ -183,7 +185,7 @@ func TestAuth_MissingHeader(t *testing.T) {
 // TestAuth_MalformedHeader - заголовок есть, но не в формате "Bearer <token>"
 func TestAuth_MalformedHeader(t *testing.T) {
 	f := newAuthFixture(t)
-	mw := Auth(f.mgr, f.sessions)
+	mw := Auth(f.mgr, f.sessions, f.users)
 
 	cases := []struct {
 		name   string
@@ -211,7 +213,7 @@ func TestAuth_MalformedHeader(t *testing.T) {
 // TestAuth_InvalidToken - строка не парсится как JWT
 func TestAuth_InvalidToken(t *testing.T) {
 	f := newAuthFixture(t)
-	res := authRequest(t, Auth(f.mgr, f.sessions), "Bearer not-a-jwt")
+	res := authRequest(t, Auth(f.mgr, f.sessions, f.users), "Bearer not-a-jwt")
 	if res.rec.Code != http.StatusUnauthorized {
 		t.Fatalf("status %d, want 401", res.rec.Code)
 	}
@@ -232,7 +234,7 @@ func TestAuth_InvalidSubject(t *testing.T) {
 		"iat":  time.Now().Unix(),
 		"exp":  time.Now().Add(time.Hour).Unix(),
 	})
-	res := authRequest(t, Auth(f.mgr, f.sessions), "Bearer "+tok)
+	res := authRequest(t, Auth(f.mgr, f.sessions, f.users), "Bearer "+tok)
 	if res.rec.Code != http.StatusUnauthorized {
 		t.Fatalf("status %d, want 401", res.rec.Code)
 	}
@@ -253,7 +255,7 @@ func TestAuth_InvalidSessionID(t *testing.T) {
 		"iat":  time.Now().Unix(),
 		"exp":  time.Now().Add(time.Hour).Unix(),
 	})
-	res := authRequest(t, Auth(f.mgr, f.sessions), "Bearer "+tok)
+	res := authRequest(t, Auth(f.mgr, f.sessions, f.users), "Bearer "+tok)
 	if res.rec.Code != http.StatusUnauthorized {
 		t.Fatalf("status %d, want 401", res.rec.Code)
 	}
@@ -269,7 +271,7 @@ func TestAuth_SessionNotFound(t *testing.T) {
 	if err != nil {
 		t.Fatalf("generate: %v", err)
 	}
-	res := authRequest(t, Auth(f.mgr, f.sessions), "Bearer "+tok)
+	res := authRequest(t, Auth(f.mgr, f.sessions, f.users), "Bearer "+tok)
 	if res.rec.Code != http.StatusUnauthorized {
 		t.Fatalf("status %d, want 401", res.rec.Code)
 	}
@@ -295,7 +297,7 @@ func TestAuth_WrongUserInSession(t *testing.T) {
 	if err != nil {
 		t.Fatalf("generate: %v", err)
 	}
-	res := authRequest(t, Auth(f.mgr, f.sessions), "Bearer "+tok)
+	res := authRequest(t, Auth(f.mgr, f.sessions, f.users), "Bearer "+tok)
 	if res.rec.Code != http.StatusUnauthorized {
 		t.Fatalf("status %d, want 401", res.rec.Code)
 	}
@@ -314,7 +316,7 @@ func TestAuth_RevokedSession(t *testing.T) {
 	if err != nil {
 		t.Fatalf("generate: %v", err)
 	}
-	res := authRequest(t, Auth(f.mgr, f.sessions), "Bearer "+tok)
+	res := authRequest(t, Auth(f.mgr, f.sessions, f.users), "Bearer "+tok)
 	if res.rec.Code != http.StatusUnauthorized {
 		t.Fatalf("status %d, want 401", res.rec.Code)
 	}
@@ -339,7 +341,7 @@ func TestAuth_ExpiredSession(t *testing.T) {
 	if err != nil {
 		t.Fatalf("generate: %v", err)
 	}
-	res := authRequest(t, Auth(f.mgr, f.sessions), "Bearer "+tok)
+	res := authRequest(t, Auth(f.mgr, f.sessions, f.users), "Bearer "+tok)
 	if res.rec.Code != http.StatusUnauthorized {
 		t.Fatalf("status %d, want 401", res.rec.Code)
 	}
@@ -356,7 +358,7 @@ func TestAuth_Success(t *testing.T) {
 	if err != nil {
 		t.Fatalf("generate: %v", err)
 	}
-	res := authRequest(t, Auth(f.mgr, f.sessions), "Bearer "+tok)
+	res := authRequest(t, Auth(f.mgr, f.sessions, f.users), "Bearer "+tok)
 	if res.rec.Code != http.StatusOK {
 		t.Fatalf("status %d, want 200", res.rec.Code)
 	}

@@ -22,3 +22,5 @@ graph.svg
 *backup
 backend/main
 backend/internal/storage*
+
+*flake*

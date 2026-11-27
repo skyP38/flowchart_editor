@@ -12,6 +12,7 @@ var (
 	ErrInvalidCredentials  = errors.New("invalid login or password")
 	ErrInvalidRefreshToken = errors.New("invalid refresh token")
 	ErrSessionNotFound     = errors.New("session not found")
+	ErrUserBlocked         = errors.New("user blocked")
 )
 
 // ValidationError - ошибка валидации одного поля
